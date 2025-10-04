@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run build:extension:*)",
+      "Bash(npm run test:e2e:*)",
+      "Bash(npm run build:popup:*)",
+      "Bash(npx vite build:*)",
+      "Bash(cp:*)",
+      "Bash(ls:*)",
+      "Bash(node build-content-scripts.js)",
+      "Bash(true)",
+      "Bash(grep:*)",
+      "Bash(node:*)",
+      "Bash(mv:*)",
+      "Bash(npx playwright test:*)"
+    ],
+    "deny": []
+  }
+}

@@ -1,0 +1,69 @@
+{
+  "name": "wordle-stat-explorer",
+  "version": "1.0.0",
+  "description": "A clean, responsive Edge extension that turns your Wordle history into insights—compare your performance to the national average and WordleBot over any time frame.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:e2e": "playwright test",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "lint:fix": "eslint . --ext ts,tsx --fix",
+    "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
+    "typecheck": "tsc --noEmit",
+    "build:extension": "tsc && vite build --mode extension && npm run build:popup",
+    "build:popup": "vite build --config vite.config.popup.ts",
+    "build:analyze": "npm run build:extension -- --mode production",
+    "bundle:analyze": "npx vite-bundle-analyzer dist",
+    "size:check": "npm run build:extension && du -sh dist/* || dir dist",
+    "optimize": "npm run build:extension && npm run size:check",
+    "benchmark": "tsx scripts/performance-benchmark.ts"
+  },
+  "dependencies": {
+    "date-fns": "^2.30.0",
+    "immer": "^10.1.3",
+    "lucide-react": "^0.294.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^7.9.3",
+    "recharts": "^2.8.0",
+    "zustand": "^4.4.7"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.40.1",
+    "@testing-library/jest-dom": "^6.1.5",
+    "@testing-library/react": "^13.4.0",
+    "@testing-library/user-event": "^14.5.1",
+    "@types/chrome": "^0.0.251",
+    "@types/jest": "^29.5.8",
+    "@types/react": "^18.2.43",
+    "@types/react-dom": "^18.2.17",
+    "@typescript-eslint/eslint-plugin": "^6.14.0",
+    "@typescript-eslint/parser": "^6.14.0",
+    "@vitejs/plugin-react": "^4.2.1",
+    "eslint": "^8.55.0",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-react-refresh": "^0.4.5",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0",
+    "prettier": "^3.1.1",
+    "terser": "^5.44.0",
+    "ts-jest": "^29.1.1",
+    "tsx": "^4.20.6",
+    "typescript": "^5.2.2",
+    "vite": "^5.0.8"
+  },
+  "browserslist": {
+    "production": [
+      "last 2 chrome versions",
+      "last 2 edge versions"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 edge version"
+    ]
+  }
+}

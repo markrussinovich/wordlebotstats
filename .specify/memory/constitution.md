@@ -1,50 +1,98 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+<!--
+Sync Impact Report:
+- Version change: Initial → 1.0.0
+- Added sections: All core principles and governance framework
+- Modified principles: N/A (initial creation)
+- Templates requiring updates: ✅ plan-template.md (already aligned), ✅ spec-template.md (already aligned), ✅ tasks-template.md (already aligned)
+- Follow-up TODOs: None
+-->
+
+# Wordle Constitution
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. React Component Architecture
+Every UI feature MUST be built as reusable React components following the composition pattern. Components MUST be:
+- Self-contained with clear props interfaces
+- Independently testable using React Testing Library
+- Documented with TypeScript interfaces
+- Isolated from global state unless explicitly needed
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+**Rationale**: React's component model ensures maintainability and enables rapid iteration while maintaining consistency across the game interface.
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+### II. Performance-First Development
+All features MUST prioritize fast, responsive user experience. Performance requirements:
+- Initial game load < 2 seconds
+- Letter input response < 50ms
+- Animation frame rate ≥ 60 fps
+- Bundle size optimizations mandatory (code splitting, tree shaking)
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+**Rationale**: Wordle's appeal depends on immediate responsiveness and smooth interactions that don't interrupt the player's flow.
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+### III. Test-Driven Development (NON-NEGOTIABLE)
+TDD cycle MUST be followed: Write failing tests → Implement minimal code → Refactor. Required test coverage:
+- Unit tests for game logic components
+- Integration tests for game state management
+- Visual regression tests for UI consistency
+- Tests MUST pass before any code merge
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+**Rationale**: Game logic correctness is critical - bugs in word validation or scoring destroy user trust and game integrity.
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+### IV. Design System Consistency
+All UI elements MUST follow the established design system. Requirements:
+- Consistent color palette and typography across all screens
+- Standardized spacing using CSS custom properties
+- Reusable design tokens for theme management
+- Modern, accessible design patterns (WCAG 2.1 AA compliance)
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+**Rationale**: Visual consistency creates a polished, professional experience that users associate with quality games.
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+### V. State Management Discipline
+Game state MUST be managed through predictable patterns:
+- Single source of truth for game data
+- Immutable state updates only
+- Clear separation between UI state and game logic state
+- Local storage persistence for game progress
+
+**Rationale**: Wordle requires reliable state management for word tracking, streak counting, and statistics - any state corruption breaks the core experience.
+
+## Technical Standards
+
+### React Technology Stack
+- **Framework**: React 18+ with TypeScript for type safety
+- **Build Tool**: Vite for fast development and optimized production builds
+- **Styling**: CSS Modules or styled-components for component-scoped styles
+- **Testing**: Jest + React Testing Library for comprehensive test coverage
+- **State**: React Context API or Zustand for lightweight state management
+
+### Performance Requirements
+- **Core Web Vitals**: LCP < 2.5s, FID < 100ms, CLS < 0.1
+- **Bundle Analysis**: Regular bundle size monitoring and optimization
+- **Caching Strategy**: Aggressive caching for game assets and word lists
+- **Progressive Enhancement**: Core game functionality works without JavaScript
+
+## Development Workflow
+
+### Code Quality Gates
+All code changes MUST pass automated quality checks:
+- TypeScript compilation with strict mode enabled
+- ESLint rules enforcement for React best practices
+- Prettier formatting for consistent code style
+- Automated accessibility testing with axe-core
+- Performance budget validation in CI/CD pipeline
+
+### Review Process
+- All features require code review focusing on game logic correctness
+- UI changes require design system compliance verification  
+- Performance impact assessment for any bundle size changes
+- Accessibility review for any user-facing modifications
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+This constitution supersedes all other development practices. All features, Pull Requests, and architectural decisions MUST verify compliance with these principles. 
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+**Amendment Process**: Constitution changes require explicit documentation of rationale, impact assessment on existing features, and validation that changes align with Wordle's core user experience goals.
+
+**Compliance Review**: Each sprint retrospective MUST include constitutional compliance assessment and identification of any technical debt that violates these principles.
+
+**Version**: 1.0.0 | **Ratified**: 2025-09-27 | **Last Amended**: 2025-09-27

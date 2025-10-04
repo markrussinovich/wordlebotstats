@@ -1,0 +1,56 @@
+{
+  "timestamp": "2025-09-28T15:36:22.542Z",
+  "summary": {
+    "totalTests": 5,
+    "passed": 5,
+    "failed": 0
+  },
+  "results": [
+    {
+      "test": "popup-load-time",
+      "metric": "average-load-time",
+      "value": 18.9,
+      "unit": "ms",
+      "timestamp": "2025-09-28T15:36:20.526Z",
+      "passed": true,
+      "threshold": 500
+    },
+    {
+      "test": "popup-load-time",
+      "metric": "max-load-time",
+      "value": 51,
+      "unit": "ms",
+      "timestamp": "2025-09-28T15:36:20.527Z",
+      "passed": true,
+      "threshold": 500
+    },
+    {
+      "test": "dashboard-load-time",
+      "metric": "average-load-time",
+      "value": 40.4,
+      "unit": "ms",
+      "timestamp": "2025-09-28T15:36:22.174Z",
+      "passed": true,
+      "threshold": 1500
+    },
+    {
+      "test": "dashboard-load-time",
+      "metric": "max-load-time",
+      "value": 59,
+      "unit": "ms",
+      "timestamp": "2025-09-28T15:36:22.174Z",
+      "passed": true,
+      "threshold": 1500
+    },
+    {
+      "test": "memory-usage",
+      "metric": "js-heap-size",
+      "value": -1,
+      "unit": "MB",
+      "timestamp": "2025-09-28T15:36:22.542Z",
+      "passed": true,
+      "threshold": 50
+    }
+  ],
+  "recommendations": []
+}

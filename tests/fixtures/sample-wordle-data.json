@@ -1,0 +1,67 @@
+{
+  "games": [
+    {
+      "id": 1,
+      "date": "2024-01-01T00:00:00.000Z",
+      "guesses": 4,
+      "won": true,
+      "hardMode": false,
+      "word": "CRANE"
+    },
+    {
+      "id": 2,
+      "date": "2024-01-02T00:00:00.000Z",
+      "guesses": 3,
+      "won": true,
+      "hardMode": true,
+      "word": "SLATE"
+    },
+    {
+      "id": 3,
+      "date": "2024-01-03T00:00:00.000Z",
+      "guesses": 6,
+      "won": false,
+      "hardMode": false,
+      "word": "FJORD"
+    },
+    {
+      "id": 4,
+      "date": "2024-01-04T00:00:00.000Z",
+      "guesses": 2,
+      "won": true,
+      "hardMode": false,
+      "word": "TOAST"
+    },
+    {
+      "id": 5,
+      "date": "2024-01-05T00:00:00.000Z",
+      "guesses": 5,
+      "won": true,
+      "hardMode": true,
+      "word": "QUIRK"
+    }
+  ],
+  "preferences": {
+    "theme": "light",
+    "defaultTimeFrame": "30d",
+    "enableNotifications": true,
+    "showComparisons": true,
+    "dataSharing": false,
+    "anonymousStats": true
+  },
+  "benchmarks": {
+    "globalAverage": {
+      "winRate": 82.3,
+      "avgGuesses": 4.2,
+      "currentStreak": 3.1,
+      "maxStreak": 12.4
+    },
+    "expertPlayers": {
+      "winRate": 94.1,
+      "avgGuesses": 3.8,
+      "currentStreak": 15.2,
+      "maxStreak": 142.7
+    },
+    "lastUpdated": "2024-01-05T12:00:00.000Z"
+  }
+}

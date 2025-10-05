@@ -58,15 +58,27 @@ document.addEventListener('DOMContentLoaded', function() {
   
   function renderContent() {
     if (scraperStatus.active) {
-      return `<div class="loading">${scraperStatus.message}</div>`;
+      return `
+        <div class="stats-grid">
+          <div class="loading">${scraperStatus.message}</div>
+        </div>
+      `;
     }
     
     if (isLoading) {
-      return '<div class="loading">Loading stats...</div>';
+      return `
+        <div class="stats-grid">
+          <div class="loading">Loading stats...</div>
+        </div>
+      `;
     }
     
     if (!statistics) {
-      return '<div class="no-data">No Wordle data found.</div>';
+      return `
+        <div class="stats-grid">
+          <div class="no-data">No Wordle data found.</div>
+        </div>
+      `;
     }
     
     const streakLabel = selectedTimeFrame === '7d' ? 'Current Streak' : 'Longest Streak';

@@ -138,6 +138,7 @@ async function handleBulkImportGames(games) {
         
         if (isDuplicate) {
           duplicates++;
+          console.log('[BACKGROUND DEBUG] Skipping duplicate:', game.date, game.solution);
         } else {
           // Ensure all required fields are present
           const gameToStore = {
@@ -197,14 +198,62 @@ async function handleBulkImportGames(games) {
   }
 }
 
+// Deduplicate games in storage
+async function deduplicateStorage() {
+  const result = await chrome.storage.local.get(['games']);
+  const games = result.games || [];
+  
+  const seen = new Set();
+  const uniqueGames = [];
+  let removedCount = 0;
+  
+  for (const game of games) {
+    const key = `${game.date}-${game.solution}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      uniqueGames.push(game);
+    } else {
+      removedCount++;
+    }
+  }
+  
+  if (removedCount > 0) {
+    console.log(`[BACKGROUND DEBUG] Deduplication: Removed ${removedCount} duplicates, keeping ${uniqueGames.length} unique games`);
+    await chrome.storage.local.set({ games: uniqueGames });
+    return { removed: removedCount, kept: uniqueGames.length };
+  }
+  
+  return { removed: 0, kept: games.length };
+}
+
 // Quick stats handler
 async function handleGetQuickStats(message) {
   try {
     console.log('[BACKGROUND DEBUG] Getting quick stats for:', message.timeFrame);
     const result = await chrome.storage.local.get(['games']);
-    const games = result.games || [];
+    let games = result.games || [];
     
     console.log('[BACKGROUND DEBUG] Found', games.length, 'games in storage');
+    
+    // Check for duplicates in storage and auto-fix
+    const dateGroups = {};
+    games.forEach(game => {
+      const key = `${game.date}-${game.solution}`;
+      if (!dateGroups[key]) dateGroups[key] = 0;
+      dateGroups[key]++;
+    });
+    const duplicates = Object.entries(dateGroups).filter(([key, count]) => count > 1);
+    if (duplicates.length > 0) {
+      console.warn('[BACKGROUND DEBUG] DUPLICATES FOUND IN STORAGE:', duplicates.slice(0, 5));
+      console.warn('[BACKGROUND DEBUG] Auto-deduplicating storage...');
+      const dedupeResult = await deduplicateStorage();
+      console.log('[BACKGROUND DEBUG] Dedupe complete:', dedupeResult);
+      
+      // Reload games after deduplication
+      const newResult = await chrome.storage.local.get(['games']);
+      games = newResult.games || [];
+    }
+    
     console.log('[BACKGROUND DEBUG] Sample game from storage:', games[0] ? {
       solution: games[0].solution,
       date: games[0].date,
@@ -213,6 +262,10 @@ async function handleGetQuickStats(message) {
       attempts: games[0].attempts,
       guesses: games[0].guesses
     } : 'none');
+    
+    // Log all game dates to understand the data
+    console.log('[BACKGROUND DEBUG] All game dates:', games.map(g => g.date).slice(0, 10));
+    console.log('[BACKGROUND DEBUG] Today is:', new Date().toISOString());
     
     // Filter games by time frame
     const filteredGames = filterGamesByTimeFrame(games, message.timeFrame);
@@ -426,7 +479,8 @@ function filterGamesByTimeFrame(games, timeFrame) {
   }
   
   const now = new Date();
-  const cutoffDate = new Date();
+  now.setHours(0, 0, 0, 0); // Set to start of today
+  const cutoffDate = new Date(now);
   
   switch (timeFrame) {
     case '7d':
@@ -442,11 +496,23 @@ function filterGamesByTimeFrame(games, timeFrame) {
       return games;
   }
   
-  return games.filter(game => {
+  const filtered = games.filter(game => {
     if (!game.date) return false;
-    const gameDate = new Date(game.date);
-    return gameDate >= cutoffDate;
+    const gameDate = new Date(game.date + 'T00:00:00'); // Ensure date-only comparison
+    const include = gameDate >= cutoffDate;
+    return include;
   });
+  
+  console.log('[BACKGROUND DEBUG] Date filtering:', {
+    timeFrame,
+    now: now.toISOString().split('T')[0],
+    cutoffDate: cutoffDate.toISOString().split('T')[0],
+    totalGames: games.length,
+    filteredGames: filtered.length,
+    sampleDates: filtered.slice(0, 5).map(g => g.date)
+  });
+  
+  return filtered;
 }
 
 

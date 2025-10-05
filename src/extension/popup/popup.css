@@ -59,7 +59,7 @@
 /* Popup Styles */
 .popup-container {
   width: 320px;
-  min-height: 400px;
+  min-height: 0;
   background: #ffffff;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   color: #333333;

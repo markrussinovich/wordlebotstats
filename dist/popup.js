@@ -41,7 +41,7 @@ document.addEventListener('DOMContentLoaded', function() {
         </main>
         
         <footer class="popup-footer">
-          <button class="dashboard-link" id="dashboard-btn">
+          <button class="dashboard-link" id="dashboard-btn" ${isLoading ? 'disabled' : ''}>
             Open Dashboard
           </button>
         </footer>
@@ -102,10 +102,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const dashboardBtn = document.getElementById('dashboard-btn');
     if (dashboardBtn) {
       dashboardBtn.addEventListener('click', () => {
-        chrome.tabs.create({
-          url: chrome.runtime.getURL('dashboard.html')
-        });
-        window.close();
+        if (!dashboardBtn.disabled) {
+          chrome.tabs.create({
+            url: chrome.runtime.getURL('dashboard.html')
+          });
+          window.close();
+        }
       });
     }
   }

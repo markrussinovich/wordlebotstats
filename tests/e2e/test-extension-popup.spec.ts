@@ -87,11 +87,11 @@ test.describe('Extension Popup Tests', () => {
     expect(buttons).toBe(4); // 7d, 30d, 90d, all
     
     // Check button text
-    const buttonTexts = await page.locator('.time-frame-btn').allTextContents();
-    expect(buttonTexts).toContain('7D');
-    expect(buttonTexts).toContain('30D');
-    expect(buttonTexts).toContain('90D');
-    expect(buttonTexts).toContain('ALL');
+  const buttonTexts = (await page.locator('.time-frame-btn').allTextContents()).map(text => text.trim());
+  expect(buttonTexts).toContain('7D');
+  expect(buttonTexts).toContain('30D');
+  expect(buttonTexts).toContain('90D');
+  expect(buttonTexts).toContain('ALL');
     
     console.log('✓ Time frame picker rendered with buttons:', buttonTexts);
   });
@@ -142,9 +142,36 @@ test.describe('Extension Popup Tests', () => {
     await page.waitForTimeout(500);
     
     // Check if 7D is active
-    const activeBtn = await page.locator('.time-frame-btn.active').textContent();
-    expect(activeBtn).toBe('7D');
+  const activeBtn = await page.locator('.time-frame-btn.active').textContent();
+  expect(activeBtn?.trim()).toBe('7D');
     
     console.log('✓ Time frame switched to:', activeBtn);
+  });
+
+  test('should have minimal gap beneath dashboard button', async () => {
+    const page = await context.newPage();
+    await page.goto(`chrome-extension://${extensionId}/popup.html`);
+
+    await page.waitForSelector('.popup-container', { timeout: 10000 });
+    await page.waitForSelector('.dashboard-link', { timeout: 10000 });
+
+    const containerBox = await page.locator('.popup-container').boundingBox();
+    const buttonBox = await page.locator('.dashboard-link').boundingBox();
+
+    if (!containerBox || !buttonBox) {
+      throw new Error('Failed to measure popup layout');
+    }
+
+    const containerBottom = containerBox.y + containerBox.height;
+    const buttonBottom = buttonBox.y + buttonBox.height;
+    const gap = containerBottom - buttonBottom;
+
+    console.log('Popup footer gap measurement:', {
+      containerBottom,
+      buttonBottom,
+      gap
+    });
+
+    expect(gap).toBeLessThanOrEqual(12);
   });
 });

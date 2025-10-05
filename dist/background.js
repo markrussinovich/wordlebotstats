@@ -115,6 +115,80 @@ async function forwardToContentScript(message, sender) {
   }
 }
 
+// Bulk import games handler
+async function handleBulkImportGames(games) {
+  console.log('[BACKGROUND DEBUG] Bulk importing', games.length, 'games');
+  console.log('[BACKGROUND DEBUG] Sample import game:', games[0]);
+  
+  try {
+    // Get existing games
+    const result = await chrome.storage.local.get(['games']);
+    const existingGames = result.games || [];
+    
+    let imported = 0;
+    let duplicates = 0;
+    let errors = 0;
+    
+    for (const game of games) {
+      try {
+        // Check for duplicates (by date and solution)
+        const isDuplicate = existingGames.some(existing => 
+          existing.date === game.date && existing.solution === game.solution
+        );
+        
+        if (isDuplicate) {
+          duplicates++;
+        } else {
+          // Ensure all required fields are present
+          const gameToStore = {
+            ...game,
+            // Make sure stats fields are preserved
+            isWin: game.isWin ?? game.won ?? true,
+            guesses: game.guesses ?? game.attempts ?? null,
+            won: game.won ?? game.isWin ?? true,
+            attempts: game.attempts ?? game.guesses ?? null
+          };
+          
+          console.log('[BACKGROUND DEBUG] Storing game:', {
+            solution: gameToStore.solution,
+            isWin: gameToStore.isWin,
+            guesses: gameToStore.guesses,
+            won: gameToStore.won,
+            attempts: gameToStore.attempts
+          });
+          
+          existingGames.push(gameToStore);
+          imported++;
+        }
+      } catch (error) {
+        console.error('[BACKGROUND DEBUG] Error processing game:', error);
+        errors++;
+      }
+    }
+    
+    // Store updated games
+    await chrome.storage.local.set({ games: existingGames });
+    console.log('[BACKGROUND DEBUG] Stored', existingGames.length, 'total games');
+    
+    return {
+      success: true,
+      imported,
+      duplicates,
+      errors,
+      totalGames: existingGames.length
+    };
+  } catch (error) {
+    console.error('[BACKGROUND DEBUG] Bulk import failed:', error);
+    return {
+      success: false,
+      error: error.message,
+      imported: 0,
+      duplicates: 0,
+      errors: games.length
+    };
+  }
+}
+
 // Quick stats handler
 async function handleGetQuickStats(message) {
   try {
@@ -186,22 +260,47 @@ function calculateStatistics(games) {
     };
   }
   
-  const wins = games.filter(game => game.isWin);
+  console.log('[BACKGROUND DEBUG] Stats calculation for', games.length, 'games');
+  console.log('[BACKGROUND DEBUG] Sample game data:', games.slice(0, 2).map(g => ({
+    date: g.date,
+    isWin: g.isWin,
+    won: g.won,
+    guesses: g.guesses,
+    attempts: g.attempts,
+    solution: g.solution
+  })));
+  
+  const wins = games.filter(game => game.isWin ?? game.won);
+  console.log('[BACKGROUND DEBUG] Found', wins.length, 'wins out of', games.length, 'games');
   const winRate = (wins.length / games.length) * 100;
   
-  // Calculate average guesses (only for wins)
-  const validGuesses = wins.filter(game => game.guesses && game.guesses > 0);
-  const averageGuesses = validGuesses.length > 0 
-    ? validGuesses.reduce((sum, game) => sum + game.guesses, 0) / validGuesses.length 
-    : 0;
+  // Calculate average guesses (only for wins)  
+  const validGuesses = wins.filter(game => {
+    const attempts = game.guesses ?? game.attempts;
+    return attempts && attempts > 0;
+  });
+  console.log('[BACKGROUND DEBUG] Found', validGuesses.length, 'games with valid guesses');
+  const guessesSum = validGuesses.reduce((sum, game) => sum + (game.guesses ?? game.attempts), 0);
+  const averageGuesses = validGuesses.length > 0 ? (guessesSum / validGuesses.length) : 0;
+  
+  console.log('[BACKGROUND DEBUG] Guesses sum:', guessesSum, 'Valid count:', validGuesses.length, 'Average:', averageGuesses);
+  console.log('[BACKGROUND DEBUG] Final stats:', {
+    gameCount: games.length,
+    winRate: Math.round(winRate * 10) / 10,
+    averageGuesses: Math.round(averageGuesses * 10) / 10,
+    wins: wins.length
+  });
   
   // Calculate guess distribution
   const distribution = [0, 0, 0, 0, 0, 0, 0]; // Index 0 = failed, 1-6 = guesses
   games.forEach(game => {
-    if (!game.isWin) {
+    const isWin = game.isWin ?? game.won;
+    const attempts = game.guesses ?? game.attempts;
+    
+    if (!isWin) {
       distribution[0]++; // Failed
-    } else if (game.guesses && game.guesses >= 1 && game.guesses <= 6) {
-      distribution[game.guesses]++;
+    } else if (attempts && attempts >= 1 && attempts <= 6) {
+      distribution[attempts]++;
     }
   });
   
@@ -212,7 +311,8 @@ function calculateStatistics(games) {
   let streak = 0;
   
   for (let i = sortedGames.length - 1; i >= 0; i--) {
-    if (sortedGames[i].isWin) {
+    const isWin = sortedGames[i].isWin ?? sortedGames[i].won;
+    if (isWin) {
       streak++;
       if (i === sortedGames.length - 1) currentStreak = streak;
     } else {

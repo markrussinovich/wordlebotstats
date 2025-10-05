@@ -313,6 +313,20 @@ class WordleBotScraper {
 
     // Convert to GameResult format
     const gameResults = sortedGames.map(raw => this.convertToGameResult(raw));
+    
+    // Summary of converted data
+    const validAttempts = gameResults.filter(g => g.attempts && g.attempts > 0).length;
+    const winsCount = gameResults.filter(g => g.won === true).length;
+    const attemptsSum = gameResults.reduce((sum, g) => sum + (g.attempts || 0), 0);
+    const avgAttempts = validAttempts > 0 ? (attemptsSum / validAttempts).toFixed(2) : 0;
+    
+    console.log(`[DEBUG] 📊 CONVERSION SUMMARY:`);
+    console.log(`  Total games: ${gameResults.length}`);
+    console.log(`  Games with valid attempts: ${validAttempts}`);
+    console.log(`  Games marked as won: ${winsCount}`);
+    console.log(`  Sum of all attempts: ${attemptsSum}`);
+    console.log(`  Average attempts: ${avgAttempts}`);
+    console.log(`  Win rate: ${((winsCount / gameResults.length) * 100).toFixed(1)}%`);
 
     // Send games in batches to avoid overwhelming the background script
     const batchSize = 10;
@@ -355,11 +369,13 @@ class WordleBotScraper {
     const dateString = raw.date ?? now.toISOString().split('T')[0];
     const date = dateString;
     
-    return {
+    const converted = {
       date,
       ...(raw.gameNumber && { gameNumber: raw.gameNumber }),
       won: raw.won ?? true,
+      isWin: raw.won ?? true,  // Stats calculation expects this field
       attempts: raw.steps ?? null,
+      guesses: raw.steps ?? null,  // Stats calculation expects this field
       hardMode: false, // WordleBot doesn't track this
       ...(raw.solution && { solution: raw.solution }),
       ...(raw.skillScore !== undefined && { skillScore: raw.skillScore }),
@@ -371,6 +387,10 @@ class WordleBotScraper {
       wordLength: 5,
       maxGuesses: 6
     };
+    
+    console.log(`[DEBUG] Game: ${converted.solution} - Raw steps: ${raw.steps} -> Attempts: ${converted.attempts}, Won: ${converted.won}`);
+    
+    return converted;
   }
 
   sendProgress(gamesFound, gamesProcessed, status) {

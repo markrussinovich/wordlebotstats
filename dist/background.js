@@ -528,8 +528,9 @@ async function handleStartWordleBotScrape(message) {
 
 async function handleWordleBotScrapeProgress(message) {
   console.log('[BACKGROUND DEBUG] Scrape progress:', JSON.stringify(message, null, 2));
-  // Forward progress to popup
+  // Forward progress to popup (fire and forget, no response expected)
   chrome.runtime.sendMessage(message).catch(() => {});
+  return { received: true };
 }
 
 async function handleWordleBotScrapeComplete(message) {
@@ -545,8 +546,9 @@ async function handleWordleBotScrapeComplete(message) {
     }, 2000);
   }
   
-  // Forward to popup
+  // Forward to popup (fire and forget, no response expected)
   chrome.runtime.sendMessage(message).catch(() => {});
+  return { received: true };
 }
 
 async function handleWordleBotScrapeError(message) {

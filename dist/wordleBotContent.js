@@ -65,8 +65,18 @@ class WordleBotScraper {
         console.log(`[WordleBotScraper] Found ${cards.length} cards on page ${this.currentIteration + 1}`);
         
         if (cards.length > 0) {
-          this.scraped.push(...cards);
-          console.log(`[WordleBotScraper] Total games extracted: ${this.scraped.length}`);
+          // Only add cards that aren't already in scraped array (prevent duplicates from DOM re-scraping)
+          let newCards = 0;
+          for (const card of cards) {
+            const isDuplicate = this.scraped.some(existing => 
+              existing.date === card.date && existing.solution === card.solution
+            );
+            if (!isDuplicate) {
+              this.scraped.push(card);
+              newCards++;
+            }
+          }
+          console.log(`[WordleBotScraper] Added ${newCards} new cards, total games extracted: ${this.scraped.length}`);
           
           // Send progress update
           this.sendProgressUpdate();

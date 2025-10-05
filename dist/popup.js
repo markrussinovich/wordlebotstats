@@ -161,10 +161,9 @@ document.addEventListener('DOMContentLoaded', function() {
       scraperStatus.active = false;
       scraperStatus.message = '';
       
-      if (message.newGames > 0) {
-        console.log(`[Popup] Imported ${message.newGames} new games, reloading stats`);
-        loadStatistics();
-      }
+      console.log(`[Popup] Scrape complete - ${message.newGames} new games, ${message.totalGames} total checked`);
+      // Always reload stats to show current data
+      loadStatistics();
     } else if (message.type === 'WORDLE_BOT_SCRAPE_ERROR') {
       scraperStatus.active = false;
       scraperStatus.message = '';

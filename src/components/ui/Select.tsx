@@ -8,7 +8,7 @@ export interface SelectOption {
   icon?: React.ReactNode;
 }
 
-export interface SelectProps extends Omit<SelectHTMLAttributes<HTMLSelectElement>, 'value' | 'onChange'> {
+export interface SelectProps extends Omit<SelectHTMLAttributes<HTMLSelectElement>, 'value' | 'onChange' | 'size'> {
   label?: string;
   description?: string;
   error?: string;
@@ -40,8 +40,7 @@ const Select = forwardRef<HTMLDivElement, SelectProps>(({
   fullWidth = false,
   loading = false,
   disabled,
-  id,
-  ...props
+  id
 }, ref) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');

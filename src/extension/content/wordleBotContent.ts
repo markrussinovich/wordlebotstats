@@ -157,11 +157,6 @@ class WordleBotScraper {
     const solutionMatch = fullText.match(/solution was:\s*([a-z]{5})/i);
     if (solutionMatch && solutionMatch[1]) {
       game.solution = solutionMatch[1].toUpperCase();
-    } else {
-      const upperMatch = fullText.match(/\b([A-Z]{5})\b/);
-      if (upperMatch && upperMatch[1]) {
-        game.solution = upperMatch[1];
-      }
     }
 
     // Extract date
@@ -195,28 +190,22 @@ class WordleBotScraper {
     }
 
     // Extract skill score
-    const skillMatch = fullText.match(/(?:Your score was|score was|SKILL)[:\s]+(\d{1,3})/i);
+    const skillMatch = fullText.match(/Your score was:\s*(\d{1,3})/i);
     if (skillMatch && skillMatch[1]) {
       game.skillScore = parseInt(skillMatch[1], 10);
     }
 
     // Extract luck score
-    const luckMatch = fullText.match(/(?:Your luck was|luck was|LUCK)[:\s]+(\d{1,3})/i);
+    const luckMatch = fullText.match(/Your luck was:\s*(\d{1,3})/i);
     if (luckMatch && luckMatch[1]) {
       game.luckScore = parseInt(luckMatch[1], 10);
     }
 
     // Extract steps
-    const stepsMatch = fullText.match(/(?:It took you|took you)[:\s]+(\d+|X)/i);
+    const stepsMatch = fullText.match(/It took you:\s*(\d+)/i);
     if (stepsMatch && stepsMatch[1]) {
-      const val = stepsMatch[1];
-      if (val === 'X' || val === 'x') {
-        game.steps = 0;
-        game.won = false;
-      } else {
-        game.steps = parseInt(val, 10);
-        game.won = true;
-      }
+      game.steps = parseInt(stepsMatch[1], 10);
+      game.won = true;
     }
 
     // Get analysis link
@@ -305,7 +294,6 @@ class WordleBotScraper {
       ...(raw.gameNumber && { gameNumber: raw.gameNumber }),
       won: raw.won ?? true,
       attempts: raw.steps ?? null,
-      guesses: raw.steps ?? null,
       hardMode: false, // WordleBot doesn't track this
       ...(raw.solution && { solution: raw.solution }),
       ...(raw.skillScore !== undefined && { skillScore: raw.skillScore }),

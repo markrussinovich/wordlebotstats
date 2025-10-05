@@ -29,7 +29,6 @@ const Input = forwardRef<HTMLInputElement, InputProps>(({
   disabled,
   ...props
 }, ref) => {
-  const [isFocused, setIsFocused] = useState(false);
 
   const baseInputClasses = 'border rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-offset-0';
   

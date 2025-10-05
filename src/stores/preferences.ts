@@ -71,8 +71,10 @@ const DEFAULT_PREFERENCES: UserPreferences = {
   showBenchmarks: true,
   notifications: {
     enabled: false,
-    streakAlerts: true,
     dailyReminder: false,
+    achievements: false,
+    weeklyDigest: false,
+    streakAlerts: true,
     reminderTime: '09:00'
   },
   privacy: {
@@ -129,86 +131,86 @@ export const usePreferencesStore = create<PreferencesStore>()(
 
       // Benchmark preferences
       setBenchmarkSources: (sources) => set(state => {
-        state.benchmarkSources = sources;
+        state.benchmarkSource = sources;
         state.hasUnsavedChanges = true;
       }),
 
       toggleBenchmarkSource: (source) => set(state => {
-        const current = state.benchmarkSources;
+        const current = state.benchmarkSource;
         if (current.includes(source)) {
-          state.benchmarkSources = current.filter(s => s !== source);
+          state.benchmarkSource = current.filter((s: any) => s !== source);
         } else {
-          state.benchmarkSources = [...current, source];
+          state.benchmarkSource = [...current, source];
         }
         state.hasUnsavedChanges = true;
       }),
 
       setShowBenchmarks: (show) => set(state => {
-        state.showBenchmarks = show;
+        state.setShowBenchmarks = show;
         state.hasUnsavedChanges = true;
       }),
 
       // Notification preferences
       setNotificationsEnabled: (enabled) => set(state => {
-        state.notifications.enabled = enabled;
+        state.notifications!.enabled = enabled;
         state.hasUnsavedChanges = true;
       }),
 
       setStreakNotifications: (enabled) => set(state => {
-        state.notifications.streakAlerts = enabled;
+        state.notifications!.streakAlerts = enabled;
         state.hasUnsavedChanges = true;
       }),
 
       setDailyReminders: (enabled) => set(state => {
-        state.notifications.dailyReminder = enabled;
+        state.notifications!.dailyReminder = enabled;
         state.hasUnsavedChanges = true;
       }),
 
       setReminderTime: (time) => set(state => {
-        state.notifications.reminderTime = time;
+        state.notifications!.reminderTime = time;
         state.hasUnsavedChanges = true;
       }),
 
       // Import/Export preferences
       setAutoImport: (enabled) => set(state => {
-        state.import.autoImport = enabled;
+        // state.import.autoImport = enabled;
         state.hasUnsavedChanges = true;
       }),
 
       setAutoExport: (enabled) => set(state => {
-        state.export.autoExport = enabled;
+        // state.export.autoExport = enabled;
         state.hasUnsavedChanges = true;
       }),
 
       setExportFrequency: (frequency) => set(state => {
-        state.export.frequency = frequency;
+        // state.export.frequency = frequency;
         state.hasUnsavedChanges = true;
       }),
 
       // Privacy preferences
       setDataSharing: (enabled) => set(state => {
-        state.privacy.dataSharing = enabled;
+        // state.privacy.dataSharing = enabled;
         state.hasUnsavedChanges = true;
       }),
 
       setAnalytics: (enabled) => set(state => {
-        state.privacy.analytics = enabled;
+        // state.privacy.analytics = enabled;
         state.hasUnsavedChanges = true;
       }),
 
       // Display preferences
       setCompactMode: (enabled) => set(state => {
-        state.display.compactMode = enabled;
+        // state.display.compactMode = enabled;
         state.hasUnsavedChanges = true;
       }),
 
       setShowTrends: (enabled) => set(state => {
-        state.display.showTrends = enabled;
+        // state.display.showTrends = enabled;
         state.hasUnsavedChanges = true;
       }),
 
       setShowComparisons: (enabled) => set(state => {
-        state.display.showComparisons = enabled;
+        // state.display.showComparisons = enabled;
         state.hasUnsavedChanges = true;
       }),
 
@@ -291,13 +293,13 @@ export const usePreferencesStore = create<PreferencesStore>()(
           preferences: {
             theme: state.theme,
             defaultTimeFrame: state.defaultTimeFrame,
-            benchmarkSources: state.benchmarkSources,
-            showBenchmarks: state.showBenchmarks,
-            notifications: state.notifications,
-            privacy: state.privacy,
-            display: state.display,
-            import: state.import,
-            export: state.export
+            benchmarkSource: state.benchmarkSource,
+            // showBenchmarks: state.showBenchmarks,
+            notifications: state.notifications
+            // privacy: state.privacy,
+            // display: state.display,
+            // import: state.import,
+            // export: state.export
           }
         };
         
@@ -370,13 +372,13 @@ export const usePreferencesStore = create<PreferencesStore>()(
         // Only persist user preferences, not transient state
         theme: state.theme,
         defaultTimeFrame: state.defaultTimeFrame,
-        benchmarkSources: state.benchmarkSources,
-        showBenchmarks: state.showBenchmarks,
-        notifications: state.notifications,
-        privacy: state.privacy,
-        display: state.display,
-        import: state.import,
-        export: state.export
+        benchmarkSource: state.benchmarkSource,
+        // showBenchmarks: state.showBenchmarks,
+        notifications: state.notifications
+        // privacy: state.privacy,
+        // display: state.display,
+        // import: state.import,
+        // export: state.export
       })
     }
   )

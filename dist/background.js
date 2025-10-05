@@ -86,22 +86,115 @@ async function handleGetQuickStats(message) {
     const result = await chrome.storage.local.get(['games']);
     const games = result.games || [];
     
+    console.log('[BACKGROUND DEBUG] Found', games.length, 'games in storage');
+    
+    // Filter games by time frame
+    const filteredGames = filterGamesByTimeFrame(games, message.timeFrame);
+    console.log('[BACKGROUND DEBUG] Filtered to', filteredGames.length, 'games for timeframe:', message.timeFrame);
+    
+    // Calculate statistics
+    const statistics = calculateStatistics(filteredGames);
+    console.log('[BACKGROUND DEBUG] Calculated stats:', statistics);
+    
     return {
       success: true,
-      statistics: {
-        gameCount: games.length,
-        winRate: 85.5,
-        averageGuesses: 3.8,
-        currentStreak: 5,
-        maxStreak: 12,
-        guessDistribution: [0, 2, 8, 15, 10, 3, 2]
-      },
+      statistics: statistics,
       timeFrame: message.timeFrame
     };
   } catch (error) {
     console.error('[BACKGROUND DEBUG] Failed to get quick stats:', error);
     throw error;
   }
+}
+
+// Filter games by time frame
+function filterGamesByTimeFrame(games, timeFrame) {
+  if (timeFrame === 'all') {
+    return games;
+  }
+  
+  const now = new Date();
+  const cutoffDate = new Date();
+  
+  switch (timeFrame) {
+    case '7d':
+      cutoffDate.setDate(now.getDate() - 7);
+      break;
+    case '30d':
+      cutoffDate.setDate(now.getDate() - 30);
+      break;
+    case '90d':
+      cutoffDate.setDate(now.getDate() - 90);
+      break;
+    default:
+      return games;
+  }
+  
+  return games.filter(game => {
+    if (!game.date) return false;
+    const gameDate = new Date(game.date);
+    return gameDate >= cutoffDate;
+  });
+}
+
+// Calculate statistics from games
+function calculateStatistics(games) {
+  if (games.length === 0) {
+    return {
+      gameCount: 0,
+      winRate: 0,
+      averageGuesses: 0,
+      currentStreak: 0,
+      maxStreak: 0,
+      guessDistribution: [0, 0, 0, 0, 0, 0, 0]
+    };
+  }
+  
+  const wins = games.filter(game => game.isWin);
+  const winRate = (wins.length / games.length) * 100;
+  
+  // Calculate average guesses (only for wins)
+  const validGuesses = wins.filter(game => game.guesses && game.guesses > 0);
+  const averageGuesses = validGuesses.length > 0 
+    ? validGuesses.reduce((sum, game) => sum + game.guesses, 0) / validGuesses.length 
+    : 0;
+  
+  // Calculate guess distribution
+  const distribution = [0, 0, 0, 0, 0, 0, 0]; // Index 0 = failed, 1-6 = guesses
+  games.forEach(game => {
+    if (!game.isWin) {
+      distribution[0]++; // Failed
+    } else if (game.guesses && game.guesses >= 1 && game.guesses <= 6) {
+      distribution[game.guesses]++;
+    }
+  });
+  
+  // Calculate streaks (simplified - would need proper date sorting for accuracy)
+  const sortedGames = games.sort((a, b) => new Date(a.date) - new Date(b.date));
+  let currentStreak = 0;
+  let maxStreak = 0;
+  let streak = 0;
+  
+  for (let i = sortedGames.length - 1; i >= 0; i--) {
+    if (sortedGames[i].isWin) {
+      streak++;
+      if (i === sortedGames.length - 1) currentStreak = streak;
+    } else {
+      maxStreak = Math.max(maxStreak, streak);
+      streak = 0;
+      if (i === sortedGames.length - 1) currentStreak = 0;
+    }
+  }
+  maxStreak = Math.max(maxStreak, streak);
+  
+  return {
+    gameCount: games.length,
+    winRate: Math.round(winRate * 10) / 10,
+    averageGuesses: Math.round(averageGuesses * 10) / 10,
+    currentStreak,
+    maxStreak,
+    guessDistribution: distribution
+  };
 }
 
 // Dashboard data handler
@@ -165,13 +258,13 @@ async function handleStartWordleBotScrape(message) {
 }
 
 async function handleWordleBotScrapeProgress(message) {
-  console.log('[BACKGROUND DEBUG] Scrape progress:', message);
+  console.log('[BACKGROUND DEBUG] Scrape progress:', JSON.stringify(message, null, 2));
   // Forward progress to popup
   chrome.runtime.sendMessage(message).catch(() => {});
 }
 
 async function handleWordleBotScrapeComplete(message) {
-  console.log('[BACKGROUND DEBUG] Scrape complete:', message);
+  console.log('[BACKGROUND DEBUG] Scrape complete:', JSON.stringify(message, null, 2));
   
   // Close the scraper tab after delay
   if (scraperTabId) {
@@ -188,7 +281,7 @@ async function handleWordleBotScrapeComplete(message) {
 }
 
 async function handleWordleBotScrapeError(message) {
-  console.error('[BACKGROUND DEBUG] Scrape error:', message);
+  console.error('[BACKGROUND DEBUG] Scrape error:', JSON.stringify(message, null, 2));
   
   // Close the scraper tab
   if (scraperTabId) {

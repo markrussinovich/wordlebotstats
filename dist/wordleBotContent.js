@@ -1,202 +1,471 @@
-// Content script for WordleBot page scraping
-// This handles the background scraping functionality
+// Content script for Wordle Bot history scraping
+// Automatically scrapes game history from NYTimes Wordle Bot page
 
-console.log('[WordleBotContent] WordleBot content script loaded');
+class WordleBotScraper {
+  constructor() {
+    this.isRunning = false;
+    this.shouldStop = false;
+    this.gamesProcessed = 0;
+    this.duplicatesSkipped = 0;
 
-// Check if we're on the WordleBot page
-if (window.location.href.includes('wordle-bot.html')) {
-  console.log('[WordleBotContent] On WordleBot page, initializing scraper...');
-  
-  // Simple scraper implementation without complex imports
-  class SimpleWordleBotScraper {
-    constructor() {
-      this.isRunning = false;
-      this.gamesProcessed = 0;
-      this.setupMessageListener();
-    }
+    // Confirmed selectors from v5
+    this.GAME_CARD_SELECTOR = '.rating-container.svelte-pnoxcy';
+    this.SHOW_MORE_BUTTON_SELECTOR = '.show-more-button.svelte-151vgtd';
     
-    setupMessageListener() {
-      chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-        console.log('[WordleBotContent] Received message:', message);
+    console.log('[WordleBotScraper] Initialized');
+    this.setupMessageListener();
+  }
+
+  setupMessageListener() {
+    console.log('[DEBUG] Setting up message listener...');
+    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+      console.log('[DEBUG] ⚡ MESSAGE RECEIVED:', JSON.stringify(message, null, 2));
+      console.log('[DEBUG] Message type:', message.type);
+      console.log('[DEBUG] Sender:', _sender);
+      
+      if (message.type === 'START_WORDLE_BOT_SCRAPE') {
+        console.log('[DEBUG] 🚀 STARTING WORDLE BOT SCRAPE!');
+        console.log('[DEBUG] Scrape params:', { mode: message.mode, stopAtDate: message.stopAtDate, maxIterations: message.maxIterations });
         
-        if (message.type === 'START_WORDLE_BOT_SCRAPE') {
-          console.log('[WordleBotContent] Starting scrape...');
-          this.startScraping(message.mode, message.stopAtDate, message.maxIterations)
-            .then(() => {
-              console.log('[WordleBotContent] Scrape completed');
-              sendResponse({ success: true });
-            })
-            .catch(error => {
-              console.error('[WordleBotContent] Scrape failed:', error);
-              sendResponse({ success: false, error: error.message });
-            });
-          return true;
-        }
-      });
-    }
-    
-    async startScraping(mode, stopAtDate, maxIterations = 10) {
-      if (this.isRunning) {
-        console.log('[WordleBotContent] Already running');
-        return;
+        this.startScraping(message.mode, message.stopAtDate, message.maxIterations)
+          .then(() => {
+            console.log('[DEBUG] ✅ Scraping completed successfully');
+            sendResponse({ success: true });
+          })
+          .catch(error => {
+            console.log('[DEBUG] ❌ Scraping failed:', error);
+            sendResponse({ success: false, error: error.message });
+          });
+        return true; // Will respond asynchronously
       }
       
-      this.isRunning = true;
-      console.log('[WordleBotContent] Starting scrape in mode:', mode);
-      
-      try {
-        // Send progress message
-        chrome.runtime.sendMessage({
-          type: 'WORDLE_BOT_SCRAPE_PROGRESS',
-          gamesFound: 0,
-          gamesProcessed: 0,
-          status: 'scanning'
-        });
-        
-        console.log('[WordleBotContent] Current URL:', window.location.href);
-        console.log('[WordleBotContent] Page title:', document.title);
-        console.log('[WordleBotContent] Document ready state:', document.readyState);
-        
-        // Wait for page to be fully loaded
-        if (document.readyState !== 'complete') {
-          console.log('[WordleBotContent] Waiting for page to load...');
-          await new Promise(resolve => {
-            if (document.readyState === 'complete') {
-              resolve();
-            } else {
-              window.addEventListener('load', resolve, { once: true });
-            }
-          });
-          await new Promise(resolve => setTimeout(resolve, 2000)); // Extra wait
-        }
-        
-        // Try multiple selectors for game elements
-        const possibleSelectors = [
-          '.rating-container.svelte-pnoxcy', // Original selector
-          '.rating-container',
-          '[class*="rating"]',
-          '[class*="game"]',
-          '[class*="result"]',
-          '[class*="score"]',
-          'article[class*="game"]',
-          'div[class*="game"]',
-          '.game-row',
-          '.game-card',
-          '[data-testid*="game"]',
-          'section[class*="svelte"]',
-          'div[class*="svelte"]'
-        ];
-        
-        let gameCards = [];
-        let foundSelector = null;
-        
-        for (const selector of possibleSelectors) {
-          const elements = document.querySelectorAll(selector);
-          console.log(`[WordleBotContent] Selector "${selector}": found ${elements.length} elements`);
-          
-          if (elements.length > 0) {
-            // Check if any elements contain "Wordle" text
-            const wordleElements = Array.from(elements).filter(el => 
-              el.textContent && el.textContent.toLowerCase().includes('wordle')
-            );
-            
-            if (wordleElements.length > 0) {
-              console.log(`[WordleBotContent] Found ${wordleElements.length} Wordle-related elements with selector: ${selector}`);
-              gameCards = wordleElements;
-              foundSelector = selector;
-              break;
-            }
-          }
-        }
-        
-        // If no specific game cards found, look for any text containing "Wordle"
-        if (gameCards.length === 0) {
-          console.log('[WordleBotContent] No game cards found, searching for any Wordle text...');
-          const allElements = document.querySelectorAll('*');
-          const wordleElements = Array.from(allElements).filter(el => {
-            const text = el.textContent || '';
-            return text.toLowerCase().includes('wordle') && text.length > 10 && text.length < 500;
-          });
-          
-          console.log(`[WordleBotContent] Found ${wordleElements.length} elements containing "Wordle" text`);
-          
-          // Log some examples
-          wordleElements.slice(0, 5).forEach((el, i) => {
-            console.log(`[WordleBotContent] Wordle element ${i + 1}:`, {
-              tagName: el.tagName,
-              className: el.className,
-              textSnippet: el.textContent.substring(0, 100)
-            });
-          });
-        }
-        
-        console.log('[WordleBotContent] Final game cards found:', gameCards.length);
-        console.log('[WordleBotContent] Using selector:', foundSelector);
-        
-        if (gameCards.length > 0) {
-          // Send completion message
-          chrome.runtime.sendMessage({
-            type: 'WORDLE_BOT_SCRAPE_COMPLETE',
-            totalGames: gameCards.length,
-            newGames: gameCards.length,
-            duplicates: 0,
-            errors: 0,
-            selector: foundSelector
-          });
-        } else {
-          // Send error with detailed debug info
-          chrome.runtime.sendMessage({
-            type: 'WORDLE_BOT_SCRAPE_ERROR',
-            error: 'No game cards found on page',
-            code: 'PARSE_ERROR',
-            recoverable: true,
-            debugInfo: {
-              url: window.location.href,
-              title: document.title,
-              selectors_tried: possibleSelectors.length,
-              page_ready: document.readyState
-            }
-          });
-        }
-        
-      } catch (error) {
-        console.error('[WordleBotContent] Scraping error:', error);
-        chrome.runtime.sendMessage({
-          type: 'WORDLE_BOT_SCRAPE_ERROR',
-          error: error.message,
-          code: 'UNKNOWN',
-          recoverable: false
-        });
-      } finally {
-        this.isRunning = false;
-      }
+      console.log('[DEBUG] ❓ Unknown message type, ignoring');
+      return false;
+    });
+    
+    // Test message listener
+    console.log('[DEBUG] Message listener set up. Testing...');
+    
+    // Also listen for any chrome.runtime messages
+    console.log('[DEBUG] Testing chrome.runtime availability...');
+    if (typeof chrome !== 'undefined' && chrome.runtime) {
+      console.log('[DEBUG] ✅ chrome.runtime is available');
+      console.log('[DEBUG] Extension ID:', chrome.runtime.id);
+    } else {
+      console.log('[DEBUG] ❌ chrome.runtime not available');
     }
   }
-  
-  // Initialize scraper
-  const scraper = new SimpleWordleBotScraper();
-  console.log('[WordleBotContent] Scraper initialized');
-  
-  // Check for auto-start parameters
-  setTimeout(async () => {
-    try {
-      const result = await chrome.storage.local.get(['wordleBotScrapeParams']);
-      if (result.wordleBotScrapeParams) {
-        console.log('[WordleBotContent] Auto-start parameters found:', result.wordleBotScrapeParams);
-        const params = result.wordleBotScrapeParams;
+
+  async waitForCardsToLoad() {
+    return new Promise((resolve) => {
+      const checkCards = () => {
+        const cards = document.querySelectorAll(this.GAME_CARD_SELECTOR);
+        console.log(`[DEBUG] Waiting for cards... found ${cards.length}`);
         
-        // Clear the parameters so we don't start again
-        await chrome.storage.local.remove(['wordleBotScrapeParams']);
-        
-        // Start scraping automatically
-        console.log('[WordleBotContent] Auto-starting scraping...');
-        await scraper.startScraping(params.mode, null, params.maxIterations);
-      }
-    } catch (error) {
-      console.error('[WordleBotContent] Failed to check auto-start parameters:', error);
+        if (cards.length > 0) {
+          console.log('[DEBUG] ✅ Cards loaded successfully');
+          resolve(cards.length);
+        } else {
+          console.log('[DEBUG] ⏳ Still waiting for cards...');
+          setTimeout(checkCards, 1000);
+        }
+      };
+      checkCards();
+    });
+  }
+
+  async startScraping(mode = 'full', stopAtDate, maxIterations = 20) {
+    console.log(`[DEBUG] startScraping called with mode=${mode}, stopAtDate=${stopAtDate}, maxIterations=${maxIterations}`);
+    if (this.isRunning) {
+      console.log('[WordleBotScraper] Already running');
+      return;
     }
-  }, 2000); // Wait 2 seconds for page to load
-  
-  // Export for debugging
+
+    this.isRunning = true;
+    this.shouldStop = false;
+    this.gamesProcessed = 0;
+    this.duplicatesSkipped = 0;
+
+    console.log(`[WordleBotScraper] Starting ${mode} scrape`);
+
+    try {
+      console.log('[DEBUG] About to call scrapeAllGames...');
+      await this.scrapeAllGames(stopAtDate, maxIterations);
+      console.log('[DEBUG] scrapeAllGames completed successfully');
+    } catch (error) {
+      console.log('[DEBUG] Error in scrapeAllGames:', error);
+      console.error('[WordleBotScraper] Error during scraping:', error);
+      this.sendError(
+        error instanceof Error ? error.message : 'Unknown error',
+        'UNKNOWN',
+        false
+      );
+    } finally {
+      this.isRunning = false;
+    }
+  }
+
+  async scrapeAllGames(stopAtDate, maxIterations = 20) {
+    console.log(`[DEBUG] scrapeAllGames starting with maxIterations=${maxIterations}`);
+    
+    // Wait for cards to be available
+    console.log('[DEBUG] Waiting for cards to be available before scraping...');
+    await this.waitForCardsToLoad();
+    console.log('[DEBUG] Cards are ready, starting scraping process...');
+    
+    const allGames = new Map();
+    let iteration = 0;
+
+    while (iteration < maxIterations && !this.shouldStop) {
+      iteration++;
+      
+      // Extract games from current page
+      console.log(`[DEBUG] Iteration ${iteration}: About to extract visible games...`);
+      const games = this.extractVisibleGames();
+      console.log(`[WordleBotScraper] Iteration ${iteration}: Found ${games.length} games`);
+      console.log(`[DEBUG] Games extracted:`, games.slice(0, 3).map(g => ({ solution: g.solution, skillScore: g.skillScore, date: g.date })));
+
+      // Add to collection
+      let newGamesThisIteration = 0;
+      for (const game of games) {
+        const key = game.gameNumber?.toString() || game.date || game.solution || '';
+        if (key && !allGames.has(key)) {
+          allGames.set(key, game);
+          newGamesThisIteration++;
+          
+          // Check if we've reached the stop date
+          if (stopAtDate && game.date && game.date <= stopAtDate) {
+            console.log(`[WordleBotScraper] Reached stop date: ${stopAtDate}`);
+            this.shouldStop = true;
+            break;
+          }
+        }
+      }
+
+      // Send progress update
+      this.sendProgress(allGames.size, this.gamesProcessed, 'scanning');
+
+      // Try to load more games
+      if (!this.shouldStop) {
+        const hasMore = await this.loadMoreGames();
+        if (!hasMore) {
+          console.log('[WordleBotScraper] No more games to load');
+          break;
+        }
+      }
+    }
+
+    if (iteration >= maxIterations) {
+      console.warn(`[WordleBotScraper] Stopped at max iterations (${maxIterations})`);
+    }
+
+    // Convert and send games
+    await this.processAndSendGames(Array.from(allGames.values()));
+  }
+
+  extractVisibleGames() {
+    console.log('[DEBUG] Starting extractVisibleGames...');
+    const cards = document.querySelectorAll(this.GAME_CARD_SELECTOR);
+    console.log(`[DEBUG] Found ${cards.length} cards with selector: ${this.GAME_CARD_SELECTOR}`);
+    const games = [];
+
+    cards.forEach((card, idx) => {
+      console.log(`[DEBUG] Processing card ${idx}...`);
+      try {
+        const game = this.extractGameFromCard(card);
+        console.log(`[DEBUG] Card ${idx} extraction result:`, JSON.stringify(game, null, 2));
+        if (game.solution || game.gameNumber) {
+          games.push(game);
+          console.log(`[DEBUG] ✅ Card ${idx} added to games array`);
+        } else {
+          console.log(`[DEBUG] ❌ Card ${idx} skipped - no solution or gameNumber`);
+        }
+      } catch (error) {
+        console.error('[WordleBotScraper] Error extracting game:', error);
+        console.error('[DEBUG] Error details:', error.stack);
+      }
+    });
+
+    console.log(`[DEBUG] Returning ${games.length} games from extractVisibleGames`);
+    return games;
+  }
+
+  extractGameFromCard(card) {
+    const game = {};
+    const fullText = card.textContent || '';
+    console.log(`[DEBUG] Extracting from card text (length ${fullText.length}):`, fullText.slice(0, 100));
+
+    // Extract solution word
+    const solutionMatch = fullText.match(/solution was:\s*([a-z]{5})/i);
+    console.log(`[DEBUG] Solution match:`, solutionMatch);
+    if (solutionMatch && solutionMatch[1]) {
+      game.solution = solutionMatch[1].toUpperCase();
+      console.log(`[DEBUG] ✅ Solution extracted: ${game.solution}`);
+    } else {
+      console.log(`[DEBUG] ❌ Solution not found`);
+    }
+
+    // Extract date
+    const dateMatch = fullText.match(/(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2})/);
+    if (dateMatch && dateMatch[1] && dateMatch[2]) {
+      game.dateString = `${dateMatch[1]} ${dateMatch[2]}`;
+      
+      const month = dateMatch[1];
+      const day = parseInt(dateMatch[2], 10);
+      const currentDate = new Date();
+      const currentYear = currentDate.getFullYear();
+      
+      let testDate = new Date(`${month} ${day}, ${currentYear}`);
+      if (testDate > currentDate) {
+        testDate = new Date(`${month} ${day}, ${currentYear - 1}`);
+      }
+      
+      const isoDate = testDate.toISOString().split('T')[0];
+      if (isoDate) {
+        game.date = isoDate;
+      }
+    }
+
+    // Extract game number
+    const gameNumMatch = fullText.match(/Game Number[^:]*:\s*(\d{3,4})|#(\d{3,4})|Wordle\s+(\d{3,4})/i);
+    if (gameNumMatch) {
+      const numStr = gameNumMatch[1] || gameNumMatch[2] || gameNumMatch[3];
+      if (numStr) {
+        game.gameNumber = parseInt(numStr, 10);
+      }
+    }
+
+    // Extract skill score
+    const skillMatch = fullText.match(/Your score was: (\d{1,3})/i);
+    if (skillMatch && skillMatch[1]) {
+      game.skillScore = parseInt(skillMatch[1], 10);
+    }
+
+    // Extract luck score
+    const luckMatch = fullText.match(/Your luck was: (\d{1,3})/i);
+    if (luckMatch && luckMatch[1]) {
+      game.luckScore = parseInt(luckMatch[1], 10);
+    }
+
+    // Extract steps
+    const stepsMatch = fullText.match(/It took you: (\d+)guesses/i);
+    if (stepsMatch && stepsMatch[1]) {
+      game.steps = parseInt(stepsMatch[1], 10);
+      game.won = true;
+    }
+
+    // Get analysis link
+    const link = card.querySelector('a[href*="analysis"], a[href*="wordle"]');
+    if (link && !link.getAttribute('href')?.includes('index.html')) {
+      game.analysisUrl = link.href;
+    }
+
+    return game;
+  }
+
+  async loadMoreGames() {
+    const btn = document.querySelector(this.SHOW_MORE_BUTTON_SELECTOR);
+    if (!btn || btn.offsetParent === null) {
+      return false;
+    }
+
+    const beforeCount = document.querySelectorAll(this.GAME_CARD_SELECTOR).length;
+    btn.click();
+    
+    // Wait for new content to load
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    const afterCount = document.querySelectorAll(this.GAME_CARD_SELECTOR).length;
+    const newCards = afterCount - beforeCount;
+    
+    return newCards > 0;
+  }
+
+  async processAndSendGames(rawGames) {
+    console.log(`[WordleBotScraper] Processing ${rawGames.length} games`);
+    
+    // Sort by game number (newest first)
+    const sortedGames = rawGames.sort((a, b) => {
+      const aNum = a.gameNumber || 0;
+      const bNum = b.gameNumber || 0;
+      return bNum - aNum;
+    });
+
+    // Convert to GameResult format
+    const gameResults = sortedGames.map(raw => this.convertToGameResult(raw));
+
+    // Send games in batches to avoid overwhelming the background script
+    const batchSize = 10;
+    let imported = 0;
+    let duplicates = 0;
+    let errors = 0;
+
+    for (let i = 0; i < gameResults.length; i += batchSize) {
+      const batch = gameResults.slice(i, i + batchSize);
+      
+      this.sendProgress(
+        gameResults.length,
+        i,
+        'processing'
+      );
+
+      try {
+        const response = await chrome.runtime.sendMessage({
+          type: 'BULK_IMPORT_GAMES',
+          games: batch
+        });
+
+        if (response.success) {
+          imported += response.imported || 0;
+          duplicates += response.duplicates || 0;
+          errors += response.errors || 0;
+        }
+      } catch (error) {
+        console.error('[WordleBotScraper] Error sending batch:', error);
+        errors += batch.length;
+      }
+    }
+
+    // Send completion message
+    this.sendComplete(imported, duplicates, errors, sortedGames);
+  }
+
+  convertToGameResult(raw) {
+    const now = new Date();
+    const dateString = raw.date ?? now.toISOString().split('T')[0];
+    const date = dateString;
+    
+    return {
+      date,
+      ...(raw.gameNumber && { gameNumber: raw.gameNumber }),
+      won: raw.won ?? true,
+      attempts: raw.steps ?? null,
+      hardMode: false, // WordleBot doesn't track this
+      ...(raw.solution && { solution: raw.solution }),
+      ...(raw.skillScore !== undefined && { skillScore: raw.skillScore }),
+      ...(raw.luckScore !== undefined && { luckScore: raw.luckScore }),
+      ...(raw.analysisUrl && { analysisUrl: raw.analysisUrl }),
+      scrapedFrom: 'wordle-bot',
+      source: 'wordle-page',
+      importedAt: now.toISOString(),
+      wordLength: 5,
+      maxGuesses: 6
+    };
+  }
+
+  sendProgress(gamesFound, gamesProcessed, status) {
+    const message = {
+      type: 'WORDLE_BOT_SCRAPE_PROGRESS',
+      gamesFound,
+      gamesProcessed,
+      duplicatesSkipped: this.duplicatesSkipped,
+      status
+    };
+
+    chrome.runtime.sendMessage(message).catch(error => {
+      console.error('[WordleBotScraper] Error sending progress:', error);
+    });
+  }
+
+  sendComplete(imported, duplicates, errors, games) {
+    const message = {
+      type: 'WORDLE_BOT_SCRAPE_COMPLETE',
+      totalGames: games.length,
+      newGames: imported,
+      duplicates,
+      errors
+    };
+    
+    if (games.length > 0) {
+      const oldestGame = games[games.length - 1];
+      const newestGame = games[0];
+      
+      if (oldestGame?.date && newestGame?.date) {
+        message.dateRange = {
+          oldest: oldestGame.date,
+          newest: newestGame.date
+        };
+      }
+    }
+
+    chrome.runtime.sendMessage(message).catch(error => {
+      console.error('[WordleBotScraper] Error sending completion:', error);
+    });
+  }
+
+  sendError(error, code, recoverable) {
+    const message = {
+      type: 'WORDLE_BOT_SCRAPE_ERROR',
+      error,
+      code,
+      recoverable
+    };
+
+    chrome.runtime.sendMessage(message).catch(err => {
+      console.error('[WordleBotScraper] Error sending error message:', err);
+    });
+  }
+}
+
+// Initialize scraper
+const scraper = new WordleBotScraper();
+
+// Auto-start if in background mode
+if (!document.hasFocus()) {
+  console.log('[WordleBotScraper] Background mode detected, auto-starting');
+  // Will be triggered by message from background script
+}
+
+// Add manual test function for debugging
+console.log('[DEBUG] Adding manual test function to window');
+window.__testWordleBotScraper = () => {
+  console.log('[DEBUG] Manual test triggered!');
+  console.log('[DEBUG] Testing immediate extraction...');
+  const games = scraper.extractVisibleGames();
+  console.log('[DEBUG] Manual test found', games.length, 'games');
+  return games;
+};
+
+// Add manual scraping trigger
+window.__triggerManualScrape = async () => {
+  console.log('[DEBUG] 🔥 MANUAL SCRAPE TRIGGER!');
+  try {
+    await scraper.startScraping('full', null, 2);
+    console.log('[DEBUG] ✅ Manual scrape completed');
+  } catch (error) {
+    console.log('[DEBUG] ❌ Manual scrape failed:', error);
+  }
+};
+
+// Wait for page content to load
+console.log('[DEBUG] Waiting for page content to load...');
+
+const waitForCards = () => {
+  return new Promise((resolve) => {
+    const checkCards = () => {
+      const cards = document.querySelectorAll('.rating-container.svelte-pnoxcy');
+      console.log(`[DEBUG] Checking for cards... found ${cards.length}`);
+      
+      if (cards.length > 0) {
+        console.log('[DEBUG] ✅ Cards found! Page is ready.');
+        resolve(cards.length);
+      } else {
+        console.log('[DEBUG] ⏳ No cards yet, checking again in 1 second...');
+        setTimeout(checkCards, 1000);
+      }
+    };
+    checkCards();
+  });
+};
+
+// Test extraction once cards are available
+waitForCards().then((cardCount) => {
+  console.log(`[DEBUG] Page loaded with ${cardCount} cards. Testing extraction...`);
+  const testGames = scraper.extractVisibleGames();
+  console.log(`[DEBUG] Initial test found ${testGames.length} games`);
+});
+
+// Export for debugging
+if (typeof window !== 'undefined') {
   window.__wordleBotScraper = scraper;
 }

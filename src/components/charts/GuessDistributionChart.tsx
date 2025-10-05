@@ -23,7 +23,7 @@ const GuessDistributionChart: React.FC<GuessDistributionProps> = ({
   const chartData = distribution.map((count, index) => {
     const guess = index + 1;
     const percentage = total ? (count / total) * 100 : 0;
-    const comparisonCount = comparison ? comparison[index] : 0;
+    const comparisonCount = comparison?.[index] ?? 0;
     const comparisonPercentage = total && comparison ? (comparisonCount / total) * 100 : 0;
 
     return {
@@ -43,7 +43,7 @@ const GuessDistributionChart: React.FC<GuessDistributionProps> = ({
     return [value, name === 'count' ? 'Your Games' : 'Benchmark'];
   };
 
-  const CustomTooltip = ({ active, payload, label }: any) => {
+  const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
       return (
@@ -94,7 +94,7 @@ const GuessDistributionChart: React.FC<GuessDistributionProps> = ({
           
           <YAxis 
             domain={[0, yAxisMax]}
-            tickFormatter={showPercentages ? (value) => `${value}%` : undefined}
+            tickFormatter={showPercentages ? (value: any) => `${value}%` : (value: any) => value.toString()}
             className="text-sm text-gray-600"
           />
 
@@ -144,7 +144,7 @@ const GuessDistributionChart: React.FC<GuessDistributionProps> = ({
         <div className="bg-green-50 p-3 rounded-lg">
           <div className="text-sm font-medium text-green-800">Efficiency</div>
           <div className="text-lg font-bold text-green-900">
-            {total ? ((distribution[0] + distribution[1] + distribution[2]) / total * 100).toFixed(1) : 0}%
+            {total ? (((distribution[0] ?? 0) + (distribution[1] ?? 0) + (distribution[2] ?? 0)) / total * 100).toFixed(1) : 0}%
           </div>
           <div className="text-xs text-green-600">
             Solved in ≤3 guesses

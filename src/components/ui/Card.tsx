@@ -50,7 +50,6 @@ const Card = forwardRef<HTMLDivElement, CardProps>(({
       className={classes}
       tabIndex={interactive ? 0 : undefined}
       role={interactive ? 'button' : undefined}
-      {...props}
     >
       {children}
     </Component>

@@ -1,0 +1,81 @@
+{
+  "timestamp": "2025-10-04T23:21:23.390Z",
+  "url": "https://www.nytimes.com/interactive/2022/upshot/wordle-bot.html",
+  "tests": [
+    {
+      "test": "Container found",
+      "passed": true,
+      "details": "Found #g-wordle-results"
+    },
+    {
+      "test": "Game cards found",
+      "passed": true,
+      "details": "Found 13 game cards"
+    },
+    {
+      "test": "Show more button found",
+      "passed": true,
+      "details": "Button text: \"+ Show more Wordles\""
+    },
+    {
+      "test": "Data extraction from first card",
+      "passed": true,
+      "details": {
+        "solution": "RELAY",
+        "dateString": "October 4",
+        "skillScore": 99,
+        "luckScore": 76,
+        "steps": 3,
+        "won": true
+      }
+    },
+    {
+      "test": "Multiple game extraction",
+      "passed": true,
+      "details": "Extracted 5 games from first 5 cards"
+    }
+  ],
+  "sampleGame": {
+    "solution": "RELAY",
+    "dateString": "October 4",
+    "skillScore": 99,
+    "luckScore": 76,
+    "steps": 3,
+    "won": true
+  },
+  "sampleGames": [
+    {
+      "index": 0,
+      "solution": "RELAY",
+      "dateString": "October 4",
+      "skillScore": 99
+    },
+    {
+      "index": 1,
+      "solution": "SPASM",
+      "dateString": "October 3",
+      "skillScore": 95
+    },
+    {
+      "index": 2,
+      "solution": "SPOIL",
+      "dateString": "October 1",
+      "skillScore": 85
+    },
+    {
+      "index": 3,
+      "solution": "GEESE",
+      "dateString": "September 30",
+      "skillScore": 86
+    },
+    {
+      "index": 4,
+      "solution": "CIVIL",
+      "dateString": "September 29",
+      "skillScore": 65
+    }
+  ],
+  "totalCardsFound": 13,
+  "hasShowMoreButton": true,
+  "showMoreButtonVisible": true
+}

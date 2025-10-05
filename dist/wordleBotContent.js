@@ -18,6 +18,7 @@ class WordleBotScraper {
 
   setupMessageListener() {
     console.log('[DEBUG] Setting up message listener...');
+    const self = this;
     chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       console.log('[DEBUG] ⚡ MESSAGE RECEIVED:', JSON.stringify(message, null, 2));
       console.log('[DEBUG] Message type:', message.type);
@@ -27,7 +28,7 @@ class WordleBotScraper {
         console.log('[DEBUG] 🚀 STARTING WORDLE BOT SCRAPE!');
         console.log('[DEBUG] Scrape params:', { mode: message.mode, stopAtDate: message.stopAtDate, maxIterations: message.maxIterations });
         
-        this.startScraping(message.mode, message.stopAtDate, message.maxIterations)
+        self.startScraping(message.mode, message.stopAtDate, message.maxIterations)
           .then(() => {
             console.log('[DEBUG] ✅ Scraping completed successfully');
             sendResponse({ success: true });
@@ -37,6 +38,12 @@ class WordleBotScraper {
             sendResponse({ success: false, error: error.message });
           });
         return true; // Will respond asynchronously
+      }
+      
+      if (message.type === 'TEST_SELF_MESSAGE') {
+        console.log('[DEBUG] 🎯 SELF-TEST MESSAGE RECEIVED! Message listener is working!');
+        sendResponse({ received: true, timestamp: Date.now() });
+        return true;
       }
       
       console.log('[DEBUG] ❓ Unknown message type, ignoring');
@@ -51,6 +58,19 @@ class WordleBotScraper {
     if (typeof chrome !== 'undefined' && chrome.runtime) {
       console.log('[DEBUG] ✅ chrome.runtime is available');
       console.log('[DEBUG] Extension ID:', chrome.runtime.id);
+      
+      // Test if the listener is actually registered
+      console.log('[DEBUG] Testing message listener registration...');
+      setTimeout(() => {
+        console.log('[DEBUG] 📣 SELF-TEST: Sending test message to self...');
+        chrome.runtime.sendMessage({
+          type: 'TEST_SELF_MESSAGE',
+          timestamp: Date.now()
+        }).catch(error => {
+          console.log('[DEBUG] Self-test message failed:', error);
+        });
+      }, 1000);
+      
     } else {
       console.log('[DEBUG] ❌ chrome.runtime not available');
     }
@@ -407,6 +427,23 @@ class WordleBotScraper {
   }
 }
 
+// Test basic message listener BEFORE class setup
+console.log('[DEBUG] 🧪 Testing basic message listener setup...');
+if (typeof chrome !== 'undefined' && chrome.runtime) {
+  console.log('[DEBUG] ✅ chrome.runtime available, adding basic test listener');
+  
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    console.log('[DEBUG] 🔥 BASIC LISTENER: Message received!', message.type);
+    if (message.type === 'START_WORDLE_BOT_SCRAPE') {
+      console.log('[DEBUG] 🎯 BASIC LISTENER: Got START_WORDLE_BOT_SCRAPE message!');
+      sendResponse({ basicListener: true, timestamp: Date.now() });
+      return true;
+    }
+  });
+} else {
+  console.log('[DEBUG] ❌ chrome.runtime not available for basic listener');
+}
+
 // Initialize scraper
 const scraper = new WordleBotScraper();
 
@@ -437,6 +474,38 @@ window.__triggerManualScrape = async () => {
   }
 };
 
+// Test sending a message to background script
+window.__testMessageToBackground = () => {
+  console.log('[DEBUG] 📤 Testing message to background...');
+  if (chrome && chrome.runtime) {
+    chrome.runtime.sendMessage({
+      type: 'TEST_MESSAGE',
+      from: 'content_script',
+      timestamp: Date.now()
+    }).then(response => {
+      console.log('[DEBUG] 📥 Background response:', response);
+    }).catch(error => {
+      console.log('[DEBUG] ❌ Message failed:', error);
+    });
+  }
+};
+
+// Simulate receiving a START_WORDLE_BOT_SCRAPE message  
+window.__simulatePopupMessage = () => {
+  console.log('[DEBUG] 🎭 Simulating popup message...');
+  const mockMessage = {
+    type: 'START_WORDLE_BOT_SCRAPE',
+    mode: 'full',
+    stopAtDate: null,
+    maxIterations: 2
+  };
+  
+  // Trigger the same handler that should receive the real message
+  chrome.runtime.onMessage.dispatch(mockMessage, { tab: { id: 'test' } }, (response) => {
+    console.log('[DEBUG] 📥 Simulated message response:', response);
+  });
+};
+
 // Wait for page content to load
 console.log('[DEBUG] Waiting for page content to load...');
 
@@ -463,6 +532,23 @@ waitForCards().then((cardCount) => {
   console.log(`[DEBUG] Page loaded with ${cardCount} cards. Testing extraction...`);
   const testGames = scraper.extractVisibleGames();
   console.log(`[DEBUG] Initial test found ${testGames.length} games`);
+  
+  // Signal to background that content script is ready
+  console.log('[DEBUG] 📢 Signaling that content script is ready...');
+  try {
+    chrome.runtime.sendMessage({
+      type: 'CONTENT_SCRIPT_READY',
+      url: window.location.href,
+      cardsFound: cardCount,
+      timestamp: Date.now()
+    }).then(() => {
+      console.log('[DEBUG] ✅ Ready signal sent successfully');
+    }).catch(error => {
+      console.log('[DEBUG] ❌ Ready signal failed:', error);
+    });
+  } catch (error) {
+    console.log('[DEBUG] ❌ chrome.runtime not available:', error);
+  }
 });
 
 // Export for debugging

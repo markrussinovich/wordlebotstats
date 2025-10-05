@@ -60,7 +60,7 @@ async function handleExtensionMessage(message, sender) {
       return await handleGetDashboardData(message);
       
     case 'START_WORDLE_BOT_SCRAPE':
-      return await handleStartWordleBotScrape(message);
+      return await forwardToContentScript(message, sender);
       
     case 'WORDLE_BOT_SCRAPE_PROGRESS':
       return await handleWordleBotScrapeProgress(message);
@@ -74,8 +74,44 @@ async function handleExtensionMessage(message, sender) {
     case 'BULK_IMPORT_GAMES':
       return await handleBulkImportGames(message.games);
       
+    case 'CONTENT_SCRIPT_READY':
+      console.log('[BACKGROUND DEBUG] Content script ready signal received');
+      return { received: true };
+      
+    case 'TEST_SELF_MESSAGE':
+      console.log('[BACKGROUND DEBUG] Test self message received');
+      return { received: true };
+      
     default:
       throw new Error(`Unknown message type: ${message.type}`);
+  }
+}
+
+// Forward message to content script on WordleBot page
+async function forwardToContentScript(message, sender) {
+  console.log('[BACKGROUND DEBUG] Forwarding START_WORDLE_BOT_SCRAPE to content script');
+  
+  try {
+    // Find the WordleBot tab
+    const tabs = await chrome.tabs.query({
+      url: "https://www.nytimes.com/interactive/2022/upshot/wordle-bot.html"
+    });
+    
+    if (tabs.length === 0) {
+      throw new Error('WordleBot tab not found. Please open the WordleBot page first.');
+    }
+    
+    const tab = tabs[0];
+    console.log('[BACKGROUND DEBUG] Found WordleBot tab:', tab.id);
+    
+    // Send message to content script
+    const response = await chrome.tabs.sendMessage(tab.id, message);
+    console.log('[BACKGROUND DEBUG] Content script response:', response);
+    
+    return response;
+  } catch (error) {
+    console.error('[BACKGROUND DEBUG] Failed to forward to content script:', error);
+    throw error;
   }
 }
 

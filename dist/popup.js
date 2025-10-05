@@ -15,6 +15,10 @@ document.addEventListener('DOMContentLoaded', function() {
   let selectedTimeFrame = '7d';
   let isLoading = false;
   let statistics = null;
+  let scraperStatus = {
+    active: false,
+    message: ''
+  };
   
   // Render popup
   function render() {
@@ -53,6 +57,10 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   
   function renderContent() {
+    if (scraperStatus.active) {
+      return `<div class="loading">${scraperStatus.message}</div>`;
+    }
+    
     if (isLoading) {
       return '<div class="loading">Loading stats...</div>';
     }
@@ -141,6 +149,58 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
   
+  // Listen for scraper progress messages
+  chrome.runtime.onMessage.addListener((message) => {
+    console.log('[Popup] Received message:', message);
+    
+    if (message.type === 'WORDLE_BOT_SCRAPE_PROGRESS') {
+      scraperStatus.active = true;
+      scraperStatus.message = `📥 Importing ${message.gamesFound} games...`;
+      render();
+    } else if (message.type === 'WORDLE_BOT_SCRAPE_COMPLETE') {
+      scraperStatus.active = false;
+      scraperStatus.message = '';
+      
+      if (message.newGames > 0) {
+        console.log(`[Popup] Imported ${message.newGames} new games, reloading stats`);
+        loadStatistics();
+      }
+    } else if (message.type === 'WORDLE_BOT_SCRAPE_ERROR') {
+      scraperStatus.active = false;
+      scraperStatus.message = '';
+      console.error('[Popup] Scrape error:', message.error);
+    }
+  });
+  
+  // Auto-import on load
+  async function triggerAutoImport() {
+    try {
+      console.log('[Popup] Triggering auto-import from WordleBot');
+      
+      scraperStatus.active = true;
+      scraperStatus.message = '🔄 Checking for new games...';
+      render();
+      
+      const response = await chrome.runtime.sendMessage({
+        type: 'START_WORDLE_BOT_SCRAPE',
+        mode: 'auto',
+        maxIterations: 10
+      });
+      
+      console.log('[Popup] Auto-import response:', response);
+    } catch (error) {
+      console.error('[Popup] Auto-import failed:', error);
+      scraperStatus.active = false;
+      scraperStatus.message = '';
+      render();
+    }
+  }
+  
   // Initial load
   loadStatistics();
+  
+  // Trigger auto-import after a short delay
+  setTimeout(() => {
+    triggerAutoImport();
+  }, 500);
 });

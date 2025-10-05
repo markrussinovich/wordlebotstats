@@ -43,9 +43,41 @@ class WordleBotScraper {
           .then(() => sendResponse({ success: true }))
           .catch(error => sendResponse({ success: false, error: error.message }));
         return true; // Will respond asynchronously
+      } else if (message.type === 'GET_NEWEST_PAGE_GAME') {
+        this.getNewestPageGame()
+          .then(game => sendResponse({ success: true, game }))
+          .catch(error => sendResponse({ success: false, error: error.message }));
+        return true; // Will respond asynchronously
       }
       return false;
     });
+  }
+
+  async getNewestPageGame(): Promise<RawGameData | null> {
+    try {
+      const games = this.extractVisibleGames();
+      if (games.length === 0) {
+        return null;
+      }
+      
+      // Sort by game number or date to find the newest
+      const sortedGames = games.sort((a, b) => {
+        // Try game number first
+        if (a.gameNumber && b.gameNumber) {
+          return b.gameNumber - a.gameNumber;
+        }
+        // Fall back to date
+        if (a.date && b.date) {
+          return b.date.localeCompare(a.date);
+        }
+        return 0;
+      });
+      
+      return sortedGames[0] || null;
+    } catch (error) {
+      console.error('[WordleBotScraper] Error getting newest page game:', error);
+      return null;
+    }
   }
 
   async startScraping(

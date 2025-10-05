@@ -25,6 +25,11 @@ class WordleBotScraper {
         if (now - paramTime < 30000) {
           console.log('[WordleBotScraper] Auto-starting scraper with params:', params.wordleBotScrapeParams);
           this.maxIterations = params.wordleBotScrapeParams.maxIterations || 10;
+          this.stopAtDate = params.wordleBotScrapeParams.stopAtDate || null;
+          
+          if (this.stopAtDate) {
+            console.log('[WordleBotScraper] Will stop scraping at date:', this.stopAtDate);
+          }
           
           // Wait for page to be ready
           setTimeout(() => {
@@ -119,15 +124,29 @@ class WordleBotScraper {
       return null;
     }
     
-    // Extract date from "Wordle XXX, Month DD, YYYY" pattern
-    const dateMatch = fullText.match(/Wordle\s+\d+,\s+([A-Za-z]+\s+\d{1,2},\s+\d{4})/);
+    // Extract date - now format is "September 24" without year
+    const dateMatch = fullText.match(/(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2})/);
     let gameDate = null;
     
     if (dateMatch) {
       try {
-        gameDate = new Date(dateMatch[1]).toISOString().split('T')[0];
+        const month = dateMatch[1];
+        const day = parseInt(dateMatch[2]);
+        const currentDate = new Date();
+        const currentYear = currentDate.getFullYear();
+        
+        // Try current year first
+        let testDate = new Date(`${month} ${day}, ${currentYear}`);
+        
+        // If the date is in the future, use last year
+        if (testDate > currentDate) {
+          testDate = new Date(`${month} ${day}, ${currentYear - 1}`);
+        }
+        
+        gameDate = testDate.toISOString().split('T')[0];
+        console.log(`[WordleBotScraper] Parsed date "${month} ${day}" as ${gameDate}`);
       } catch (error) {
-        console.log(`[WordleBotScraper] Error parsing date: ${dateMatch[1]}`);
+        console.log(`[WordleBotScraper] Error parsing date: ${dateMatch[0]}`);
       }
     }
     

@@ -476,10 +476,26 @@ async function handleStartWordleBotScrape(message) {
   try {
     console.log('[BACKGROUND DEBUG] Starting WordleBot scrape (mode:', message.mode, ')');
     
+    // Get newest game from storage
+    let stopAtDate = null;
+    if (message.mode === 'auto' || message.mode === 'incremental') {
+      const result = await chrome.storage.local.get(['games']);
+      const games = result.games || [];
+      
+      if (games.length > 0) {
+        const newestGame = games.reduce((newest, game) => {
+          return new Date(game.date) > new Date(newest.date) ? game : newest;
+        });
+        stopAtDate = newestGame.date;
+        console.log('[BACKGROUND DEBUG] Will stop scraping at:', stopAtDate);
+      }
+    }
+    
     // Store scrape parameters for content script to pick up
     await chrome.storage.local.set({
       wordleBotScrapeParams: {
         mode: message.mode,
+        stopAtDate: stopAtDate,
         maxIterations: message.maxIterations || 10,
         timestamp: Date.now()
       }

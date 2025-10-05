@@ -10,10 +10,10 @@ import {
   MessageType 
 } from '@/types/messagingTypes';
 import { GameResult } from '@/types/gameTypes';
-import { StorageService } from '@/services/storage';
+import { ExtensionStorage } from './extensionStorage';
 
 // Initialize storage service
-let storageService: StorageService;
+let storageService: ExtensionStorage;
 
 // Extension installation and updates
 chrome.runtime.onInstalled.addListener(async (details) => {
@@ -21,7 +21,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   
   try {
     // Initialize storage service
-    storageService = StorageService.getInstance();
+    storageService = ExtensionStorage.getInstance();
     await storageService.initialize();
     
     if (details.reason === 'install') {
@@ -156,7 +156,7 @@ async function handleImportGameResult(message: ImportGameResultMessage): Promise
     console.log('[Background] Importing game result:', message.gameResult);
     
     if (!storageService) {
-      storageService = StorageService.getInstance();
+      storageService = ExtensionStorage.getInstance();
       await storageService.initialize();
     }
 
@@ -202,7 +202,7 @@ async function handleGetQuickStats(message: GetQuickStatsMessage): Promise<Quick
 async function handleGetDashboardData(message: GetDashboardDataMessage): Promise<DashboardDataResponse> {
   try {
     if (!storageService) {
-      storageService = StorageService.getInstance();
+      storageService = ExtensionStorage.getInstance();
       await storageService.initialize();
     }
 
@@ -298,7 +298,7 @@ async function handleStartWordleBotScrape(message: any): Promise<void> {
     // Initialize storage service if not available
     if (!storageService) {
       console.log('[BACKGROUND DEBUG] Initializing storage service...');
-      storageService = StorageService.getInstance();
+      storageService = ExtensionStorage.getInstance();
       await storageService.initialize();
     }
     
@@ -320,13 +320,14 @@ async function handleStartWordleBotScrape(message: any): Promise<void> {
       }
     }
     
-    // Get newest game date for incremental mode
+    // Get newest game date from storage for incremental mode
     let stopAtDate: string | undefined;
+    let newestStoredGame: any = null;
     if (message.mode === 'incremental' || message.mode === 'auto') {
       console.log('[BACKGROUND DEBUG] Getting newest game for incremental mode...');
-      const newestGame = await storageService.getNewestGame();
-      stopAtDate = newestGame?.date;
-      console.log('[BACKGROUND DEBUG] Incremental mode - will stop at:', stopAtDate);
+      newestStoredGame = await storageService.getNewestGame();
+      stopAtDate = newestStoredGame?.date;
+      console.log('[BACKGROUND DEBUG] Newest stored game:', newestStoredGame?.date, 'Game#', newestStoredGame?.gameNumber);
     }
     
     // Open WordleBot page in background tab
@@ -342,6 +343,46 @@ async function handleStartWordleBotScrape(message: any): Promise<void> {
     // Wait for tab to load
     console.log('[BACKGROUND DEBUG] Waiting 3 seconds for tab to load...');
     await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    // Check if there are newer games on the page before scraping
+    if (tab.id && (message.mode === 'incremental' || message.mode === 'auto')) {
+      console.log('[BACKGROUND DEBUG] Checking for newer games on page...');
+      try {
+        const response = await chrome.tabs.sendMessage(tab.id, { type: 'GET_NEWEST_PAGE_GAME' });
+        console.log('[BACKGROUND DEBUG] Newest page game response:', response);
+        
+        if (response.success && response.game) {
+          const newestPageGame = response.game;
+          console.log('[BACKGROUND DEBUG] Newest page game:', newestPageGame.date, 'Game#', newestPageGame.gameNumber);
+          
+          // Compare with storage
+          if (newestStoredGame) {
+            const pageDate = newestPageGame.date || '';
+            const storedDate = newestStoredGame.date || '';
+            const pageGameNum = newestPageGame.gameNumber || 0;
+            const storedGameNum = newestStoredGame.gameNumber || 0;
+            
+            // Check if page has newer games
+            const hasNewerGames = pageGameNum > storedGameNum || pageDate > storedDate;
+            
+            if (!hasNewerGames) {
+              console.log('[BACKGROUND DEBUG] No newer games found on page, skipping scrape');
+              // Close tab and return early
+              if (scraperTabId) {
+                chrome.tabs.remove(scraperTabId).catch(() => {});
+                scraperTabId = null;
+              }
+              return;
+            } else {
+              console.log('[BACKGROUND DEBUG] Found newer games on page, proceeding with scrape');
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('[BACKGROUND DEBUG] Failed to check newest page game, proceeding anyway:', error);
+        // Continue with scrape even if check fails
+      }
+    }
     
     // Send scrape command to content script
     if (tab.id) {
@@ -380,7 +421,7 @@ async function handleBulkImportGames(games: GameResult[]): Promise<{ success: bo
     console.log(`[Background] Bulk importing ${games.length} games`);
     
     if (!storageService) {
-      storageService = StorageService.getInstance();
+      storageService = ExtensionStorage.getInstance();
       await storageService.initialize();
     }
     
@@ -498,7 +539,7 @@ function calculateStatistics(games: any[]): any {
   const wins = games.filter(game => game.won);
   const winRate = (wins.length / games.length) * 100;
   
-  const totalGuesses = wins.reduce((sum, game) => sum + game.guesses, 0);
+  const totalGuesses = wins.reduce((sum, game) => sum + (game.attempts || 0), 0);
   const averageGuesses = wins.length > 0 ? totalGuesses / wins.length : 0;
   
   // Calculate streaks

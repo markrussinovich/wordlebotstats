@@ -304,12 +304,14 @@ const Popup: React.FC<PopupProps> = () => {
             </div>
             
             <div className="stat-card" role="group" aria-labelledby="streak-label">
-              <div id="streak-label" className="stat-label">Current Streak</div>
+              <div id="streak-label" className="stat-label">
+                {selectedTimeFrame === '7d' ? 'Current Streak' : 'Longest Streak'}
+              </div>
               <div className="stat-value" aria-describedby="streak-desc">
-                {statistics.currentStreak}
+                {selectedTimeFrame === '7d' ? statistics.currentStreak : statistics.maxStreak}
               </div>
               <span id="streak-desc" className="sr-only">
-                Current winning streak
+                {selectedTimeFrame === '7d' ? 'Current winning streak' : 'Longest winning streak'}
               </span>
             </div>
             

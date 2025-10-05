@@ -169,6 +169,14 @@ async function handleBulkImportGames(games) {
     // Store updated games
     await chrome.storage.local.set({ games: existingGames });
     console.log('[BACKGROUND DEBUG] Stored', existingGames.length, 'total games');
+    console.log('[BACKGROUND DEBUG] Sample stored game:', existingGames[0] ? {
+      solution: existingGames[0].solution,
+      date: existingGames[0].date,
+      won: existingGames[0].won,
+      isWin: existingGames[0].isWin,
+      attempts: existingGames[0].attempts,
+      guesses: existingGames[0].guesses
+    } : 'none');
     
     return {
       success: true,
@@ -197,13 +205,21 @@ async function handleGetQuickStats(message) {
     const games = result.games || [];
     
     console.log('[BACKGROUND DEBUG] Found', games.length, 'games in storage');
+    console.log('[BACKGROUND DEBUG] Sample game from storage:', games[0] ? {
+      solution: games[0].solution,
+      date: games[0].date,
+      won: games[0].won,
+      isWin: games[0].isWin,
+      attempts: games[0].attempts,
+      guesses: games[0].guesses
+    } : 'none');
     
     // Filter games by time frame
     const filteredGames = filterGamesByTimeFrame(games, message.timeFrame);
     console.log('[BACKGROUND DEBUG] Filtered to', filteredGames.length, 'games for timeframe:', message.timeFrame);
     
     // Calculate statistics
-    const statistics = calculateStatistics(filteredGames);
+    const statistics = await calculateStatistics(filteredGames, message.timeFrame);
     console.log('[BACKGROUND DEBUG] Calculated stats:', statistics);
     
     return {
@@ -217,38 +233,8 @@ async function handleGetQuickStats(message) {
   }
 }
 
-// Filter games by time frame
-function filterGamesByTimeFrame(games, timeFrame) {
-  if (timeFrame === 'all') {
-    return games;
-  }
-  
-  const now = new Date();
-  const cutoffDate = new Date();
-  
-  switch (timeFrame) {
-    case '7d':
-      cutoffDate.setDate(now.getDate() - 7);
-      break;
-    case '30d':
-      cutoffDate.setDate(now.getDate() - 30);
-      break;
-    case '90d':
-      cutoffDate.setDate(now.getDate() - 90);
-      break;
-    default:
-      return games;
-  }
-  
-  return games.filter(game => {
-    if (!game.date) return false;
-    const gameDate = new Date(game.date);
-    return gameDate >= cutoffDate;
-  });
-}
-
-// Calculate statistics from games
-function calculateStatistics(games) {
+// Calculate statistics function
+async function calculateStatistics(games, timeFrame) {
   if (games.length === 0) {
     return {
       gameCount: 0,
@@ -284,11 +270,124 @@ function calculateStatistics(games) {
   const averageGuesses = validGuesses.length > 0 ? (guessesSum / validGuesses.length) : 0;
   
   console.log('[BACKGROUND DEBUG] Guesses sum:', guessesSum, 'Valid count:', validGuesses.length, 'Average:', averageGuesses);
+
+  // Calculate streaks
+  const allGames = await chrome.storage.local.get(['games']);
+  const allStoredGames = allGames.games || [];
+  const sortedAllGames = allStoredGames.sort((a, b) => new Date(a.date) - new Date(b.date));
+  
+  let currentStreak = 0;
+  let maxStreak = 0;
+  let tempStreak = 0;
+  
+  // Calculate current streak (from most recent game backwards)
+  for (let i = sortedAllGames.length - 1; i >= 0; i--) {
+    const isWin = sortedAllGames[i].isWin ?? sortedAllGames[i].won;
+    if (isWin) {
+      currentStreak++;
+    } else {
+      break; // Stop at first loss
+    }
+  }
+  
+  // Calculate longest streak in all games (for context)
+  for (let i = 0; i < sortedAllGames.length; i++) {
+    const isWin = sortedAllGames[i].isWin ?? sortedAllGames[i].won;
+    if (isWin) {
+      tempStreak++;
+      maxStreak = Math.max(maxStreak, tempStreak);
+    } else {
+      tempStreak = 0;
+    }
+  }
+  
+  // For 7-day timeframe, return current streak
+  // For other timeframes, return longest streak that ends within the period
+  const streakToReturn = timeFrame === '7d' ? currentStreak : (() => {
+    if (timeFrame === 'all') {
+      // For 'all', just return the overall max streak
+      return maxStreak;
+    }
+    
+    // For 30d/90d, check if the current streak extends into the period
+    const now = new Date();
+    let cutoffDate;
+    switch (timeFrame) {
+      case '30d':
+        cutoffDate = new Date(now);
+        cutoffDate.setDate(now.getDate() - 30);
+        break;
+      case '90d':
+        cutoffDate = new Date(now);
+        cutoffDate.setDate(now.getDate() - 90);
+        break;
+      default:
+        cutoffDate = new Date(0);
+        break;
+    }
+    
+    // Check if we have any games in the period
+    const gamesInPeriod = sortedAllGames.filter(game => {
+      if (!game.date) return false;
+      const gameDate = new Date(game.date);
+      return gameDate >= cutoffDate;
+    });
+    
+    if (gamesInPeriod.length === 0) return 0;
+    
+    // If the current streak includes the most recent game AND 
+    // the most recent game is within the period, then the current streak 
+    // is the longest streak that "ends" in this period
+    if (currentStreak > 0 && gamesInPeriod.length > 0) {
+      const mostRecentGameInPeriod = gamesInPeriod[gamesInPeriod.length - 1];
+      const mostRecentGameOverall = sortedAllGames[sortedAllGames.length - 1];
+      
+      // If the most recent game overall is within the period and part of current streak
+      if (mostRecentGameInPeriod.date === mostRecentGameOverall.date) {
+        return currentStreak; // The current streak extends into this period
+      }
+    }
+    
+    // Otherwise, find the longest streak that ends within the period
+    // (This is for cases where current streak is 0 or doesn't extend into period)
+    let maxStreakInPeriod = 0;
+    
+    // Simple approach: find all streaks and see which ones end in the period
+    let tempStreak = 0;
+    for (let i = 0; i < sortedAllGames.length; i++) {
+      const isWin = sortedAllGames[i].isWin ?? sortedAllGames[i].won;
+      const gameDate = new Date(sortedAllGames[i].date);
+      const isInPeriod = gameDate >= cutoffDate;
+      
+      if (isWin) {
+        tempStreak++;
+        // If this game is in the period, record the streak ending here
+        if (isInPeriod) {
+          maxStreakInPeriod = Math.max(maxStreakInPeriod, tempStreak);
+        }
+      } else {
+        tempStreak = 0;
+      }
+    }
+    
+    return maxStreakInPeriod;
+  })();
+
+  console.log('[BACKGROUND DEBUG] Streak calculation:', {
+    timeFrame: timeFrame,
+    currentStreak: currentStreak,
+    maxStreak: maxStreak,
+    streakToReturn: streakToReturn,
+    totalGamesInStorage: sortedAllGames.length,
+    streakType: timeFrame === '7d' ? 'current' : 'longest'
+  });
+  
   console.log('[BACKGROUND DEBUG] Final stats:', {
     gameCount: games.length,
     winRate: Math.round(winRate * 10) / 10,
     averageGuesses: Math.round(averageGuesses * 10) / 10,
-    wins: wins.length
+    wins: wins.length,
+    displayedStreak: timeFrame === '7d' ? streakToReturn : streakToReturn
   });
   
   // Calculate guess distribution
@@ -304,34 +403,52 @@ function calculateStatistics(games) {
     }
   });
   
-  // Calculate streaks (simplified - would need proper date sorting for accuracy)
-  const sortedGames = games.sort((a, b) => new Date(a.date) - new Date(b.date));
-  let currentStreak = 0;
-  let maxStreak = 0;
-  let streak = 0;
-  
-  for (let i = sortedGames.length - 1; i >= 0; i--) {
-    const isWin = sortedGames[i].isWin ?? sortedGames[i].won;
-    if (isWin) {
-      streak++;
-      if (i === sortedGames.length - 1) currentStreak = streak;
-    } else {
-      maxStreak = Math.max(maxStreak, streak);
-      streak = 0;
-      if (i === sortedGames.length - 1) currentStreak = 0;
-    }
-  }
-  maxStreak = Math.max(maxStreak, streak);
+  // Return the appropriate streak based on timeframe
+  const streakValue = timeFrame === '7d' ? currentStreak : streakToReturn;
+  const streakLabel = timeFrame === '7d' ? 'current' : 'longest';
   
   return {
     gameCount: games.length,
     winRate: Math.round(winRate * 10) / 10,
     averageGuesses: Math.round(averageGuesses * 10) / 10,
-    currentStreak,
-    maxStreak,
+    currentStreak: timeFrame === '7d' ? streakValue : 0, // Only show current for 7d
+    maxStreak: timeFrame === '7d' ? maxStreak : streakValue, // Show longest for other periods
+    streakValue: streakValue, // The actual streak number to display
+    streakLabel: streakLabel, // 'current' or 'longest'
     guessDistribution: distribution
   };
 }
+
+// Filter games by time frame
+function filterGamesByTimeFrame(games, timeFrame) {
+  if (timeFrame === 'all') {
+    return games;
+  }
+  
+  const now = new Date();
+  const cutoffDate = new Date();
+  
+  switch (timeFrame) {
+    case '7d':
+      cutoffDate.setDate(now.getDate() - 7);
+      break;
+    case '30d':
+      cutoffDate.setDate(now.getDate() - 30);
+      break;
+    case '90d':
+      cutoffDate.setDate(now.getDate() - 90);
+      break;
+    default:
+      return games;
+  }
+  
+  return games.filter(game => {
+    if (!game.date) return false;
+    const gameDate = new Date(game.date);
+    return gameDate >= cutoffDate;
+  });
+}
+
 
 // Dashboard data handler
 async function handleGetDashboardData(message) {

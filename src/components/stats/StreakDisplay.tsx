@@ -8,6 +8,7 @@ export interface StreakDisplayProps {
   streakHistory?: Array<{ length: number; startDate: string; endDate?: string }>;
   showHistory?: boolean;
   className?: string;
+  timeFrame?: string; // Add timeFrame prop to determine display logic
 }
 
 const StreakDisplay: React.FC<StreakDisplayProps> = ({

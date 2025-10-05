@@ -1,14 +1,13 @@
 {
   "manifest_version": 3,
   "name": "Wordle Stat Explorer",
-  "version": "1.0.11",
+  "version": "1.0.0",
   "description": "A clean, responsive extension that turns your Wordle history into insights—compare your performance to national averages and WordleBot over any time frame.",
   
   "permissions": [
     "storage",
     "activeTab",
-    "scripting",
-    "tabs"
+    "scripting"
   ],
   
   "host_permissions": [

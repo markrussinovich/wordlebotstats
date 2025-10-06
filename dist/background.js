@@ -1,665 +1,560 @@
-// Background service worker for Wordle Stats extension
-// Simplified version without complex imports
-
-console.log('[Background] Background script loaded');
-
-// Extension installation
-chrome.runtime.onInstalled.addListener(async (details) => {
-  console.log('[Background] Extension installed:', details.reason);
-  
-  try {
-    if (details.reason === 'install') {
-      await chrome.storage.sync.set({
-        preferences: {
-          theme: 'system',
-          defaultTimeFrame: '7d',
-          showBenchmarks: true,
-          enableNotifications: false,
-          autoImport: true
-        },
-        lastSyncTime: Date.now(),
-        version: chrome.runtime.getManifest().version
+// src/extension/background/extensionStorage.ts
+var ExtensionStorage = class _ExtensionStorage {
+  constructor() {
+  }
+  static getInstance() {
+    if (!_ExtensionStorage.instance) {
+      _ExtensionStorage.instance = new _ExtensionStorage();
+    }
+    return _ExtensionStorage.instance;
+  }
+  async initialize() {
+    console.log("[ExtensionStorage] Initialized");
+  }
+  async getAllGames() {
+    try {
+      const result = await chrome.storage.local.get("games");
+      return result.games || [];
+    } catch (error) {
+      console.error("[ExtensionStorage] Failed to get games:", error);
+      return [];
+    }
+  }
+  async saveGame(game) {
+    try {
+      const games = await this.getAllGames();
+      const existingIndex = games.findIndex((g) => g.date === game.date);
+      if (existingIndex >= 0) {
+        games[existingIndex] = game;
+      } else {
+        games.push(game);
+      }
+      await chrome.storage.local.set({ games });
+    } catch (error) {
+      console.error("[ExtensionStorage] Failed to save game:", error);
+      throw error;
+    }
+  }
+  async bulkImportGames(newGames) {
+    let imported = 0;
+    let duplicates = 0;
+    let errors = 0;
+    try {
+      const existingGames = await this.getAllGames();
+      const gameMap = /* @__PURE__ */ new Map();
+      existingGames.forEach((game) => {
+        gameMap.set(game.date, game);
       });
-      console.log('[Background] Extension initialized with default settings');
+      for (const game of newGames) {
+        try {
+          const existing = gameMap.get(game.date);
+          if (existing) {
+            const shouldReplace = this.shouldReplaceExisting(existing, game);
+            if (shouldReplace) {
+              gameMap.set(game.date, game);
+              imported++;
+            } else {
+              duplicates++;
+            }
+          } else {
+            gameMap.set(game.date, game);
+            imported++;
+          }
+        } catch (error) {
+          console.error("[ExtensionStorage] Failed to process game:", game.date, error);
+          errors++;
+        }
+      }
+      const allGames = Array.from(gameMap.values());
+      await chrome.storage.local.set({ games: allGames });
+    } catch (error) {
+      console.error("[ExtensionStorage] Bulk import failed:", error);
+      throw error;
+    }
+    return { imported, duplicates, errors };
+  }
+  shouldReplaceExisting(existing, newGame) {
+    const existingScore = this.getDataRichnessScore(existing);
+    const newScore = this.getDataRichnessScore(newGame);
+    return newScore > existingScore;
+  }
+  getDataRichnessScore(game) {
+    let score = 0;
+    score += 1;
+    if (game.skillScore !== void 0) score += 2;
+    if (game.luckScore !== void 0) score += 2;
+    if (game.analysisUrl) score += 1;
+    if (game.solution) score += 1;
+    if (game.guessPattern && game.guessPattern.length > 0) score += 2;
+    if (game.duration || game.timeToComplete) score += 1;
+    return score;
+  }
+  async getNewestGame() {
+    try {
+      const games = await this.getAllGames();
+      if (games.length === 0) return null;
+      return games.reduce((newest, game) => {
+        return new Date(game.date) > new Date(newest.date) ? game : newest;
+      });
+    } catch (error) {
+      console.error("[ExtensionStorage] Failed to get newest game:", error);
+      return null;
+    }
+  }
+  async getScraperMetadata() {
+    try {
+      const result = await chrome.storage.local.get("scraperMetadata");
+      const metadata = result.scraperMetadata || {};
+      return {
+        lastScrape: metadata.lastScrape || null,
+        lastScrapeMode: metadata.lastScrapeMode || null,
+        totalScraped: metadata.totalScraped || 0,
+        lastError: metadata.lastError || null
+      };
+    } catch (error) {
+      console.error("[ExtensionStorage] Failed to get scraper metadata:", error);
+      return {
+        lastScrape: null,
+        lastScrapeMode: null,
+        totalScraped: 0,
+        lastError: null
+      };
+    }
+  }
+  async updateScraperMetadata(update) {
+    try {
+      const current = await this.getScraperMetadata();
+      const newMetadata = {
+        lastScrape: update.lastScrape || current.lastScrape,
+        lastScrapeMode: update.lastScrapeMode || current.lastScrapeMode,
+        totalScraped: update.totalScraped !== void 0 ? update.totalScraped : current.totalScraped,
+        lastError: update.lastError !== void 0 ? update.lastError : current.lastError
+      };
+      await chrome.storage.local.set({ scraperMetadata: newMetadata });
+    } catch (error) {
+      console.error("[ExtensionStorage] Failed to update scraper metadata:", error);
+    }
+  }
+  async getPreferences() {
+    try {
+      const result = await chrome.storage.sync.get("preferences");
+      return result.preferences || null;
+    } catch (error) {
+      console.error("[ExtensionStorage] Failed to get preferences:", error);
+      return null;
+    }
+  }
+};
+
+// src/extension/background/background.ts
+var storageService;
+chrome.runtime.onInstalled.addListener(async (details) => {
+  console.log("[Background] Extension installed:", details.reason);
+  try {
+    storageService = ExtensionStorage.getInstance();
+    await storageService.initialize();
+    if (details.reason === "install") {
+      await initializeExtension();
+    } else if (details.reason === "update") {
+      await handleExtensionUpdate(details.previousVersion);
     }
   } catch (error) {
-    console.error('[Background] Extension initialization failed:', error);
+    console.error("[Background] Extension initialization failed:", error);
   }
 });
-
-// Message routing between extension components
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  console.log('[BACKGROUND DEBUG] Received message:', message.type, message);
-  console.log('[BACKGROUND DEBUG] Sender:', sender);
-  
-  handleExtensionMessage(message, sender)
-    .then(response => {
-      console.log('[BACKGROUND DEBUG] Sending response:', response);
+chrome.runtime.onMessage.addListener(
+  (message, sender, sendResponse) => {
+    console.log("[BACKGROUND DEBUG] Received message:", message.type, message);
+    console.log("[BACKGROUND DEBUG] Sender:", sender);
+    handleExtensionMessage(message, sender).then((response) => {
+      console.log("[BACKGROUND DEBUG] Sending response:", response);
       if (response) {
         sendResponse(response);
       }
-    })
-    .catch(error => {
-      console.error('[BACKGROUND DEBUG] Message handling error:', error);
-      sendResponse({ 
-        success: false, 
-        error: error.message 
+    }).catch((error) => {
+      console.error("[BACKGROUND DEBUG] Message handling error:", error);
+      sendResponse({
+        success: false,
+        error: error.message
       });
     });
-  
-  return true; // Will respond asynchronously
-});
-
-// Handle messages
-async function handleExtensionMessage(message, sender) {
+    return true;
+  }
+);
+async function initializeExtension() {
+  try {
+    await chrome.storage.sync.set({
+      preferences: {
+        theme: "system",
+        defaultTimeFrame: "30d",
+        showBenchmarks: true,
+        enableNotifications: false,
+        autoImport: true
+      },
+      lastSyncTime: Date.now(),
+      version: chrome.runtime.getManifest().version
+    });
+    console.log("[Background] Extension initialized with default settings");
+  } catch (error) {
+    console.error("[Background] Failed to initialize extension:", error);
+  }
+}
+async function handleExtensionUpdate(previousVersion) {
+  try {
+    console.log(`[Background] Updating from version ${previousVersion}`);
+    if (previousVersion && compareVersions(previousVersion, "1.0.0") < 0) {
+      await migrateToV1();
+    }
+    await chrome.storage.sync.set({
+      version: chrome.runtime.getManifest().version,
+      lastUpdateTime: Date.now()
+    });
+  } catch (error) {
+    console.error("[Background] Failed to handle extension update:", error);
+  }
+}
+async function handleExtensionMessage(message, _sender) {
   switch (message.type) {
-    case 'GET_QUICK_STATS':
-      return await handleGetQuickStats(message);
-      
-    case 'GET_DASHBOARD_DATA':
-      return await handleGetDashboardData(message);
-      
-    case 'START_WORDLE_BOT_SCRAPE':
-      return await forwardToContentScript(message, sender);
-      
-    case 'WORDLE_BOT_SCRAPE_PROGRESS':
-      return await handleWordleBotScrapeProgress(message);
-      
-    case 'WORDLE_BOT_SCRAPE_COMPLETE':
-      return await handleWordleBotScrapeComplete(message);
-      
-    case 'WORDLE_BOT_SCRAPE_ERROR':
-      return await handleWordleBotScrapeError(message);
-      
-    case 'BULK_IMPORT_GAMES':
-      return await handleBulkImportGames(message.games);
-      
-    case 'CONTENT_SCRIPT_READY':
-      console.log('[BACKGROUND DEBUG] Content script ready signal received');
-      return { received: true };
-      
-    case 'TEST_SELF_MESSAGE':
-      console.log('[BACKGROUND DEBUG] Test self message received');
-      return { received: true };
-      
+    case "IMPORT_GAME_RESULT" /* IMPORT_GAME_RESULT */:
+      return handleImportGameResult(message);
+    case "GET_QUICK_STATS" /* GET_QUICK_STATS */:
+      return handleGetQuickStats(message);
+    case "GET_DASHBOARD_DATA" /* GET_DASHBOARD_DATA */:
+      return handleGetDashboardData(message);
+    case "SYNC_DATA" /* SYNC_DATA */:
+      return handleSyncData();
+    case "EXPORT_DATA" /* EXPORT_DATA */:
+      return handleExportData();
+    case "CLEAR_DATA" /* CLEAR_DATA */:
+      return handleClearData();
+    case "START_WORDLE_BOT_SCRAPE" /* START_WORDLE_BOT_SCRAPE */:
+      return handleStartWordleBotScrape(message);
+    case "BULK_IMPORT_GAMES":
+      return handleBulkImportGames(message.games);
+    case "WORDLE_BOT_SCRAPE_PROGRESS" /* WORDLE_BOT_SCRAPE_PROGRESS */:
+      return handleWordleBotScrapeProgress(message);
+    case "WORDLE_BOT_SCRAPE_COMPLETE" /* WORDLE_BOT_SCRAPE_COMPLETE */:
+      return handleWordleBotScrapeComplete(message);
+    case "WORDLE_BOT_SCRAPE_ERROR" /* WORDLE_BOT_SCRAPE_ERROR */:
+      return handleWordleBotScrapeError(message);
     default:
       throw new Error(`Unknown message type: ${message.type}`);
   }
 }
-
-// Forward message to content script on WordleBot page
-async function forwardToContentScript(message, sender) {
-  console.log('[BACKGROUND DEBUG] Forwarding START_WORDLE_BOT_SCRAPE to content script');
-  
+async function handleImportGameResult(message) {
   try {
-    // Find the WordleBot tab
-    const tabs = await chrome.tabs.query({
-      url: "https://www.nytimes.com/interactive/2022/upshot/wordle-bot.html"
-    });
-    
-    if (tabs.length === 0) {
-      throw new Error('WordleBot tab not found. Please open the WordleBot page first.');
+    console.log("[Background] Importing game result:", message.gameResult);
+    if (!storageService) {
+      storageService = ExtensionStorage.getInstance();
+      await storageService.initialize();
     }
-    
-    const tab = tabs[0];
-    console.log('[BACKGROUND DEBUG] Found WordleBot tab:', tab.id);
-    
-    // Send message to content script
-    const response = await chrome.tabs.sendMessage(tab.id, message);
-    console.log('[BACKGROUND DEBUG] Content script response:', response);
-    
-    return response;
+    await storageService.saveGame(message.gameResult);
+    console.log("[Background] Game result saved successfully");
+    const games = await storageService.getAllGames();
+    await updateExtensionBadge(games);
   } catch (error) {
-    console.error('[BACKGROUND DEBUG] Failed to forward to content script:', error);
+    console.error("[Background] Failed to import game result:", error);
     throw error;
   }
 }
-
-// Bulk import games handler
-async function handleBulkImportGames(games) {
-  console.log('[BACKGROUND DEBUG] Bulk importing', games.length, 'games');
-  console.log('[BACKGROUND DEBUG] Sample import game:', games[0]);
-  
-  try {
-    // Get existing games
-    const result = await chrome.storage.local.get(['games']);
-    const existingGames = result.games || [];
-    
-    let imported = 0;
-    let duplicates = 0;
-    let errors = 0;
-    
-    for (const game of games) {
-      try {
-        // Check for duplicates (by date and solution)
-        const isDuplicate = existingGames.some(existing => 
-          existing.date === game.date && existing.solution === game.solution
-        );
-        
-        if (isDuplicate) {
-          duplicates++;
-          console.log('[BACKGROUND DEBUG] Skipping duplicate:', game.date, game.solution);
-        } else {
-          // Ensure all required fields are present
-          const gameToStore = {
-            ...game,
-            // Make sure stats fields are preserved
-            isWin: game.isWin ?? game.won ?? true,
-            guesses: game.guesses ?? game.attempts ?? null,
-            won: game.won ?? game.isWin ?? true,
-            attempts: game.attempts ?? game.guesses ?? null
-          };
-          
-          console.log('[BACKGROUND DEBUG] Storing game:', {
-            solution: gameToStore.solution,
-            isWin: gameToStore.isWin,
-            guesses: gameToStore.guesses,
-            won: gameToStore.won,
-            attempts: gameToStore.attempts
-          });
-          
-          existingGames.push(gameToStore);
-          imported++;
-        }
-      } catch (error) {
-        console.error('[BACKGROUND DEBUG] Error processing game:', error);
-        errors++;
-      }
-    }
-    
-    // Store updated games
-    await chrome.storage.local.set({ games: existingGames });
-    console.log('[BACKGROUND DEBUG] Stored', existingGames.length, 'total games');
-    console.log('[BACKGROUND DEBUG] Sample stored game:', existingGames[0] ? {
-      solution: existingGames[0].solution,
-      date: existingGames[0].date,
-      won: existingGames[0].won,
-      isWin: existingGames[0].isWin,
-      attempts: existingGames[0].attempts,
-      guesses: existingGames[0].guesses
-    } : 'none');
-    
-    return {
-      success: true,
-      imported,
-      duplicates,
-      errors,
-      totalGames: existingGames.length
-    };
-  } catch (error) {
-    console.error('[BACKGROUND DEBUG] Bulk import failed:', error);
-    return {
-      success: false,
-      error: error.message,
-      imported: 0,
-      duplicates: 0,
-      errors: games.length
-    };
-  }
-}
-
-// Deduplicate games in storage
-async function deduplicateStorage() {
-  const result = await chrome.storage.local.get(['games']);
-  const games = result.games || [];
-  
-  const seen = new Set();
-  const uniqueGames = [];
-  let removedCount = 0;
-  
-  for (const game of games) {
-    const key = `${game.date}-${game.solution}`;
-    if (!seen.has(key)) {
-      seen.add(key);
-      uniqueGames.push(game);
-    } else {
-      removedCount++;
-    }
-  }
-  
-  if (removedCount > 0) {
-    console.log(`[BACKGROUND DEBUG] Deduplication: Removed ${removedCount} duplicates, keeping ${uniqueGames.length} unique games`);
-    await chrome.storage.local.set({ games: uniqueGames });
-    return { removed: removedCount, kept: uniqueGames.length };
-  }
-  
-  return { removed: 0, kept: games.length };
-}
-
-// Quick stats handler
 async function handleGetQuickStats(message) {
   try {
-    console.log('[BACKGROUND DEBUG] Getting quick stats for:', message.timeFrame);
-    const result = await chrome.storage.local.get(['games']);
-    let games = result.games || [];
-    
-    console.log('[BACKGROUND DEBUG] Found', games.length, 'games in storage');
-    
-    // Check for duplicates in storage and auto-fix
-    const dateGroups = {};
-    games.forEach(game => {
-      const key = `${game.date}-${game.solution}`;
-      if (!dateGroups[key]) dateGroups[key] = 0;
-      dateGroups[key]++;
-    });
-    const duplicates = Object.entries(dateGroups).filter(([key, count]) => count > 1);
-    if (duplicates.length > 0) {
-      console.warn('[BACKGROUND DEBUG] DUPLICATES FOUND IN STORAGE:', duplicates.slice(0, 5));
-      console.warn('[BACKGROUND DEBUG] Auto-deduplicating storage...');
-      const dedupeResult = await deduplicateStorage();
-      console.log('[BACKGROUND DEBUG] Dedupe complete:', dedupeResult);
-      
-      // Reload games after deduplication
-      const newResult = await chrome.storage.local.get(['games']);
-      games = newResult.games || [];
+    const result = await chrome.storage.local.get(["games"]);
+    const games = result.games || [];
+    console.log(`[BACKGROUND DEBUG] GET_QUICK_STATS: Total games in storage: ${games.length}`);
+    console.log(`[BACKGROUND DEBUG] GET_QUICK_STATS: Timeframe requested: ${message.timeFrame}`);
+    if (games.length > 0) {
+      console.log(`[BACKGROUND DEBUG] GET_QUICK_STATS: Sample game dates:`, games.slice(0, 5).map((g) => g.date));
     }
-    
-    console.log('[BACKGROUND DEBUG] Sample game from storage:', games[0] ? {
-      solution: games[0].solution,
-      date: games[0].date,
-      won: games[0].won,
-      isWin: games[0].isWin,
-      attempts: games[0].attempts,
-      guesses: games[0].guesses
-    } : 'none');
-    
-    // Log all game dates to understand the data
-    console.log('[BACKGROUND DEBUG] All game dates:', games.map(g => g.date).slice(0, 10));
-    console.log('[BACKGROUND DEBUG] Today is:', new Date().toISOString());
-    
-    // Filter games by time frame
     const filteredGames = filterGamesByTimeFrame(games, message.timeFrame);
-    console.log('[BACKGROUND DEBUG] Filtered to', filteredGames.length, 'games for timeframe:', message.timeFrame);
-    
-    // Calculate statistics
-    const statistics = await calculateStatistics(filteredGames, message.timeFrame);
-    console.log('[BACKGROUND DEBUG] Calculated stats:', statistics);
-    
+    console.log(`[BACKGROUND DEBUG] GET_QUICK_STATS: Filtered games count: ${filteredGames.length}`);
+    if (filteredGames.length > 0) {
+      console.log(`[BACKGROUND DEBUG] GET_QUICK_STATS: Filtered game dates:`, filteredGames.map((g) => g.date));
+    }
+    const statistics = calculateStatistics(filteredGames, games);
+    console.log(`[BACKGROUND DEBUG] GET_QUICK_STATS: Calculated statistics:`, statistics);
     return {
       success: true,
-      statistics: statistics,
+      statistics: {
+        ...statistics,
+        gameCount: filteredGames.length
+      },
       timeFrame: message.timeFrame
     };
   } catch (error) {
-    console.error('[BACKGROUND DEBUG] Failed to get quick stats:', error);
+    console.error("[Background] Failed to get quick stats:", error);
     throw error;
   }
 }
-
-// Calculate statistics function
-async function calculateStatistics(games, timeFrame) {
+async function handleGetDashboardData(message) {
+  try {
+    if (!storageService) {
+      storageService = ExtensionStorage.getInstance();
+      await storageService.initialize();
+    }
+    const [games, preferences] = await Promise.all([
+      storageService.getAllGames(),
+      storageService.getPreferences()
+    ]);
+    const benchmarksResult = await chrome.storage.local.get(["benchmarks"]);
+    return {
+      success: true,
+      games,
+      benchmarks: benchmarksResult.benchmarks || [],
+      preferences: preferences || {},
+      timeFrames: message.timeFrames || ["7d", "30d", "90d", "all"]
+    };
+  } catch (error) {
+    console.error("[Background] Failed to get dashboard data:", error);
+    throw error;
+  }
+}
+async function handleSyncData() {
+  try {
+    console.log("[Background] Synchronizing data...");
+    const { preferences } = await chrome.storage.sync.get(["preferences"]);
+    if (preferences?.cloudSync) {
+      console.log("[Background] Cloud sync is enabled, syncing data...");
+    }
+    await chrome.storage.sync.set({
+      lastSyncTime: Date.now()
+    });
+  } catch (error) {
+    console.error("[Background] Failed to sync data:", error);
+    throw error;
+  }
+}
+async function handleExportData() {
+  try {
+    const result = await chrome.storage.local.get(["games"]);
+    const games = result.games || [];
+    const exportData = {
+      version: chrome.runtime.getManifest().version,
+      exportDate: (/* @__PURE__ */ new Date()).toISOString(),
+      games
+    };
+    return {
+      data: JSON.stringify(exportData, null, 2),
+      filename: `wordle-stats-${(/* @__PURE__ */ new Date()).toISOString().split("T")[0]}.json`
+    };
+  } catch (error) {
+    console.error("[Background] Failed to export data:", error);
+    throw error;
+  }
+}
+async function handleClearData() {
+  try {
+    await chrome.storage.local.clear();
+    await chrome.storage.sync.remove(["lastSyncTime", "lastImportTime"]);
+    chrome.action.setBadgeText({ text: "" });
+    console.log("[Background] All data cleared");
+  } catch (error) {
+    console.error("[Background] Failed to clear data:", error);
+    throw error;
+  }
+}
+var scraperTabId = null;
+async function handleStartWordleBotScrape(message) {
+  try {
+    console.log(`[BACKGROUND DEBUG] Starting WordleBot scrape (mode: ${message.mode})`);
+    console.log("[BACKGROUND DEBUG] Storage service available:", !!storageService);
+    if (!storageService) {
+      console.log("[BACKGROUND DEBUG] Initializing storage service...");
+      storageService = ExtensionStorage.getInstance();
+      await storageService.initialize();
+    }
+    let stopAtDate;
+    let newestStoredGame = null;
+    if (message.mode === "incremental" || message.mode === "auto") {
+      console.log("[BACKGROUND DEBUG] Getting newest game for incremental mode...");
+      newestStoredGame = await storageService.getNewestGame();
+      stopAtDate = newestStoredGame?.date;
+      console.log("[BACKGROUND DEBUG] Newest stored game:", newestStoredGame?.date, "Game#", newestStoredGame?.gameNumber);
+    }
+    console.log("[BACKGROUND DEBUG] Storing scrape parameters in storage...");
+    await chrome.storage.local.set({
+      wordleBotScrapeParams: {
+        mode: message.mode,
+        stopAtDate,
+        maxIterations: message.maxIterations || 20,
+        timestamp: Date.now()
+      }
+    });
+    console.log("[BACKGROUND DEBUG] Creating WordleBot tab...");
+    const tab = await chrome.tabs.create({
+      url: "https://www.nytimes.com/interactive/2022/upshot/wordle-bot.html",
+      active: false
+    });
+    scraperTabId = tab.id || null;
+    console.log("[BACKGROUND DEBUG] Opened WordleBot tab:", scraperTabId);
+    console.log("[BACKGROUND DEBUG] Tab created, content script will auto-start scraping");
+    return { success: true, ...scraperTabId ? { tabId: scraperTabId } : {}, message: "Scraping started" };
+  } catch (error) {
+    console.error("[Background] Failed to start WordleBot scrape:", error);
+    if (scraperTabId) {
+      chrome.tabs.remove(scraperTabId).catch(() => {
+      });
+      scraperTabId = null;
+    }
+    throw error;
+  }
+}
+async function handleBulkImportGames(games) {
+  try {
+    console.log(`[Background] Bulk importing ${games.length} games`);
+    if (!storageService) {
+      storageService = ExtensionStorage.getInstance();
+      await storageService.initialize();
+    }
+    const result = await storageService.bulkImportGames(games);
+    console.log("[Background] Bulk import complete:", result);
+    const allGames = await storageService.getAllGames();
+    await updateExtensionBadge(allGames);
+    return { success: true, ...result };
+  } catch (error) {
+    console.error("[Background] Failed to bulk import games:", error);
+    return { success: false, imported: 0, duplicates: 0, errors: games.length };
+  }
+}
+async function handleWordleBotScrapeProgress(message) {
+  console.log("[Background] Scrape progress:", message);
+  chrome.runtime.sendMessage(message).catch(() => {
+  });
+}
+async function handleWordleBotScrapeComplete(message) {
+  console.log("[Background] Scrape complete:", message);
+  await storageService.updateScraperMetadata({
+    lastScrape: (/* @__PURE__ */ new Date()).toISOString(),
+    lastScrapeMode: "auto",
+    // or get from message
+    totalScraped: message.totalGames
+  });
+  if (scraperTabId) {
+    setTimeout(() => {
+      if (scraperTabId) {
+        chrome.tabs.remove(scraperTabId).catch(() => {
+        });
+        scraperTabId = null;
+      }
+    }, 2e3);
+  }
+  chrome.runtime.sendMessage(message).catch(() => {
+  });
+}
+async function handleWordleBotScrapeError(message) {
+  console.error("[Background] Scrape error:", message);
+  await storageService.updateScraperMetadata({
+    lastError: message.error
+  });
+  if (scraperTabId) {
+    chrome.tabs.remove(scraperTabId).catch(() => {
+    });
+    scraperTabId = null;
+  }
+  chrome.runtime.sendMessage(message).catch(() => {
+  });
+}
+async function updateExtensionBadge(games) {
+  try {
+    const statistics = calculateStatistics(games);
+    const streak = statistics.currentStreak;
+    if (streak > 0) {
+      chrome.action.setBadgeText({
+        text: streak.toString()
+      });
+      chrome.action.setBadgeBackgroundColor({
+        color: "#22c55e"
+      });
+    } else {
+      chrome.action.setBadgeText({ text: "" });
+    }
+  } catch (error) {
+    console.error("[Background] Failed to update badge:", error);
+  }
+}
+function filterGamesByTimeFrame(games, timeFrame) {
+  if (timeFrame === "all") return games;
+  const now = /* @__PURE__ */ new Date();
+  const cutoffDate = /* @__PURE__ */ new Date();
+  switch (timeFrame) {
+    case "7d":
+      cutoffDate.setDate(now.getDate() - 7);
+      break;
+    case "30d":
+      cutoffDate.setDate(now.getDate() - 30);
+      break;
+    case "90d":
+      cutoffDate.setDate(now.getDate() - 90);
+      break;
+    default:
+      return games;
+  }
+  console.log(`[BACKGROUND DEBUG] filterGamesByTimeFrame: Cutoff date for ${timeFrame}: ${cutoffDate.toISOString()}`);
+  const filtered = games.filter((game) => {
+    if (!game.date) return false;
+    const gameDate = new Date(game.date);
+    return gameDate >= cutoffDate;
+  });
+  console.log(`[BACKGROUND DEBUG] filterGamesByTimeFrame: Filtered ${filtered.length} games from ${games.length} total (cutoff: ${cutoffDate.toISOString()})`);
+  return filtered;
+}
+function calculateStatistics(games, allGames) {
   if (games.length === 0) {
     return {
-      gameCount: 0,
       winRate: 0,
       averageGuesses: 0,
       currentStreak: 0,
       maxStreak: 0,
-      guessDistribution: [0, 0, 0, 0, 0, 0, 0]
+      gameCount: 0
     };
   }
-  
-  console.log('[BACKGROUND DEBUG] Stats calculation for', games.length, 'games');
-  console.log('[BACKGROUND DEBUG] Sample game data:', games.slice(0, 2).map(g => ({
-    date: g.date,
-    isWin: g.isWin,
-    won: g.won,
-    guesses: g.guesses,
-    attempts: g.attempts,
-    solution: g.solution
-  })));
-  
-  const wins = games.filter(game => game.isWin ?? game.won);
-  console.log('[BACKGROUND DEBUG] Found', wins.length, 'wins out of', games.length, 'games');
-  const winRate = (wins.length / games.length) * 100;
-  
-  // Calculate average guesses (only for wins)  
-  const validGuesses = wins.filter(game => {
-    const attempts = game.guesses ?? game.attempts;
-    return attempts && attempts > 0;
-  });
-  console.log('[BACKGROUND DEBUG] Found', validGuesses.length, 'games with valid guesses');
-  const guessesSum = validGuesses.reduce((sum, game) => sum + (game.guesses ?? game.attempts), 0);
-  const averageGuesses = validGuesses.length > 0 ? (guessesSum / validGuesses.length) : 0;
-  
-  console.log('[BACKGROUND DEBUG] Guesses sum:', guessesSum, 'Valid count:', validGuesses.length, 'Average:', averageGuesses);
-
-  // Calculate streaks
-  const allGames = await chrome.storage.local.get(['games']);
-  const allStoredGames = allGames.games || [];
-  const sortedAllGames = allStoredGames.sort((a, b) => new Date(a.date) - new Date(b.date));
-  
+  const wins = games.filter((game) => game.won);
+  const winRate = wins.length / games.length * 100;
+  const totalGuesses = wins.reduce((sum, game) => sum + (game.attempts || 0), 0);
+  const averageGuesses = wins.length > 0 ? totalGuesses / wins.length : 0;
+  const gamesToUseForStreaks = allGames || games;
+  const sortedAllGames = [...gamesToUseForStreaks].sort(
+    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+  );
   let currentStreak = 0;
-  let maxStreak = 0;
-  let tempStreak = 0;
-  
-  // Calculate current streak (from most recent game backwards)
   for (let i = sortedAllGames.length - 1; i >= 0; i--) {
-    const isWin = sortedAllGames[i].isWin ?? sortedAllGames[i].won;
-    if (isWin) {
+    if (sortedAllGames[i].won) {
       currentStreak++;
     } else {
-      break; // Stop at first loss
+      break;
     }
   }
-  
-  // Calculate longest streak in all games (for context)
+  let maxStreak = 0;
+  let tempStreak = 0;
   for (let i = 0; i < sortedAllGames.length; i++) {
-    const isWin = sortedAllGames[i].isWin ?? sortedAllGames[i].won;
-    if (isWin) {
+    if (sortedAllGames[i].won) {
       tempStreak++;
       maxStreak = Math.max(maxStreak, tempStreak);
     } else {
       tempStreak = 0;
     }
   }
-  
-  // For 7-day timeframe, return current streak
-  // For other timeframes, return longest streak that ends within the period
-  const streakToReturn = timeFrame === '7d' ? currentStreak : (() => {
-    if (timeFrame === 'all') {
-      // For 'all', just return the overall max streak
-      return maxStreak;
-    }
-    
-    // For 30d/90d, check if the current streak extends into the period
-    const now = new Date();
-    let cutoffDate;
-    switch (timeFrame) {
-      case '30d':
-        cutoffDate = new Date(now);
-        cutoffDate.setDate(now.getDate() - 30);
-        break;
-      case '90d':
-        cutoffDate = new Date(now);
-        cutoffDate.setDate(now.getDate() - 90);
-        break;
-      default:
-        cutoffDate = new Date(0);
-        break;
-    }
-    
-    // Check if we have any games in the period
-    const gamesInPeriod = sortedAllGames.filter(game => {
-      if (!game.date) return false;
-      const gameDate = new Date(game.date);
-      return gameDate >= cutoffDate;
-    });
-    
-    if (gamesInPeriod.length === 0) return 0;
-    
-    // If the current streak includes the most recent game AND 
-    // the most recent game is within the period, then the current streak 
-    // is the longest streak that "ends" in this period
-    if (currentStreak > 0 && gamesInPeriod.length > 0) {
-      const mostRecentGameInPeriod = gamesInPeriod[gamesInPeriod.length - 1];
-      const mostRecentGameOverall = sortedAllGames[sortedAllGames.length - 1];
-      
-      // If the most recent game overall is within the period and part of current streak
-      if (mostRecentGameInPeriod.date === mostRecentGameOverall.date) {
-        return currentStreak; // The current streak extends into this period
-      }
-    }
-    
-    // Otherwise, find the longest streak that ends within the period
-    // (This is for cases where current streak is 0 or doesn't extend into period)
-    let maxStreakInPeriod = 0;
-    
-    // Simple approach: find all streaks and see which ones end in the period
-    let tempStreak = 0;
-    for (let i = 0; i < sortedAllGames.length; i++) {
-      const isWin = sortedAllGames[i].isWin ?? sortedAllGames[i].won;
-      const gameDate = new Date(sortedAllGames[i].date);
-      const isInPeriod = gameDate >= cutoffDate;
-      
-      if (isWin) {
-        tempStreak++;
-        // If this game is in the period, record the streak ending here
-        if (isInPeriod) {
-          maxStreakInPeriod = Math.max(maxStreakInPeriod, tempStreak);
-        }
-      } else {
-        tempStreak = 0;
-      }
-    }
-    
-    return maxStreakInPeriod;
-  })();
-
-  console.log('[BACKGROUND DEBUG] Streak calculation:', {
-    timeFrame: timeFrame,
-    currentStreak: currentStreak,
-    maxStreak: maxStreak,
-    streakToReturn: streakToReturn,
-    totalGamesInStorage: sortedAllGames.length,
-    streakType: timeFrame === '7d' ? 'current' : 'longest'
-  });
-  
-  console.log('[BACKGROUND DEBUG] Final stats:', {
-    gameCount: games.length,
-    winRate: Math.round(winRate * 10) / 10,
-    averageGuesses: Math.round(averageGuesses * 10) / 10,
-    wins: wins.length,
-    displayedStreak: timeFrame === '7d' ? streakToReturn : streakToReturn
-  });
-  
-  // Calculate guess distribution
-  const distribution = [0, 0, 0, 0, 0, 0, 0]; // Index 0 = failed, 1-6 = guesses
-  games.forEach(game => {
-    const isWin = game.isWin ?? game.won;
-    const attempts = game.guesses ?? game.attempts;
-    
-    if (!isWin) {
-      distribution[0]++; // Failed
-    } else if (attempts && attempts >= 1 && attempts <= 6) {
-      distribution[attempts]++;
-    }
-  });
-  
-  // Return the appropriate streak based on timeframe
-  const streakValue = timeFrame === '7d' ? currentStreak : streakToReturn;
-  const streakLabel = timeFrame === '7d' ? 'current' : 'longest';
-  
+  console.log(`[BACKGROUND DEBUG] calculateStatistics: Using ${gamesToUseForStreaks.length} games for streaks, ${games.length} games for other stats`);
+  console.log(`[BACKGROUND DEBUG] calculateStatistics: currentStreak=${currentStreak}, maxStreak=${maxStreak}`);
   return {
-    gameCount: games.length,
-    winRate: Math.round(winRate * 10) / 10,
-    averageGuesses: Math.round(averageGuesses * 10) / 10,
-    currentStreak: timeFrame === '7d' ? streakValue : 0, // Only show current for 7d
-    maxStreak: timeFrame === '7d' ? maxStreak : streakValue, // Show longest for other periods
-    streakValue: streakValue, // The actual streak number to display
-    streakLabel: streakLabel, // 'current' or 'longest'
-    guessDistribution: distribution
+    winRate,
+    averageGuesses,
+    currentStreak,
+    maxStreak,
+    gameCount: games.length
   };
 }
-
-// Filter games by time frame
-function filterGamesByTimeFrame(games, timeFrame) {
-  if (timeFrame === 'all') {
-    return games;
+function compareVersions(version1, version2) {
+  const v1parts = version1.split(".").map(Number);
+  const v2parts = version2.split(".").map(Number);
+  for (let i = 0; i < Math.max(v1parts.length, v2parts.length); i++) {
+    const v1part = v1parts[i] || 0;
+    const v2part = v2parts[i] || 0;
+    if (v1part < v2part) return -1;
+    if (v1part > v2part) return 1;
   }
-  
-  const now = new Date();
-  now.setHours(0, 0, 0, 0); // Set to start of today
-  const cutoffDate = new Date(now);
-  
-  switch (timeFrame) {
-    case '7d':
-      cutoffDate.setDate(now.getDate() - 7);
-      break;
-    case '30d':
-      cutoffDate.setDate(now.getDate() - 30);
-      break;
-    case '90d':
-      cutoffDate.setDate(now.getDate() - 90);
-      break;
-    default:
-      return games;
-  }
-  
-  const filtered = games.filter(game => {
-    if (!game.date) return false;
-    const gameDate = new Date(game.date + 'T00:00:00'); // Ensure date-only comparison
-    const include = gameDate >= cutoffDate;
-    return include;
-  });
-  
-  console.log('[BACKGROUND DEBUG] Date filtering:', {
-    timeFrame,
-    now: now.toISOString().split('T')[0],
-    cutoffDate: cutoffDate.toISOString().split('T')[0],
-    totalGames: games.length,
-    filteredGames: filtered.length,
-    sampleDates: filtered.slice(0, 5).map(g => g.date)
-  });
-  
-  return filtered;
+  return 0;
 }
-
-
-// Dashboard data handler
-async function handleGetDashboardData(message) {
-  try {
-    console.log('[BACKGROUND DEBUG] Getting dashboard data');
-    const result = await chrome.storage.local.get(['games', 'benchmarks']);
-    
-    return {
-      success: true,
-      games: result.games || [],
-      benchmarks: result.benchmarks || [],
-      preferences: {},
-      timeFrames: ['7d', '30d', '90d', 'all']
-    };
-  } catch (error) {
-    console.error('[BACKGROUND DEBUG] Failed to get dashboard data:', error);
-    throw error;
-  }
+async function migrateToV1() {
+  console.log("[Background] Migrating to version 1.0.0");
 }
-
-// WordleBot scraper handlers
-let scraperTabId = null;
-
-async function handleStartWordleBotScrape(message) {
-  try {
-    console.log('[BACKGROUND DEBUG] Starting WordleBot scrape (mode:', message.mode, ')');
-    
-    // Get newest game from storage
-    let stopAtDate = null;
-    if (message.mode === 'auto' || message.mode === 'incremental') {
-      const result = await chrome.storage.local.get(['games']);
-      const games = result.games || [];
-      
-      if (games.length > 0) {
-        const newestGame = games.reduce((newest, game) => {
-          return new Date(game.date) > new Date(newest.date) ? game : newest;
-        });
-        stopAtDate = newestGame.date;
-        console.log('[BACKGROUND DEBUG] Will stop scraping at:', stopAtDate);
-      }
-    }
-    
-    // Store scrape parameters for content script to pick up
-    await chrome.storage.local.set({
-      wordleBotScrapeParams: {
-        mode: message.mode,
-        stopAtDate: stopAtDate,
-        maxIterations: message.maxIterations || 10,
-        timestamp: Date.now()
-      }
-    });
-    
-    // Open WordleBot page in background tab
-    console.log('[BACKGROUND DEBUG] Creating WordleBot tab...');
-    const tab = await chrome.tabs.create({
-      url: 'https://www.nytimes.com/interactive/2022/upshot/wordle-bot.html',
-      active: false
-    });
-    
-    scraperTabId = tab.id || null;
-    console.log('[BACKGROUND DEBUG] Opened WordleBot tab:', scraperTabId);
-    
-    // The content script will auto-start scraping when it loads
-    console.log('[BACKGROUND DEBUG] Tab created, content script will auto-start scraping');
-    
-    return { success: true };
-    
-  } catch (error) {
-    console.error('[BACKGROUND DEBUG] Failed to start WordleBot scrape:', error);
-    if (scraperTabId) {
-      chrome.tabs.remove(scraperTabId).catch(() => {});
-      scraperTabId = null;
-    }
-    throw error;
-  }
-}
-
-async function handleWordleBotScrapeProgress(message) {
-  console.log('[BACKGROUND DEBUG] Scrape progress:', JSON.stringify(message, null, 2));
-  // Forward progress to popup (fire and forget, no response expected)
-  chrome.runtime.sendMessage(message).catch(() => {});
-  return { received: true };
-}
-
-async function handleWordleBotScrapeComplete(message) {
-  console.log('[BACKGROUND DEBUG] Scrape complete:', JSON.stringify(message, null, 2));
-  
-  // Close the scraper tab after delay
-  if (scraperTabId) {
-    setTimeout(() => {
-      if (scraperTabId) {
-        chrome.tabs.remove(scraperTabId).catch(() => {});
-        scraperTabId = null;
-      }
-    }, 2000);
-  }
-  
-  // Forward to popup (fire and forget, no response expected)
-  chrome.runtime.sendMessage(message).catch(() => {});
-  return { received: true };
-}
-
-async function handleWordleBotScrapeError(message) {
-  console.error('[BACKGROUND DEBUG] Scrape error:', JSON.stringify(message, null, 2));
-  
-  // Close the scraper tab
-  if (scraperTabId) {
-    chrome.tabs.remove(scraperTabId).catch(() => {});
-    scraperTabId = null;
-  }
-  
-  // Forward to popup
-  chrome.runtime.sendMessage(message).catch(() => {});
-}
-
-async function handleBulkImportGames(games) {
-  try {
-    console.log(`[BACKGROUND DEBUG] Bulk importing ${games.length} games`);
-    
-    // Simple implementation - just save to storage
-    const result = await chrome.storage.local.get(['games']);
-    const existingGames = result.games || [];
-    const existingIds = new Set(existingGames.map(g => g.gameId || g.date));
-    
-    const newGames = games.filter(g => !existingIds.has(g.gameId || g.date));
-    const allGames = [...existingGames, ...newGames];
-    
-    await chrome.storage.local.set({ games: allGames });
-    
-    console.log('[BACKGROUND DEBUG] Bulk import complete:', {
-      imported: newGames.length,
-      duplicates: games.length - newGames.length,
-      errors: 0
-    });
-    
-    return { 
-      success: true, 
-      imported: newGames.length, 
-      duplicates: games.length - newGames.length, 
-      errors: 0 
-    };
-  } catch (error) {
-    console.error('[BACKGROUND DEBUG] Failed to bulk import games:', error);
-    return { success: false, imported: 0, duplicates: 0, errors: games.length };
-  }
-}
-
-console.log('[Background] Background script initialization complete');

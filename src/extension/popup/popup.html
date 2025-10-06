@@ -63,18 +63,16 @@
       padding: 16px;
       display: flex;
       flex-direction: column;
-      justify-content: center;
+      justify-content: flex-start;
     }
 
     .loading, .error, .no-data {
+      grid-column: 1 / -1;
       text-align: center;
-      padding: 20px;
-    }
-
-    .loading {
+      padding: 65px 40px 85px;
       color: #666;
     }
-
+    
     .error {
       color: #d73027;
     }

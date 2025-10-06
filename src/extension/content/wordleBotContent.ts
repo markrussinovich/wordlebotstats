@@ -34,6 +34,30 @@ class WordleBotScraper {
   constructor() {
     console.log('[WordleBotScraper] Initialized');
     this.setupMessageListener();
+    this.checkAutoStart();
+  }
+
+  private async checkAutoStart(): Promise<void> {
+    try {
+      const params = await chrome.storage.local.get(['wordleBotScrapeParams']);
+      if (params.wordleBotScrapeParams && params.wordleBotScrapeParams.timestamp) {
+        const now = Date.now();
+        const paramTime = params.wordleBotScrapeParams.timestamp;
+        
+        // If params are less than 30 seconds old, auto-start
+        if (now - paramTime < 30000) {
+          console.log('[WordleBotScraper] Auto-starting scraper with params:', params.wordleBotScrapeParams);
+          const { mode, stopAtDate, maxIterations } = params.wordleBotScrapeParams;
+          
+          // Wait for page to be ready
+          setTimeout(() => {
+            this.startScraping(mode, stopAtDate, maxIterations);
+          }, 2000);
+        }
+      }
+    } catch (error) {
+      console.error('[WordleBotScraper] Error checking auto-start:', error);
+    }
   }
 
   private setupMessageListener(): void {

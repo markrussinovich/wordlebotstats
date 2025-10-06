@@ -77,12 +77,10 @@ async function buildExtension() {
       resolve(__dirname, 'src/extension/popup/popup.html'),
       resolve(__dirname, 'dist/popup.html')
     );
-    
-    // Check if popup.js exists, if not, note it needs to be built separately
-    const popupJsPath = resolve(__dirname, 'dist/popup.js');
-    if (!existsSync(popupJsPath)) {
-      console.log('\n⚠ Note: popup.js not found. Run "npm run build:popup" if needed.\n');
-    }
+    copyFile(
+      resolve(__dirname, 'src/extension/popup/popup.js'),
+      resolve(__dirname, 'dist/popup.js')
+    );
     
     console.log('\n✅ All extension files built successfully!');
     console.log('\nYou can now test the extension from the dist/ directory.');

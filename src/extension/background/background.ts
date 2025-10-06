@@ -179,10 +179,20 @@ async function handleGetQuickStats(message: GetQuickStatsMessage): Promise<Quick
   try {
     const result = await chrome.storage.local.get(['games']);
     const games = result.games || [];
+    console.log(`[BACKGROUND DEBUG] GET_QUICK_STATS: Total games in storage: ${games.length}`);
+    console.log(`[BACKGROUND DEBUG] GET_QUICK_STATS: Timeframe requested: ${message.timeFrame}`);
+    if (games.length > 0) {
+      console.log(`[BACKGROUND DEBUG] GET_QUICK_STATS: Sample game dates:`, games.slice(0, 5).map((g: any) => g.date));
+    }
     
     // Calculate stats for the requested time frame
     const filteredGames = filterGamesByTimeFrame(games, message.timeFrame);
-    const statistics = calculateStatistics(filteredGames);
+    console.log(`[BACKGROUND DEBUG] GET_QUICK_STATS: Filtered games count: ${filteredGames.length}`);
+    if (filteredGames.length > 0) {
+      console.log(`[BACKGROUND DEBUG] GET_QUICK_STATS: Filtered game dates:`, filteredGames.map((g: any) => g.date));
+    }
+    const statistics = calculateStatistics(filteredGames, games);
+    console.log(`[BACKGROUND DEBUG] GET_QUICK_STATS: Calculated statistics:`, statistics);
     
     return {
       success: true,
@@ -290,7 +300,7 @@ async function handleClearData(): Promise<void> {
 // WordleBot scraper handlers
 let scraperTabId: number | null = null;
 
-async function handleStartWordleBotScrape(message: any): Promise<void> {
+async function handleStartWordleBotScrape(message: any): Promise<void | { success: boolean; skipped?: boolean; reason?: string; tabId?: number; message?: string }> {
   try {
     console.log(`[BACKGROUND DEBUG] Starting WordleBot scrape (mode: ${message.mode})`);
     console.log('[BACKGROUND DEBUG] Storage service available:', !!storageService);
@@ -300,24 +310,6 @@ async function handleStartWordleBotScrape(message: any): Promise<void> {
       console.log('[BACKGROUND DEBUG] Initializing storage service...');
       storageService = ExtensionStorage.getInstance();
       await storageService.initialize();
-    }
-    
-    // Check cooldown period (4 hours for auto mode)
-    if (message.mode === 'auto') {
-      console.log('[BACKGROUND DEBUG] Checking cooldown for auto mode...');
-      const metadata = await storageService.getScraperMetadata();
-      console.log('[BACKGROUND DEBUG] Scraper metadata:', metadata);
-      if (metadata.lastScrape) {
-        const lastScrapeTime = new Date(metadata.lastScrape).getTime();
-        const now = Date.now();
-        const hoursSince = (now - lastScrapeTime) / (1000 * 60 * 60);
-        console.log('[BACKGROUND DEBUG] Hours since last scrape:', hoursSince);
-        
-        if (hoursSince < 4) {
-          console.log('[BACKGROUND DEBUG] Skipping auto-scrape (cooldown period)');
-          return; // Skip during cooldown
-        }
-      }
     }
     
     // Get newest game date from storage for incremental mode
@@ -330,82 +322,31 @@ async function handleStartWordleBotScrape(message: any): Promise<void> {
       console.log('[BACKGROUND DEBUG] Newest stored game:', newestStoredGame?.date, 'Game#', newestStoredGame?.gameNumber);
     }
     
+    // Store scrape parameters in storage for content script to pick up
+    console.log('[BACKGROUND DEBUG] Storing scrape parameters in storage...');
+    await chrome.storage.local.set({
+      wordleBotScrapeParams: {
+        mode: message.mode,
+        stopAtDate,
+        maxIterations: message.maxIterations || 20,
+        timestamp: Date.now()
+      }
+    });
+    
     // Open WordleBot page in background tab
     console.log('[BACKGROUND DEBUG] Creating WordleBot tab...');
     const tab = await chrome.tabs.create({
       url: 'https://www.nytimes.com/interactive/2022/upshot/wordle-bot.html',
-      active: false // Background tab
+      active: false
     });
     
     scraperTabId = tab.id || null;
-    console.log('[BACKGROUND DEBUG] Opened WordleBot tab:', scraperTabId, tab);
+    console.log('[BACKGROUND DEBUG] Opened WordleBot tab:', scraperTabId);
     
-    // Wait for tab to load
-    console.log('[BACKGROUND DEBUG] Waiting 3 seconds for tab to load...');
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    // The content script will auto-start scraping when it loads
+    console.log('[BACKGROUND DEBUG] Tab created, content script will auto-start scraping');
     
-    // Check if there are newer games on the page before scraping
-    if (tab.id && (message.mode === 'incremental' || message.mode === 'auto')) {
-      console.log('[BACKGROUND DEBUG] Checking for newer games on page...');
-      try {
-        const response = await chrome.tabs.sendMessage(tab.id, { type: 'GET_NEWEST_PAGE_GAME' });
-        console.log('[BACKGROUND DEBUG] Newest page game response:', response);
-        
-        if (response.success && response.game) {
-          const newestPageGame = response.game;
-          console.log('[BACKGROUND DEBUG] Newest page game:', newestPageGame.date, 'Game#', newestPageGame.gameNumber);
-          
-          // Compare with storage
-          if (newestStoredGame) {
-            const pageDate = newestPageGame.date || '';
-            const storedDate = newestStoredGame.date || '';
-            const pageGameNum = newestPageGame.gameNumber || 0;
-            const storedGameNum = newestStoredGame.gameNumber || 0;
-            
-            // Check if page has newer games
-            const hasNewerGames = pageGameNum > storedGameNum || pageDate > storedDate;
-            
-            if (!hasNewerGames) {
-              console.log('[BACKGROUND DEBUG] No newer games found on page, skipping scrape');
-              // Close tab and return early
-              if (scraperTabId) {
-                chrome.tabs.remove(scraperTabId).catch(() => {});
-                scraperTabId = null;
-              }
-              return;
-            } else {
-              console.log('[BACKGROUND DEBUG] Found newer games on page, proceeding with scrape');
-            }
-          }
-        }
-      } catch (error) {
-        console.warn('[BACKGROUND DEBUG] Failed to check newest page game, proceeding anyway:', error);
-        // Continue with scrape even if check fails
-      }
-    }
-    
-    // Send scrape command to content script
-    if (tab.id) {
-      console.log('[BACKGROUND DEBUG] Sending scrape command to content script...');
-      const contentMessage = {
-        type: MessageType.START_WORDLE_BOT_SCRAPE,
-        mode: message.mode,
-        stopAtDate,
-        maxIterations: message.maxIterations || 20
-      };
-      console.log('[BACKGROUND DEBUG] Content script message:', contentMessage);
-      
-      try {
-        await chrome.tabs.sendMessage(tab.id, contentMessage);
-        console.log('[BACKGROUND DEBUG] Message sent to content script successfully');
-      } catch (error) {
-        console.error('[BACKGROUND DEBUG] Failed to send message to content script:', error);
-        throw error;
-      }
-    } else {
-      console.error('[BACKGROUND DEBUG] No tab ID available');
-    }
-    
+    return { success: true, ...(scraperTabId ? { tabId: scraperTabId } : {}), message: 'Scraping started' };
   } catch (error) {
     console.error('[Background] Failed to start WordleBot scrape:', error);
     if (scraperTabId) {
@@ -516,16 +457,36 @@ async function updateExtensionBadge(games: any[]): Promise<void> {
 function filterGamesByTimeFrame(games: any[], timeFrame: string): any[] {
   if (timeFrame === 'all') return games;
   
-  const days = timeFrame === '7d' ? 7 : timeFrame === '30d' ? 30 : 90;
+  const now = new Date();
   const cutoffDate = new Date();
-  cutoffDate.setDate(cutoffDate.getDate() - days);
   
-  return games.filter((game: any) => 
-    new Date(game.date) >= cutoffDate
-  );
+  switch (timeFrame) {
+    case '7d':
+      cutoffDate.setDate(now.getDate() - 7);
+      break;
+    case '30d':
+      cutoffDate.setDate(now.getDate() - 30);
+      break;
+    case '90d':
+      cutoffDate.setDate(now.getDate() - 90);
+      break;
+    default:
+      return games;
+  }
+  
+  console.log(`[BACKGROUND DEBUG] filterGamesByTimeFrame: Cutoff date for ${timeFrame}: ${cutoffDate.toISOString()}`);
+  
+  const filtered = games.filter((game: any) => {
+    if (!game.date) return false;
+    const gameDate = new Date(game.date);
+    return gameDate >= cutoffDate;
+  });
+  
+  console.log(`[BACKGROUND DEBUG] filterGamesByTimeFrame: Filtered ${filtered.length} games from ${games.length} total (cutoff: ${cutoffDate.toISOString()})`);
+  return filtered;
 }
 
-function calculateStatistics(games: any[]): any {
+function calculateStatistics(games: any[], allGames?: any[]): any {
   if (games.length === 0) {
     return {
       winRate: 0,
@@ -542,30 +503,36 @@ function calculateStatistics(games: any[]): any {
   const totalGuesses = wins.reduce((sum, game) => sum + (game.attempts || 0), 0);
   const averageGuesses = wins.length > 0 ? totalGuesses / wins.length : 0;
   
-  // Calculate streaks
-  let currentStreak = 0;
-  let maxStreak = 0;
-  let tempStreak = 0;
-  
-  // Sort games by date (most recent first)
-  const sortedGames = [...games].sort((a, b) => 
-    new Date(b.date).getTime() - new Date(a.date).getTime()
+  // Use all games for streak calculation if provided, otherwise use filtered games
+  const gamesToUseForStreaks = allGames || games;
+  const sortedAllGames = [...gamesToUseForStreaks].sort((a, b) => 
+    new Date(a.date).getTime() - new Date(b.date).getTime()
   );
   
-  for (const game of sortedGames) {
-    if (game.won) {
-      tempStreak++;
-      maxStreak = Math.max(maxStreak, tempStreak);
-      if (currentStreak === 0) {
-        currentStreak = tempStreak;
-      }
+  // Calculate current streak (count backwards from most recent)
+  let currentStreak = 0;
+  for (let i = sortedAllGames.length - 1; i >= 0; i--) {
+    if (sortedAllGames[i].won) {
+      currentStreak++;
     } else {
-      tempStreak = 0;
-      if (currentStreak > 0) {
-        currentStreak = 0;
-      }
+      break; // Stop at first loss
     }
   }
+  
+  // Calculate max streak (forward through all games)
+  let maxStreak = 0;
+  let tempStreak = 0;
+  for (let i = 0; i < sortedAllGames.length; i++) {
+    if (sortedAllGames[i].won) {
+      tempStreak++;
+      maxStreak = Math.max(maxStreak, tempStreak);
+    } else {
+      tempStreak = 0;
+    }
+  }
+  
+  console.log(`[BACKGROUND DEBUG] calculateStatistics: Using ${gamesToUseForStreaks.length} games for streaks, ${games.length} games for other stats`);
+  console.log(`[BACKGROUND DEBUG] calculateStatistics: currentStreak=${currentStreak}, maxStreak=${maxStreak}`);
   
   return {
     winRate,

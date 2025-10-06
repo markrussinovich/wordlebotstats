@@ -151,7 +151,7 @@ async function handleExtensionMessage(
 }
 
 // Handle game result import from content script
-async function handleImportGameResult(message: ImportGameResultMessage): Promise<void> {
+async function handleImportGameResult(message: ImportGameResultMessage): Promise<{ success: boolean }> {
   try {
     console.log('[Background] Importing game result:', message.gameResult);
     
@@ -168,6 +168,7 @@ async function handleImportGameResult(message: ImportGameResultMessage): Promise
     const games = await storageService.getAllGames();
     await updateExtensionBadge(games);
     
+    return { success: true };
   } catch (error) {
     console.error('[Background] Failed to import game result:', error);
     throw error;
@@ -380,7 +381,7 @@ async function handleBulkImportGames(games: GameResult[]): Promise<{ success: bo
   }
 }
 
-async function handleWordleBotScrapeProgress(message: any): Promise<void> {
+async function handleWordleBotScrapeProgress(message: any): Promise<{ success: boolean }> {
   console.log('[Background] Scrape progress:', message);
   
   // Forward progress to any listening popup/dashboard
@@ -388,9 +389,11 @@ async function handleWordleBotScrapeProgress(message: any): Promise<void> {
   chrome.runtime.sendMessage(message).catch(() => {
     // Popup might not be open, that's okay
   });
+  
+  return { success: true };
 }
 
-async function handleWordleBotScrapeComplete(message: any): Promise<void> {
+async function handleWordleBotScrapeComplete(message: any): Promise<{ success: boolean }> {
   console.log('[Background] Scrape complete:', message);
   
   // Update scraper metadata
@@ -400,21 +403,29 @@ async function handleWordleBotScrapeComplete(message: any): Promise<void> {
     totalScraped: message.totalGames
   });
   
-  // Close the scraper tab
+  // Close the scraper tab after a short delay
   if (scraperTabId) {
     setTimeout(() => {
       if (scraperTabId) {
         chrome.tabs.remove(scraperTabId).catch(() => {});
         scraperTabId = null;
       }
-    }, 2000); // Wait 2 seconds before closing
+    }, 2000);
   }
   
   // Forward to popup/dashboard
-  chrome.runtime.sendMessage(message).catch(() => {});
+  console.log('[Background] Forwarding COMPLETE message to popup');
+  try {
+    await chrome.runtime.sendMessage(message);
+    console.log('[Background] COMPLETE message forwarded successfully');
+  } catch (err) {
+    console.log('[Background] Could not forward to popup:', err);
+  }
+  
+  return { success: true };
 }
 
-async function handleWordleBotScrapeError(message: any): Promise<void> {
+async function handleWordleBotScrapeError(message: any): Promise<{ success: boolean }> {
   console.error('[Background] Scrape error:', message);
   
   // Update scraper metadata
@@ -430,6 +441,8 @@ async function handleWordleBotScrapeError(message: any): Promise<void> {
   
   // Forward to popup/dashboard
   chrome.runtime.sendMessage(message).catch(() => {});
+  
+  return { success: true };
 }
 
 // Update extension badge with current streak

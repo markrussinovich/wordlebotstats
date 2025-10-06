@@ -252,6 +252,7 @@ async function handleImportGameResult(message) {
     console.log("[Background] Game result saved successfully");
     const games = await storageService.getAllGames();
     await updateExtensionBadge(games);
+    return { success: true };
   } catch (error) {
     console.error("[Background] Failed to import game result:", error);
     throw error;
@@ -420,6 +421,7 @@ async function handleWordleBotScrapeProgress(message) {
   console.log("[Background] Scrape progress:", message);
   chrome.runtime.sendMessage(message).catch(() => {
   });
+  return { success: true };
 }
 async function handleWordleBotScrapeComplete(message) {
   console.log("[Background] Scrape complete:", message);
@@ -438,8 +440,14 @@ async function handleWordleBotScrapeComplete(message) {
       }
     }, 2e3);
   }
-  chrome.runtime.sendMessage(message).catch(() => {
-  });
+  console.log("[Background] Forwarding COMPLETE message to popup");
+  try {
+    await chrome.runtime.sendMessage(message);
+    console.log("[Background] COMPLETE message forwarded successfully");
+  } catch (err) {
+    console.log("[Background] Could not forward to popup:", err);
+  }
+  return { success: true };
 }
 async function handleWordleBotScrapeError(message) {
   console.error("[Background] Scrape error:", message);
@@ -453,6 +461,7 @@ async function handleWordleBotScrapeError(message) {
   }
   chrome.runtime.sendMessage(message).catch(() => {
   });
+  return { success: true };
 }
 async function updateExtensionBadge(games) {
   try {

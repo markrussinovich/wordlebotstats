@@ -171,7 +171,11 @@ document.addEventListener('DOMContentLoaded', function() {
     
     if (message.type === 'WORDLE_BOT_SCRAPE_PROGRESS') {
       scraperStatus.active = true;
-      scraperStatus.message = `📥 Importing ${message.gamesFound} games...`;
+      if (message.gamesFound > 0) {
+        scraperStatus.message = `📥 Found ${message.gamesFound} games...`;
+      } else {
+        scraperStatus.message = '🔍 Scanning for games...';
+      }
       render();
     } else if (message.type === 'WORDLE_BOT_SCRAPE_COMPLETE') {
       scraperStatus.active = false;
@@ -199,7 +203,7 @@ document.addEventListener('DOMContentLoaded', function() {
       const response = await chrome.runtime.sendMessage({
         type: 'START_WORDLE_BOT_SCRAPE',
         mode: 'auto',
-        maxIterations: 10
+        maxIterations: 50
       });
       
       console.log('[Popup] Auto-import response:', response);
@@ -220,9 +224,30 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
   
+  // Check if auto-import is needed
+  async function checkAndTriggerAutoImport() {
+    try {
+      // Check if we have any games in storage
+      const result = await chrome.storage.local.get(['games']);
+      const games = result.games || [];
+      
+      console.log(`[Popup] Found ${games.length} games in storage`);
+      
+      // Only auto-import if no games exist
+      if (games.length === 0) {
+        console.log('[Popup] No games found, triggering auto-import');
+        triggerAutoImport();
+      } else {
+        console.log('[Popup] Games exist, skipping auto-import');
+      }
+    } catch (error) {
+      console.error('[Popup] Error checking for auto-import:', error);
+    }
+  }
+  
   // Initial load - loads immediately from storage
   loadStatistics();
   
-  // Trigger auto-import in background (non-blocking)
-  triggerAutoImport();
+  // Trigger auto-import only if needed (no data)
+  checkAndTriggerAutoImport();
 });

@@ -364,13 +364,15 @@ async function handleStartWordleBotScrape(message) {
       storageService = ExtensionStorage.getInstance();
       await storageService.initialize();
     }
-    let stopAtDate;
+    let stopAtDate = message.stopAtDate;
     let newestStoredGame = null;
-    if (message.mode === "incremental" || message.mode === "auto") {
+    if ((message.mode === "incremental" || message.mode === "auto") && !stopAtDate) {
       console.log("[BACKGROUND DEBUG] Getting newest game for incremental mode...");
       newestStoredGame = await storageService.getNewestGame();
       stopAtDate = newestStoredGame?.date;
       console.log("[BACKGROUND DEBUG] Newest stored game:", newestStoredGame?.date, "Game#", newestStoredGame?.gameNumber);
+    } else if (stopAtDate) {
+      console.log("[BACKGROUND DEBUG] Using provided stopAtDate:", stopAtDate);
     }
     console.log("[BACKGROUND DEBUG] Storing scrape parameters in storage...");
     await chrome.storage.local.set({

@@ -27,7 +27,12 @@ document.addEventListener('DOMContentLoaded', function() {
     container.innerHTML = `
       <div class="popup-container">
         <header class="popup-header">
-          <h1>Wordle Stats</h1>
+          <div class="popup-header-top">
+            <h1>Wordle Stats</h1>
+            <button class="refresh-btn" id="refresh-btn" ${scraperStatus.active ? 'disabled' : ''}>
+              ↻ Refresh
+            </button>
+          </div>
           <div class="time-frame-picker">
             ${timeFrames.map(tf => `
               <button 
@@ -130,6 +135,16 @@ document.addEventListener('DOMContentLoaded', function() {
         }
       });
     }
+    
+    // Refresh button
+    const refreshBtn = document.getElementById('refresh-btn');
+    if (refreshBtn) {
+      refreshBtn.addEventListener('click', () => {
+        if (!refreshBtn.disabled) {
+          triggerIncrementalScrape();
+        }
+      });
+    }
   }
   
   async function loadStatistics() {
@@ -223,6 +238,54 @@ document.addEventListener('DOMContentLoaded', function() {
       // Otherwise, the scraping is happening in the background and progress messages will update the UI
     } catch (error) {
       console.error('[Popup] Auto-import failed:', error);
+      scraperStatus.active = false;
+      scraperStatus.message = '';
+      render();
+    }
+  }
+  
+  // Incremental scrape - fetch only new games
+  async function triggerIncrementalScrape() {
+    try {
+      console.log('[Popup] Triggering incremental scrape for new games');
+      
+      // Get the most recent game date from storage
+      const result = await chrome.storage.local.get(['games']);
+      const games = result.games || [];
+      
+      let stopAtDate = undefined;
+      if (games.length > 0) {
+        // Sort by date descending to get newest
+        const sortedGames = games.sort((a, b) => {
+          const dateA = new Date(a.date || 0);
+          const dateB = new Date(b.date || 0);
+          return dateB.getTime() - dateA.getTime();
+        });
+        stopAtDate = sortedGames[0].date;
+        console.log('[Popup] Will stop scraping at date:', stopAtDate);
+      }
+      
+      scraperStatus.active = true;
+      scraperStatus.message = '🔄 Checking for new games...';
+      render();
+      
+      const response = await chrome.runtime.sendMessage({
+        type: 'START_WORDLE_BOT_SCRAPE',
+        mode: 'incremental',
+        stopAtDate: stopAtDate,
+        maxIterations: 20 // Shouldn't need many iterations for new games
+      });
+      
+      console.log('[Popup] Incremental scrape response:', response);
+      
+      if (response && !response.success) {
+        scraperStatus.active = false;
+        scraperStatus.message = '';
+        render();
+        console.log('[Popup] Scraping failed:', response.reason || 'unknown');
+      }
+    } catch (error) {
+      console.error('[Popup] Incremental scrape failed:', error);
       scraperStatus.active = false;
       scraperStatus.message = '';
       render();

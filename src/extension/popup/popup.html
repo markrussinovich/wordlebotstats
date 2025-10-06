@@ -24,10 +24,41 @@
       color: white;
     }
 
+    .popup-header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
     .popup-header h1 {
-      margin: 0 0 12px 0;
+      margin: 0;
       font-size: 18px;
       font-weight: 600;
+    }
+
+    .refresh-btn {
+      padding: 6px 12px;
+      border: 1px solid rgba(255,255,255,0.5);
+      background: rgba(255,255,255,0.15);
+      color: white;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .refresh-btn:hover:not(:disabled) {
+      background: rgba(255,255,255,0.25);
+    }
+
+    .refresh-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
     }
 
     .time-frame-picker {

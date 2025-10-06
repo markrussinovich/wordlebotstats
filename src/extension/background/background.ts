@@ -314,13 +314,15 @@ async function handleStartWordleBotScrape(message: any): Promise<void | { succes
     }
     
     // Get newest game date from storage for incremental mode
-    let stopAtDate: string | undefined;
+    let stopAtDate: string | undefined = message.stopAtDate;
     let newestStoredGame: any = null;
-    if (message.mode === 'incremental' || message.mode === 'auto') {
+    if ((message.mode === 'incremental' || message.mode === 'auto') && !stopAtDate) {
       console.log('[BACKGROUND DEBUG] Getting newest game for incremental mode...');
       newestStoredGame = await storageService.getNewestGame();
       stopAtDate = newestStoredGame?.date;
       console.log('[BACKGROUND DEBUG] Newest stored game:', newestStoredGame?.date, 'Game#', newestStoredGame?.gameNumber);
+    } else if (stopAtDate) {
+      console.log('[BACKGROUND DEBUG] Using provided stopAtDate:', stopAtDate);
     }
     
     // Store scrape parameters in storage for content script to pick up

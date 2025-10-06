@@ -7,6 +7,11 @@ import {
   QuickStatsResponse, 
   MessageType 
 } from '@/types/messagingTypes';
+import { 
+  calculateStreakStats, 
+  filterPlayedGames, 
+  categorizeGames 
+} from '@/utils/streakCalculation';
 
 interface GameDataState {
   // Game results data
@@ -210,11 +215,35 @@ export const useGameDataStore = create<GameDataState>()(
             state.isLoading = true;
           });
 
+          console.log('[GameDataStore] Requesting dashboard data from extension...');
           const response = await chrome.runtime.sendMessage({
             type: MessageType.GET_DASHBOARD_DATA
           });
 
+          console.log('[GameDataStore] Response received:', response);
+          console.log('[GameDataStore] Games count:', response?.games?.length);
+          
           if (response && response.games) {
+            // Debug: Log sample games to see structure
+            if (response.games.length > 0) {
+              console.log('[GameDataStore] Sample games (first 5):');
+              response.games.slice(0, 5).forEach((game: GameResult, i: number) => {
+                console.log(`  Game ${i + 1}:`, {
+                  date: game.date,
+                  won: game.won,
+                  attempts: game.attempts,
+                  guesses: game.guesses,
+                  puzzleNumber: game.puzzleNumber || game.puzzle
+                });
+              });
+              
+              // Count won/lost
+              const wonCount = response.games.filter((g: GameResult) => g.won).length;
+              const lostCount = response.games.filter((g: GameResult) => !g.won).length;
+              console.log('[GameDataStore] Won games:', wonCount);
+              console.log('[GameDataStore] Lost games:', lostCount);
+            }
+            
             set((state) => {
               state.games = response.games;
               state.lastUpdated = new Date().toISOString();
@@ -287,10 +316,18 @@ function calculateStatisticsFromGames(
   startDate: Date, 
   endDate: Date
 ): StatisticsPeriod {
-  const gameCount = games.length;
-  const completedGames = games.filter(g => g.completed);
-  const wonGames = completedGames.filter(g => g.won);
-  const failedGames = completedGames.filter(g => !g.won);
+  // Use shared utility to filter and categorize games
+  const playedGames = filterPlayedGames(games);
+  const { won: wonGames, lost: failedGames, unplayed: unplayedGames } = categorizeGames(games);
+  
+  const gameCount = playedGames.length;
+  
+  // Debug logging
+  console.log('[calculateStatistics] Total games:', games.length);
+  console.log('[calculateStatistics] Played games:', playedGames.length);
+  console.log('[calculateStatistics] Unplayed games (0 attempts):', unplayedGames.length);
+  console.log('[calculateStatistics] Won games:', wonGames.length);
+  console.log('[calculateStatistics] Lost games:', failedGames.length);
   
   const winCount = wonGames.length;
   const winRate = gameCount > 0 ? (winCount / gameCount) * 100 : 0;
@@ -304,41 +341,29 @@ function calculateStatisticsFromGames(
   const guessDistribution = [0, 0, 0, 0, 0, 0, 0];
   wonGames.forEach(game => {
     if (game.attempts && game.attempts >= 1 && game.attempts <= 6) {
-      guessDistribution[game.attempts - 1]++;
+      const index = game.attempts - 1;
+      if (index >= 0 && index < 6 && guessDistribution[index] !== undefined) {
+        guessDistribution[index]!++;
+      }
     }
   });
   guessDistribution[6] = failedGames.length; // Failed games
   
-  // Calculate streak information
-  let currentStreak = 0;
-  let maxStreak = 0;
-  let tempStreak = 0;
-  
-  // Calculate streaks from most recent games
-  const sortedGames = [...games].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  
-  for (let i = 0; i < sortedGames.length; i++) {
-    if (sortedGames[i].won && sortedGames[i].streakActive) {
-      tempStreak++;
-      if (i === 0) currentStreak = tempStreak; // Current streak from most recent
-    } else {
-      maxStreak = Math.max(maxStreak, tempStreak);
-      tempStreak = 0;
-    }
-  }
-  maxStreak = Math.max(maxStreak, tempStreak);
+  // Use shared streak calculation function
+  // This looks at all games up to endDate to properly calculate streaks
+  const { currentStreak, maxStreak } = calculateStreakStats(games, startDate, endDate);
   
   // Calculate other metrics
   const hardModeGames = games.filter(g => g.hardMode).length;
   const attempts = wonGames.map(g => g.attempts || 0).sort((a, b) => a - b);
   const medianGuesses = attempts.length > 0 
     ? attempts.length % 2 === 0 
-      ? (attempts[attempts.length / 2 - 1] + attempts[attempts.length / 2]) / 2
-      : attempts[Math.floor(attempts.length / 2)]
+      ? ((attempts[attempts.length / 2 - 1] || 0) + (attempts[attempts.length / 2] || 0)) / 2
+      : (attempts[Math.floor(attempts.length / 2)] || 0)
     : 0;
   
-  const perfectGames = guessDistribution[0]; // 1-guess wins
-  const lastGuessWins = guessDistribution[5]; // 6-guess wins
+  const perfectGames = guessDistribution[0] || 0; // 1-guess wins
+  const lastGuessWins = guessDistribution[5] || 0; // 6-guess wins
   
   return {
     periodId: `${timeFrame}-${startDate.toISOString()}-${endDate.toISOString()}`,

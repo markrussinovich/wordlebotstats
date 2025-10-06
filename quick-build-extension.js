@@ -1,8 +1,9 @@
-// Quick build script for extension files only (bypasses strict type checking)
+// Quick build script for complete extension including dashboard
 import esbuild from 'esbuild';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { copyFileSync, existsSync, mkdirSync } from 'fs';
+import { copyFileSync, existsSync, mkdirSync, cpSync } from 'fs';
+import { execSync } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -32,9 +33,32 @@ function copyFile(src, dest) {
 }
 
 async function buildExtension() {
-  console.log('Building extension files...\n');
+  console.log('Building complete extension...\n');
   
   try {
+    // Ensure dist directory exists
+    const distDir = resolve(__dirname, 'dist');
+    if (!existsSync(distDir)) {
+      mkdirSync(distDir, { recursive: true });
+    }
+    
+    // Copy popup files (vanilla JS - no build needed)
+    console.log('Copying popup files...');
+    copyFile(
+      resolve(__dirname, 'src/extension/popup/popup.html'),
+      resolve(__dirname, 'dist/popup.html')
+    );
+    copyFile(
+      resolve(__dirname, 'src/extension/popup/popup.js'),
+      resolve(__dirname, 'dist/popup.js')
+    );
+    console.log('✓ popup files copied\n');
+    
+    // Build dashboard using Vite
+    console.log('Building dashboard with Vite...');
+    execSync('npm run build:dashboard', { stdio: 'inherit' });
+    console.log('✓ dashboard built\n');
+    
     // Build background script (service worker - no IIFE wrapper needed)
     console.log('Building background.js...');
     await esbuild.build({
@@ -67,23 +91,33 @@ async function buildExtension() {
     });
     console.log('✓ content.js built\n');
     
-    // Copy manifest and popup files
-    console.log('Copying manifest and popup files...');
+    // Copy manifest and static files
+    console.log('Copying manifest and static files...');
     copyFile(
       resolve(__dirname, 'src/extension/manifest.json'),
       resolve(__dirname, 'dist/manifest.json')
     );
-    copyFile(
-      resolve(__dirname, 'src/extension/popup/popup.html'),
-      resolve(__dirname, 'dist/popup.html')
-    );
-    copyFile(
-      resolve(__dirname, 'src/extension/popup/popup.js'),
-      resolve(__dirname, 'dist/popup.js')
-    );
     
-    console.log('\n✅ All extension files built successfully!');
-    console.log('\nYou can now test the extension from the dist/ directory.');
+    // Copy public assets (icons, etc.)
+    const publicDir = resolve(__dirname, 'public');
+    const distPublicDir = resolve(__dirname, 'dist/public');
+    if (existsSync(publicDir)) {
+      console.log('Copying public assets...');
+      if (!existsSync(distPublicDir)) {
+        mkdirSync(distPublicDir, { recursive: true });
+      }
+      cpSync(publicDir, distPublicDir, { recursive: true });
+      console.log('✓ Public assets copied\n');
+    }
+    
+    console.log('\n✅ Complete extension built successfully!');
+    console.log('\nIncludes:');
+    console.log('  - Extension background worker');
+    console.log('  - Content scripts');
+    console.log('  - Popup UI');
+    console.log('  - Dashboard');
+    console.log('  - Manifest and icons');
+    console.log('\nYou can now load the extension from the dist/ directory.');
     
   } catch (error) {
     console.error('❌ Build failed:', error);

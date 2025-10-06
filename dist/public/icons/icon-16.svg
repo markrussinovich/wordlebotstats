@@ -1,0 +1,27 @@
+<!-- Extension icon 16x16 - SVG format for quality -->
+<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="8" cy="8" r="8" fill="#6aaa64"/>
+  
+  <!-- Letter tiles representing Wordle -->
+  <rect x="2" y="4" width="3" height="3" rx="0.5" fill="#fff"/>
+  <rect x="6" y="4" width="3" height="3" rx="0.5" fill="#fff"/>
+  <rect x="10" y="4" width="3" height="3" rx="0.5" fill="#fff"/>
+  
+  <!-- Letters W, S, E (Wordle Stat Explorer) -->
+  <text x="3.5" y="6.2" font-family="Arial, sans-serif" font-size="2" font-weight="bold" fill="#333" text-anchor="middle">W</text>
+  <text x="7.5" y="6.2" font-family="Arial, sans-serif" font-size="2" font-weight="bold" fill="#333" text-anchor="middle">S</text>
+  <text x="11.5" y="6.2" font-family="Arial, sans-serif" font-size="2" font-weight="bold" fill="#333" text-anchor="middle">E</text>
+  
+  <!-- Chart/stats symbol -->
+  <line x1="3" y1="11" x2="4" y2="10" stroke="#fff" stroke-width="0.8"/>
+  <line x1="4" y1="10" x2="5" y2="9" stroke="#fff" stroke-width="0.8"/>
+  <line x1="5" y1="9" x2="6" y2="10" stroke="#fff" stroke-width="0.8"/>
+  <line x1="6" y1="10" x2="7" y2="8" stroke="#fff" stroke-width="0.8"/>
+  
+  <!-- Bar chart indicators -->
+  <rect x="9" y="10" width="0.5" height="2" fill="#fff"/>
+  <rect x="10" y="9" width="0.5" height="3" fill="#fff"/>
+  <rect x="11" y="11" width="0.5" height="1" fill="#fff"/>
+  <rect x="12" y="8" width="0.5" height="4" fill="#fff"/>
+</svg>

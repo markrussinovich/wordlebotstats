@@ -524,7 +524,10 @@ function calculateStatistics(games, allGames) {
   const totalGuesses = wins.reduce((sum, game) => sum + (game.attempts || 0), 0);
   const averageGuesses = wins.length > 0 ? totalGuesses / wins.length : 0;
   const gamesToUseForStreaks = allGames || games;
-  const sortedAllGames = [...gamesToUseForStreaks].sort(
+  const playedGamesForStreaks = gamesToUseForStreaks.filter(
+    (game) => game.attempts && game.attempts > 0
+  );
+  const sortedAllGames = [...playedGamesForStreaks].sort(
     (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
   );
   let currentStreak = 0;

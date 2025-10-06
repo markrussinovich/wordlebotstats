@@ -520,7 +520,13 @@ function calculateStatistics(games: any[], allGames?: any[]): any {
   
   // Use all games for streak calculation if provided, otherwise use filtered games
   const gamesToUseForStreaks = allGames || games;
-  const sortedAllGames = [...gamesToUseForStreaks].sort((a, b) => 
+  
+  // Filter out unplayed games (attempts=0 or null) before calculating streaks
+  const playedGamesForStreaks = gamesToUseForStreaks.filter(game => 
+    game.attempts && game.attempts > 0
+  );
+  
+  const sortedAllGames = [...playedGamesForStreaks].sort((a, b) => 
     new Date(a.date).getTime() - new Date(b.date).getTime()
   );
   

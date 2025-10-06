@@ -7,3 +7,5 @@ export type { GuessDistributionProps } from './GuessDistributionChart';
 
 export { default as ComparisonChart } from './ComparisonChart';
 export type { ComparisonChartProps, ComparisonDataPoint } from './ComparisonChart';
+
+export { default as TimelineChart } from './TimelineChart';

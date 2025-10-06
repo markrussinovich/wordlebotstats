@@ -193,13 +193,19 @@ class WordleBotScraper {
       if (key && !allGames.has(key)) {
         allGames.set(key, game);
         newGamesThisIteration++;
-
-        // Check if we've reached the stop date
-        if (stopAtDate && game.date && game.date <= stopAtDate) {
-          console.log(`[WordleBotScraper] Reached stop date: ${stopAtDate} (found game: ${game.date})`);
-          reachedStopDate = true;
-          break;
-        }
+      } else if (key && stopAtDate) {
+        // If we encounter a duplicate and we have a stopAtDate, it means we've
+        // caught up to games we already have - we can stop scraping
+        console.log(`[WordleBotScraper] Found duplicate game (${game.date || game.gameNumber}), stopping incremental scrape`);
+        reachedStopDate = true;
+        break;
+      }
+      
+      // Also check if we've gone past the stop date (for older games)
+      if (stopAtDate && game.date && game.date < stopAtDate) {
+        console.log(`[WordleBotScraper] Reached date before stop date: ${game.date} < ${stopAtDate}`);
+        reachedStopDate = true;
+        break;
       }
     }
 

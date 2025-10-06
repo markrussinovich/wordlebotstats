@@ -249,31 +249,17 @@ document.addEventListener('DOMContentLoaded', function() {
     try {
       console.log('[Popup] Triggering incremental scrape for new games');
       
-      // Get the most recent game date from storage
-      const result = await chrome.storage.local.get(['games']);
-      const games = result.games || [];
-      
-      let stopAtDate = undefined;
-      if (games.length > 0) {
-        // Sort by date descending to get newest
-        const sortedGames = games.sort((a, b) => {
-          const dateA = new Date(a.date || 0);
-          const dateB = new Date(b.date || 0);
-          return dateB.getTime() - dateA.getTime();
-        });
-        stopAtDate = sortedGames[0].date;
-        console.log('[Popup] Will stop scraping at date:', stopAtDate);
-      }
-      
       scraperStatus.active = true;
       scraperStatus.message = '🔄 Checking for new games...';
       render();
       
+      // For incremental mode, don't pass stopAtDate - let the background script
+      // handle duplicate detection. We just want to scrape the first page of games
+      // (the most recent ones) and the background will skip duplicates automatically.
       const response = await chrome.runtime.sendMessage({
         type: 'START_WORDLE_BOT_SCRAPE',
         mode: 'incremental',
-        stopAtDate: stopAtDate,
-        maxIterations: 20 // Shouldn't need many iterations for new games
+        maxIterations: 1 // Only scrape the first page (most recent games)
       });
       
       console.log('[Popup] Incremental scrape response:', response);

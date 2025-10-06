@@ -124,11 +124,15 @@ var WordleBotContent = (() => {
         if (key && !allGames.has(key)) {
           allGames.set(key, game);
           newGamesThisIteration++;
-          if (stopAtDate && game.date && game.date <= stopAtDate) {
-            console.log(`[WordleBotScraper] Reached stop date: ${stopAtDate} (found game: ${game.date})`);
-            reachedStopDate = true;
-            break;
-          }
+        } else if (key && stopAtDate) {
+          console.log(`[WordleBotScraper] Found duplicate game (${game.date || game.gameNumber}), stopping incremental scrape`);
+          reachedStopDate = true;
+          break;
+        }
+        if (stopAtDate && game.date && game.date < stopAtDate) {
+          console.log(`[WordleBotScraper] Reached date before stop date: ${game.date} < ${stopAtDate}`);
+          reachedStopDate = true;
+          break;
         }
       }
       console.log(`[WordleBotScraper] Added ${newGamesThisIteration} new games (total: ${allGames.size})`);

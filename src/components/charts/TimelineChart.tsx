@@ -3,14 +3,13 @@ import React, { useState, useMemo } from 'react';
 import {
   ComposedChart,
   Scatter,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
-  Brush,
-  ReferenceLine
+  Brush
 } from 'recharts';
 import { GameResult } from '@/types/gameTypes';
 import { isGameWon } from '@/utils/streakCalculation';
@@ -27,6 +26,7 @@ interface ChartDataPoint {
   won: boolean;
   gameNumber: number | undefined;
   displayDate: string;
+  runningAverage?: number;
 }
 
 const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) => {
@@ -55,10 +55,26 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) =
       };
     }).sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
 
-    return data;
+    // Calculate running average for each point in the full dataset
+    const dataWithRunningAvg = data.map((point, index) => {
+      // Get all games up to and including this point
+      const gamesUpToHere = data.slice(0, index + 1);
+      const wonGames = gamesUpToHere.filter(g => g.won && g.turns > 0);
+      
+      const runningAverage = wonGames.length > 0
+        ? wonGames.reduce((sum, g) => sum + g.turns, 0) / wonGames.length
+        : undefined;
+      
+      return {
+        ...point,
+        runningAverage
+      };
+    });
+
+    return dataWithRunningAvg;
   }, [games]);
 
-  // Calculate average for visible range
+  // Get visible data based on selected range
   const visibleData = useMemo(() => {
     if (!selectedRange || selectedRange.start === selectedRange.end) {
       return chartData;
@@ -179,10 +195,6 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) =
     <div className="timeline-chart">
       <div className="chart-stats">
         <div className="chart-stat">
-          <span className="chart-stat-label">Games Shown:</span>
-          <span className="chart-stat-value">{visibleData.length}</span>
-        </div>
-        <div className="chart-stat">
           <span className="chart-stat-label">Average Turns:</span>
           <span className="chart-stat-value">
             {averageTurns > 0 ? averageTurns.toFixed(2) : '—'}
@@ -219,27 +231,17 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) =
           />
 
           <Tooltip content={<CustomTooltip />} />
-          
-          <Legend
-            wrapperStyle={{ paddingTop: '20px' }}
-            iconType="circle"
-          />
 
-          {/* Average line */}
-          {averageTurns > 0 && (
-            <ReferenceLine
-              y={averageTurns}
-              stroke="#c9b458"
-              strokeDasharray="5 5"
-              strokeWidth={2}
-              label={{
-                value: `Avg: ${averageTurns.toFixed(2)}`,
-                position: 'right',
-                fill: '#c9b458',
-                fontSize: 12
-              }}
-            />
-          )}
+          {/* Running average line */}
+          <Line
+            type="monotone"
+            dataKey="runningAverage"
+            stroke="#c9b458"
+            strokeWidth={2}
+            dot={false}
+            name="Running Average"
+            connectNulls
+          />
 
           {/* Scatter plot for individual games */}
           <Scatter
@@ -271,7 +273,7 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) =
         </div>
         <div className="legend-item">
           <span className="legend-line legend-line-avg"></span>
-          <span>Average (selected range)</span>
+          <span>Running Average</span>
         </div>
       </div>
     </div>

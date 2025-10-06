@@ -122,6 +122,9 @@ class WordleBotScraper {
     this.duplicatesSkipped = 0;
 
     console.log(`[WordleBotScraper] Starting ${mode} scrape`);
+    
+    // Send initial progress message
+    this.sendProgress(0, 0, 'Opening WordleBot page...');
 
     try {
       // Start the recursive scraping process
@@ -153,6 +156,7 @@ class WordleBotScraper {
     // On first iteration, navigate to game history
     if (iteration === 0) {
       console.log('[WordleBotScraper] First iteration - navigating to game history...');
+      this.sendProgress(0, 0, 'Navigating to game history...');
       const navigated = await this.navigateToGameHistory();
       if (!navigated) {
         console.error('[WordleBotScraper] Failed to navigate to game history');
@@ -163,6 +167,11 @@ class WordleBotScraper {
 
     // Wait for page content to load
     await new Promise(resolve => setTimeout(resolve, 1500));
+
+    // Send scanning message on first iteration
+    if (iteration === 0) {
+      this.sendProgress(0, 0, 'Scanning for games...');
+    }
 
     // Extract games from current page
     const games = this.extractVisibleGames();
@@ -471,6 +480,7 @@ class WordleBotScraper {
 
   private async processAndSendGames(rawGames: RawGameData[]): Promise<void> {
     console.log(`[WordleBotScraper] Processing ${rawGames.length} games`);
+    this.sendProgress(rawGames.length, 0, 'Processing games...');
     
     // Sort by game number (newest first)
     const sortedGames = rawGames.sort((a, b) => {
@@ -544,7 +554,7 @@ class WordleBotScraper {
   private sendProgress(
     gamesFound: number,
     gamesProcessed: number,
-    status: 'scanning' | 'loading' | 'processing'
+    status: string
   ): void {
     const message: WordleBotScrapeProgressMessage = {
       type: MessageType.WORDLE_BOT_SCRAPE_PROGRESS,

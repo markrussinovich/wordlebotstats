@@ -76,6 +76,7 @@ var WordleBotContent = (() => {
       this.gamesProcessed = 0;
       this.duplicatesSkipped = 0;
       console.log(`[WordleBotScraper] Starting ${mode} scrape`);
+      this.sendProgress(0, 0, "Opening WordleBot page...");
       try {
         await this.scrapeWithRetry(stopAtDate, maxIterations, 0, /* @__PURE__ */ new Map());
       } catch (error) {
@@ -97,6 +98,7 @@ var WordleBotContent = (() => {
       }
       if (iteration === 0) {
         console.log("[WordleBotScraper] First iteration - navigating to game history...");
+        this.sendProgress(0, 0, "Navigating to game history...");
         const navigated = await this.navigateToGameHistory();
         if (!navigated) {
           console.error("[WordleBotScraper] Failed to navigate to game history");
@@ -105,6 +107,9 @@ var WordleBotContent = (() => {
         }
       }
       await new Promise((resolve) => setTimeout(resolve, 1500));
+      if (iteration === 0) {
+        this.sendProgress(0, 0, "Scanning for games...");
+      }
       const games = this.extractVisibleGames();
       console.log(`[WordleBotScraper] Iteration ${iteration + 1}: Found ${games.length} games`);
       if (games.length === 0 && iteration === 0) {
@@ -323,6 +328,7 @@ var WordleBotContent = (() => {
     }
     async processAndSendGames(rawGames) {
       console.log(`[WordleBotScraper] Processing ${rawGames.length} games`);
+      this.sendProgress(rawGames.length, 0, "Processing games...");
       const sortedGames = rawGames.sort((a, b) => {
         const aNum = a.gameNumber || 0;
         const bNum = b.gameNumber || 0;

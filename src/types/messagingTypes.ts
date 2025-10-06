@@ -199,7 +199,7 @@ export interface WordleBotScrapeProgressMessage {
   gamesProcessed: number;
   duplicatesSkipped: number;
   currentDate?: string;
-  status: 'scanning' | 'loading' | 'processing';
+  status: string;
 }
 
 export interface WordleBotScrapeCompleteMessage {

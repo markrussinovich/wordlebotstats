@@ -171,10 +171,15 @@ document.addEventListener('DOMContentLoaded', function() {
     
     if (message.type === 'WORDLE_BOT_SCRAPE_PROGRESS') {
       scraperStatus.active = true;
-      if (message.gamesFound > 0) {
+      
+      // Use custom status message if provided, otherwise generate one
+      if (message.status && !message.status.match(/^(scanning|loading|processing)$/)) {
+        // Custom message (like "Opening WordleBot page...")
+        scraperStatus.message = `🔄 ${message.status}`;
+      } else if (message.gamesFound > 0) {
         scraperStatus.message = `📥 Found ${message.gamesFound} games...`;
       } else {
-        scraperStatus.message = '🔍 Scanning for games...';
+        scraperStatus.message = '🔍 Starting...';
       }
       render();
     } else if (message.type === 'WORDLE_BOT_SCRAPE_COMPLETE') {

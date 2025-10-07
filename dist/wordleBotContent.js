@@ -108,7 +108,7 @@ var WordleBotContent = (() => {
           return;
         }
       }
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      await this.delay(900);
       if (iteration === 0) {
         this.sendProgress(0, 0, "Scanning for games...");
       }
@@ -116,7 +116,7 @@ var WordleBotContent = (() => {
       console.log(`[WordleBotScraper] Iteration ${iteration + 1}: Found ${games.length} games`);
       if (games.length === 0 && iteration === 0) {
         console.log("[WordleBotScraper] No games found on first attempt, retrying...");
-        await new Promise((resolve) => setTimeout(resolve, 2e3));
+        await this.delay(1200);
         return this.scrapeWithRetry(stopAtDate, maxIterations, iteration, allGames);
       }
       let newGamesThisIteration = 0;
@@ -146,7 +146,7 @@ var WordleBotContent = (() => {
       }
       const loadedMore = await this.loadMoreGames();
       if (loadedMore) {
-        await new Promise((resolve) => setTimeout(resolve, 2e3));
+        await this.delay(900);
         return this.scrapeWithRetry(stopAtDate, maxIterations, iteration + 1, allGames);
       } else {
         console.log("[WordleBotScraper] No more games to load");
@@ -171,20 +171,19 @@ var WordleBotContent = (() => {
           if (compareButton) {
             break;
           }
-          await new Promise((resolve) => setTimeout(resolve, 1e3));
+          await this.delay(600);
         }
         if (compareButton) {
           console.log('[WordleBotScraper] Clicking "Compare and view your recent scores"...');
           compareButton.click();
-          await new Promise((resolve) => setTimeout(resolve, 2e3));
+          await this.waitForSelector(".slide-dot", 2500);
           console.log("[WordleBotScraper] Navigating to game history section...");
           const slideDots = document.querySelectorAll(".slide-dot");
           if (slideDots.length >= 3) {
             console.log("[WordleBotScraper] Found slide dots, clicking third dot...");
             slideDots[2].click();
-            await new Promise((resolve) => setTimeout(resolve, 1500));
-            const cards2 = document.querySelectorAll(this.GAME_CARD_SELECTOR);
-            if (cards2.length > 0) {
+            const cardsReady = await this.waitForSelector(this.GAME_CARD_SELECTOR, 1500);
+            if (cardsReady) {
               console.log("[WordleBotScraper] \u2713 Successfully navigated to game history via slide dot!");
               return true;
             }
@@ -199,11 +198,10 @@ var WordleBotContent = (() => {
               bubbles: true
             });
             document.dispatchEvent(rightArrowEvent);
-            await new Promise((resolve) => setTimeout(resolve, 800));
+            await this.delay(450);
           }
-          await new Promise((resolve) => setTimeout(resolve, 1e3));
-          const cards = document.querySelectorAll(this.GAME_CARD_SELECTOR);
-          if (cards.length > 0) {
+          const cardsViaKeyboard = await this.waitForSelector(this.GAME_CARD_SELECTOR, 1200);
+          if (cardsViaKeyboard) {
             console.log("[WordleBotScraper] \u2713 Successfully navigated to game history via keyboard!");
             return true;
           }
@@ -212,11 +210,10 @@ var WordleBotContent = (() => {
           if (arrowButtons.length > 0) {
             for (let i = 0; i < 2; i++) {
               arrowButtons[0].click();
-              await new Promise((resolve) => setTimeout(resolve, 800));
+              await this.delay(450);
             }
-            await new Promise((resolve) => setTimeout(resolve, 1e3));
-            const cardsAfterArrow = document.querySelectorAll(this.GAME_CARD_SELECTOR);
-            if (cardsAfterArrow.length > 0) {
+            const cardsAfterArrow = await this.waitForSelector(this.GAME_CARD_SELECTOR, 1200);
+            if (cardsAfterArrow) {
               console.log("[WordleBotScraper] \u2713 Successfully navigated to game history via arrow button!");
               return true;
             }
@@ -353,8 +350,8 @@ var WordleBotContent = (() => {
         console.warn("[WordleBotScraper] Failed to scroll load more button into view:", error);
       }
       button.click();
-      await new Promise((resolve) => setTimeout(resolve, 2500));
-      const afterCount = document.querySelectorAll(this.GAME_CARD_SELECTOR).length;
+      await this.delay(150);
+      const afterCount = await this.waitForCardIncrease(beforeCount, 6e3, 250);
       const newCards = afterCount - beforeCount;
       console.log(`[WordleBotScraper] After load more: ${afterCount} cards (${newCards} new)`);
       if (newCards > 0) {
@@ -364,12 +361,37 @@ var WordleBotContent = (() => {
       this.loadMoreNoGrowthAttempts += 1;
       const stillHasButton = !!this.findShowMoreButton();
       if (stillHasButton && this.loadMoreNoGrowthAttempts < 3) {
-        console.log("[WordleBotScraper] No new cards detected yet; retrying while button remains visible.");
-        await new Promise((resolve) => setTimeout(resolve, 1e3));
+        console.log("[WordleBotScraper] No new cards detected yet; polling again while button remains visible.");
+        await this.delay(400);
         return true;
       }
       console.log("[WordleBotScraper] No additional cards after multiple attempts, stopping pagination.");
       return false;
+    }
+    delay(ms) {
+      return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+    async waitForCardIncrease(previousCount, maxWaitMs = 4e3, pollIntervalMs = 250) {
+      let currentCount = document.querySelectorAll(this.GAME_CARD_SELECTOR).length;
+      const deadline = performance.now() + maxWaitMs;
+      while (performance.now() < deadline) {
+        if (currentCount > previousCount) {
+          return currentCount;
+        }
+        await this.delay(pollIntervalMs);
+        currentCount = document.querySelectorAll(this.GAME_CARD_SELECTOR).length;
+      }
+      return currentCount;
+    }
+    async waitForSelector(selector, timeoutMs = 5e3) {
+      const deadline = performance.now() + timeoutMs;
+      while (performance.now() < deadline) {
+        if (document.querySelector(selector)) {
+          return true;
+        }
+        await this.delay(200);
+      }
+      return !!document.querySelector(selector);
     }
     findShowMoreButton() {
       const selectors = [

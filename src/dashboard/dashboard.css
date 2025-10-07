@@ -9,8 +9,8 @@
 
 body {
   font-family: 'Clear Sans', 'Helvetica Neue', Arial, sans-serif;
-  background: #ffffff;
-  color: #1a1a1b;
+  background: #f7f6f2;
+  color: #212529;
   line-height: 1.6;
 }
 
@@ -69,7 +69,11 @@ body {
 .dashboard-container {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 20px 16px;
+  padding: 24px 18px;
+  background: #ffffff;
+  border-radius: 14px;
+  border: 1px solid #d3d6da;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.06);
 }
 
 /* Header */
@@ -83,7 +87,7 @@ body {
 .dashboard-header h1 {
   font-size: 36px;
   font-weight: 700;
-  color: #6aaa64;
+  color: #2f3c32;
   margin-bottom: 4px;
   letter-spacing: 0.5px;
   text-transform: uppercase;
@@ -91,7 +95,7 @@ body {
 
 .dashboard-header .subtitle {
   font-size: 14px;
-  color: #787c7e;
+  color: #666c73;
   font-weight: 400;
 }
 
@@ -109,16 +113,16 @@ body {
 .stat-item {
   background: #ffffff;
   border: 1px solid #d3d6da;
-  border-radius: 4px;
-  padding: 16px 12px;
+  border-radius: 8px;
+  padding: 18px 14px;
   text-align: center;
-  transition: all 0.15s ease;
+  transition: background 0.2s ease;
 }
 
 .stat-item:hover {
-  border-color: #878a8c;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  background: #f7f6f2;
+  transform: none;
+  box-shadow: none;
 }
 
 .stat-item-wide {
@@ -165,11 +169,11 @@ body {
 }
 
 .stat-wins {
-  color: #6aaa64;
+  color: #4a9a46;
 }
 
 .stat-losses {
-  color: #d73a49;
+  color: #c14646;
 }
 
 .stat-streak {
@@ -190,8 +194,8 @@ body {
 .chart-section {
   background: #ffffff;
   border: 1px solid #d3d6da;
-  border-radius: 4px;
-  padding: 24px 20px;
+  border-radius: 12px;
+  padding: 28px 24px;
   margin-bottom: 24px;
   max-width: 1000px;
   margin-left: auto;
@@ -201,29 +205,16 @@ body {
 .section-title {
   font-size: 18px;
   font-weight: 700;
-  color: #1a1a1b;
+  color: #2f3c32;
   margin-bottom: 6px;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.4px;
   text-align: center;
-}
-
-.section-title-meta {
-  display: inline-block;
-  margin-left: 8px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: #f1f5f9;
-  color: #475569;
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: none;
-  letter-spacing: 0;
 }
 
 .section-subtitle {
   font-size: 13px;
-  color: #787c7e;
+  color: #6d716e;
   margin-bottom: 20px;
   font-weight: 400;
   text-align: center;
@@ -237,32 +228,36 @@ body {
 .chart-stats {
   display: flex;
   justify-content: center;
-  gap: 24px;
-  margin-bottom: 20px;
-  padding: 12px 16px;
-  background: #f6f7f8;
-  border-radius: 4px;
-  border: 1px solid #d3d6da;
+  align-items: center;
+  gap: 32px;
+  margin-bottom: 24px;
+  padding: 16px 20px;
+  background: #f3f3ef;
+  border-radius: 10px;
+  border: 1px solid #e0dfd9;
 }
 
 .chart-stat {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
+  align-items: center;
 }
 
 .chart-stat-label {
   font-size: 11px;
   font-weight: 600;
-  color: #787c7e;
+  color: #6f706b;
   text-transform: uppercase;
-  letter-spacing: 0.8px;
+  letter-spacing: 0.7px;
+  text-align: center;
 }
 
 .chart-stat-value {
-  font-size: 20px;
+  font-size: 24px;
   font-weight: 700;
-  color: #1a1a1b;
+  color: #2f3c32;
+  text-align: center;
 }
 
 .chart-empty {
@@ -278,9 +273,9 @@ body {
 .chart-tooltip {
   background: #ffffff;
   border: 1px solid #d3d6da;
-  border-radius: 4px;
-  padding: 10px 14px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  border-radius: 10px;
+  padding: 12px 16px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
 }
 
 .tooltip-date {
@@ -313,7 +308,9 @@ body {
 .tooltip-board img {
   display: block;
   margin: 0 auto;
-  border-radius: 2px;
+  border-radius: 4px;
+  max-width: 160px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
 }
 
 .tooltip-result {
@@ -323,25 +320,75 @@ body {
 }
 
 .tooltip-result.won {
-  color: #6aaa64;
+  color: #4a9a46;
 }
 
 .tooltip-result.lost {
-  color: #d73a49;
+  color: #c14646;
 }
 
 .tooltip-result.unplayed {
   color: #787c7e;
 }
 
+.tooltip-grid {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 8px 0;
+}
+
+.tooltip-grid-row {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+}
+
+.tooltip-grid-cell {
+  width: 16px;
+  height: 16px;
+  border-radius: 2px;
+}
+
+.tooltip-grid-cell-correct {
+  background: #6aaa64;
+}
+
+.tooltip-grid-cell-present {
+  background: #c9b458;
+}
+
+.tooltip-grid-cell-absent {
+  background: #787c7e;
+}
+
+.tooltip-metrics {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.tooltip-metric {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #eef1e9;
+  color: #31402f;
+}
+
 /* Custom Legend */
+
 .chart-legend-custom {
   display: flex;
   gap: 24px;
   justify-content: center;
   margin-top: 20px;
   padding-top: 16px;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid #e0dfd9;
 }
 
 .legend-item {
@@ -349,14 +396,15 @@ body {
   align-items: center;
   gap: 8px;
   font-size: 13px;
-  color: #64748b;
+  color: #616664;
 }
 
 .legend-dot {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  border: 1.5px solid white;
+  border: 1px solid #f1f1f1;
+  box-shadow: none;
 }
 
 .legend-dot-win {
@@ -364,7 +412,7 @@ body {
 }
 
 .legend-dot-loss {
-  background: #d73a49;
+  background: #c14646;
 }
 
 .legend-line {

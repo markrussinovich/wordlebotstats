@@ -11,7 +11,7 @@ import {
   ResponsiveContainer,
   Brush
 } from 'recharts';
-import { GameResult } from '@/types/gameTypes';
+import { GameResult, GuessResult } from '@/types/gameTypes';
 import { isGameWon } from '@/utils/streakCalculation';
 
 interface TimelineChartProps {
@@ -27,8 +27,11 @@ interface ChartDataPoint {
   gameNumber: number | undefined;
   displayDate: string;
   runningAverage?: number;
-  solution?: string | undefined;
-  boardImageUrl?: string | undefined;
+  solution?: string;
+  boardImageUrl?: string;
+  guessPattern?: GuessResult[][];
+  skillScore?: number;
+  luckScore?: number;
 }
 
 const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) => {
@@ -45,7 +48,7 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) =
       // Use shared utility functions to determine game status
   const isWin = isGameWon(game);
       
-      return {
+      const point: ChartDataPoint = {
         date: game.date,
         dateObj,
         turns: actualAttempts,
@@ -55,10 +58,26 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) =
           month: 'short', 
           day: 'numeric',
           year: dateObj.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
-        }),
-        solution: game.solution,
-        boardImageUrl: game.boardImageUrl
+        })
       };
+
+      if (game.solution) {
+        point.solution = game.solution;
+      }
+      if (game.boardImageUrl) {
+        point.boardImageUrl = game.boardImageUrl;
+      }
+      if (game.guessPattern && game.guessPattern.length > 0) {
+        point.guessPattern = game.guessPattern;
+      }
+      if (typeof game.skillScore === 'number') {
+        point.skillScore = game.skillScore;
+      }
+      if (typeof game.luckScore === 'number') {
+        point.luckScore = game.luckScore;
+      }
+
+      return point;
     }).sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
 
     // Fill in missing dates with "no game" points
@@ -149,6 +168,7 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) =
     () => visibleData.filter(d => d.turns > 0 && d.won !== null),
     [visibleData]
   );
+  const playedGamesCount = playedGames.length;
 
   // Format date for X-axis
   const formatXAxis = (dateString: string) => {
@@ -170,6 +190,32 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) =
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length > 0) {
       const data = payload[0].payload as ChartDataPoint;
+      const preview = (() => {
+        if (data.boardImageUrl) {
+          return (
+            <div className="tooltip-board">
+              <img src={data.boardImageUrl} alt="Game board" />
+            </div>
+          );
+        }
+        if (data.guessPattern && data.guessPattern.length > 0) {
+          return (
+            <div className="tooltip-grid">
+              {data.guessPattern.map((row, rowIndex) => (
+                <div key={`row-${rowIndex}`} className="tooltip-grid-row">
+                  {row.map((cell, cellIndex) => (
+                    <span
+                      key={`cell-${rowIndex}-${cellIndex}`}
+                      className={`tooltip-grid-cell tooltip-grid-cell-${cell.status}`}
+                    />
+                  ))}
+                </div>
+              ))}
+            </div>
+          );
+        }
+        return null;
+      })();
       
       // Determine result text based on won field first, then attempts
       let resultText;
@@ -194,9 +240,15 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) =
           {data.solution && (
             <div className="tooltip-word">{data.solution.toUpperCase()}</div>
           )}
-          {data.boardImageUrl && (
-            <div className="tooltip-board">
-              <img src={data.boardImageUrl} alt="Game board" style={{ maxWidth: '150px', marginTop: '8px' }} />
+          {preview}
+          {(typeof data.skillScore === 'number' || typeof data.luckScore === 'number') && (
+            <div className="tooltip-metrics">
+              {typeof data.skillScore === 'number' && (
+                <span className="tooltip-metric">Skill {data.skillScore}</span>
+              )}
+              {typeof data.luckScore === 'number' && (
+                <span className="tooltip-metric">Luck {data.luckScore}</span>
+              )}
             </div>
           )}
           <div className={`tooltip-result ${resultClass}`}>
@@ -263,13 +315,17 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) =
     <div className="timeline-chart">
       <div className="chart-stats">
         <div className="chart-stat">
-          <span className="chart-stat-label">Average Turns:</span>
-          <span className="chart-stat-value">
-            {averageTurns > 0 ? averageTurns.toFixed(2) : '—'}
-          </span>
+          <span className="chart-stat-label">Games Played</span>
+          <span className="chart-stat-value">{playedGamesCount}</span>
         </div>
         <div className="chart-stat">
-          <span className="chart-stat-label">Win Rate:</span>
+            <span className="chart-stat-label">Average Turns</span>
+            <span className="chart-stat-value">
+            {averageTurns > 0 ? averageTurns.toFixed(2) : '—'}
+            </span>
+        </div>
+        <div className="chart-stat">
+          <span className="chart-stat-label">Win Rate</span>
           <span className="chart-stat-value">
             {playedGames.length > 0
               ? ((visibleData.filter(d => d.won === true).length / playedGames.length) * 100).toFixed(1) + '%'

@@ -169,7 +169,7 @@ class WordleBotScraper {
     }
 
     // Wait for page content to load
-    await new Promise(resolve => setTimeout(resolve, 1500));
+  await this.delay(900);
 
     // Send scanning message on first iteration
     if (iteration === 0) {
@@ -183,7 +183,7 @@ class WordleBotScraper {
     if (games.length === 0 && iteration === 0) {
       // No games on first iteration - might need more time
       console.log('[WordleBotScraper] No games found on first attempt, retrying...');
-      await new Promise(resolve => setTimeout(resolve, 2000));
+  await this.delay(1200);
       return this.scrapeWithRetry(stopAtDate, maxIterations, iteration, allGames);
     }
 
@@ -229,7 +229,7 @@ class WordleBotScraper {
     
     if (loadedMore) {
       // Wait for new content, then scrape again
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await this.delay(900);
       return this.scrapeWithRetry(stopAtDate, maxIterations, iteration + 1, allGames);
     } else {
       // No more games to load
@@ -272,7 +272,7 @@ class WordleBotScraper {
         }
         
         // Wait 1 second before retrying
-        await new Promise(resolve => setTimeout(resolve, 1000));
+  await this.delay(600);
       }
       
       if (compareButton) {
@@ -280,7 +280,7 @@ class WordleBotScraper {
         (compareButton as HTMLElement).click();
         
         // Wait for section to load
-        await new Promise(resolve => setTimeout(resolve, 2000));
+  await this.waitForSelector('.slide-dot', 2500);
         
         // Navigate to the game history section (third dot/section)
         console.log('[WordleBotScraper] Navigating to game history section...');
@@ -290,10 +290,8 @@ class WordleBotScraper {
         if (slideDots.length >= 3) {
           console.log('[WordleBotScraper] Found slide dots, clicking third dot...');
           (slideDots[2] as HTMLElement).click();
-          await new Promise(resolve => setTimeout(resolve, 1500));
-          
-          const cards = document.querySelectorAll(this.GAME_CARD_SELECTOR);
-          if (cards.length > 0) {
+          const cardsReady = await this.waitForSelector(this.GAME_CARD_SELECTOR, 1500);
+          if (cardsReady) {
             console.log('[WordleBotScraper] ✓ Successfully navigated to game history via slide dot!');
             return true;
           }
@@ -310,13 +308,12 @@ class WordleBotScraper {
             bubbles: true
           });
           document.dispatchEvent(rightArrowEvent);
-          await new Promise(resolve => setTimeout(resolve, 800));
+          await this.delay(450);
         }
         
         // Check if we reached game history
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        const cards = document.querySelectorAll(this.GAME_CARD_SELECTOR);
-        if (cards.length > 0) {
+        const cardsViaKeyboard = await this.waitForSelector(this.GAME_CARD_SELECTOR, 1200);
+        if (cardsViaKeyboard) {
           console.log('[WordleBotScraper] ✓ Successfully navigated to game history via keyboard!');
           return true;
         }
@@ -327,12 +324,11 @@ class WordleBotScraper {
         if (arrowButtons.length > 0) {
           for (let i = 0; i < 2; i++) {
             (arrowButtons[0] as HTMLElement).click();
-            await new Promise(resolve => setTimeout(resolve, 800));
+            await this.delay(450);
           }
           
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          const cardsAfterArrow = document.querySelectorAll(this.GAME_CARD_SELECTOR);
-          if (cardsAfterArrow.length > 0) {
+          const cardsAfterArrow = await this.waitForSelector(this.GAME_CARD_SELECTOR, 1200);
+          if (cardsAfterArrow) {
             console.log('[WordleBotScraper] ✓ Successfully navigated to game history via arrow button!');
             return true;
           }
@@ -516,10 +512,9 @@ class WordleBotScraper {
 
     (button as HTMLElement).click();
 
-    // Wait for new content to render
-    await new Promise(resolve => setTimeout(resolve, 2500));
+    await this.delay(150);
 
-    const afterCount = document.querySelectorAll(this.GAME_CARD_SELECTOR).length;
+    const afterCount = await this.waitForCardIncrease(beforeCount, 6000, 250);
     const newCards = afterCount - beforeCount;
     console.log(`[WordleBotScraper] After load more: ${afterCount} cards (${newCards} new)`);
 
@@ -532,13 +527,43 @@ class WordleBotScraper {
     const stillHasButton = !!this.findShowMoreButton();
 
     if (stillHasButton && this.loadMoreNoGrowthAttempts < 3) {
-      console.log('[WordleBotScraper] No new cards detected yet; retrying while button remains visible.');
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      console.log('[WordleBotScraper] No new cards detected yet; polling again while button remains visible.');
+      await this.delay(400);
       return true;
     }
 
     console.log('[WordleBotScraper] No additional cards after multiple attempts, stopping pagination.');
     return false;
+  }
+
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  private async waitForCardIncrease(previousCount: number, maxWaitMs = 4000, pollIntervalMs = 250): Promise<number> {
+    let currentCount = document.querySelectorAll(this.GAME_CARD_SELECTOR).length;
+    const deadline = performance.now() + maxWaitMs;
+
+    while (performance.now() < deadline) {
+      if (currentCount > previousCount) {
+        return currentCount;
+      }
+      await this.delay(pollIntervalMs);
+      currentCount = document.querySelectorAll(this.GAME_CARD_SELECTOR).length;
+    }
+
+    return currentCount;
+  }
+
+  private async waitForSelector(selector: string, timeoutMs = 5000): Promise<boolean> {
+    const deadline = performance.now() + timeoutMs;
+    while (performance.now() < deadline) {
+      if (document.querySelector(selector)) {
+        return true;
+      }
+      await this.delay(200);
+    }
+    return !!document.querySelector(selector);
   }
 
   private findShowMoreButton(): HTMLElement | null {

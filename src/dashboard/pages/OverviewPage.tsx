@@ -1,5 +1,5 @@
 // Dashboard overview page with comprehensive statistics display
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import TimelineChart from '@/components/charts/TimelineChart';
 import { useGameDataStore } from '@/stores/gameData';
 import { calculateStreakStats } from '@/utils/streakCalculation';
@@ -75,6 +75,29 @@ const OverviewPage: React.FC = () => {
   const mostRecentGame = games.length > 0 
     ? [...games].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]
     : null;
+
+  const totalGamesPlayed = useMemo(() => {
+    return games.filter(game => {
+      const attempts = game.attempts ?? game.guesses ?? 0;
+      return attempts > 0;
+    }).length;
+  }, [games]);
+
+  const gamesPlayedInRange = useMemo(() => {
+    if (!selectedDateRange) {
+      return totalGamesPlayed;
+    }
+
+    return games.filter(game => {
+      const attempts = game.attempts ?? game.guesses ?? 0;
+      if (attempts <= 0) {
+        return false;
+      }
+
+      const gameDate = new Date(game.date);
+      return gameDate >= selectedDateRange.start && gameDate <= selectedDateRange.end;
+    }).length;
+  }, [games, selectedDateRange, totalGamesPlayed]);
 
   if (isLoading || gamesLoading) {
     return (
@@ -166,7 +189,12 @@ const OverviewPage: React.FC = () => {
 
       {/* Timeline Chart */}
       <div className="chart-section">
-        <h2 className="section-title">Performance Timeline</h2>
+        <h2 className="section-title">
+          Performance Timeline
+          <span className="section-title-meta">
+            {gamesPlayedInRange} {gamesPlayedInRange === 1 ? 'game' : 'games'}
+          </span>
+        </h2>
         <p className="section-subtitle">
           Click and drag to select a date range and zoom in. Streaks update based on selected range.
         </p>

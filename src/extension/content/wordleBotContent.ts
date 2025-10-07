@@ -29,8 +29,9 @@ class WordleBotScraper {
   private duplicatesSkipped = 0;
 
   // Confirmed selectors from v5
-  private readonly GAME_CARD_SELECTOR = '.rating-container.svelte-pnoxcy';
-  private readonly SHOW_MORE_BUTTON_SELECTOR = '.show-more-button.svelte-151vgtd';
+  private readonly GAME_CARD_SELECTOR = '.rating-container:not(.label-container)';
+  private readonly SHOW_MORE_BUTTON_SELECTOR = '[class*="show-more-button"]';
+  private loadMoreNoGrowthAttempts = 0;
   
   constructor() {
     console.log('[WordleBotScraper] Initialized');
@@ -121,6 +122,7 @@ class WordleBotScraper {
     this.shouldStop = false;
     this.gamesProcessed = 0;
     this.duplicatesSkipped = 0;
+  this.loadMoreNoGrowthAttempts = 0;
 
     console.log(`[WordleBotScraper] Starting ${mode} scrape`);
     
@@ -389,17 +391,24 @@ class WordleBotScraper {
       
       const dateMatch = dateText.match(/(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2})/);
       if (dateMatch && dateMatch[1] && dateMatch[2]) {
-        const month = dateMatch[1];
+        const monthName = dateMatch[1];
         const day = parseInt(dateMatch[2], 10);
         const currentDate = new Date();
         const currentYear = currentDate.getFullYear();
-        
-        let testDate = new Date(`${month} ${day}, ${currentYear}`);
-        if (testDate > currentDate) {
-          testDate = new Date(`${month} ${day}, ${currentYear - 1}`);
+
+        // Convert month name to month index (0-11)
+        const monthIndex = new Date(`${monthName} 1, ${currentYear}`).getMonth();
+
+        // Build the date in UTC so we don't lose a day when converting to ISO string
+        const currentDateUtc = Date.UTC(currentYear, currentDate.getMonth(), currentDate.getDate());
+        let candidateUtc = Date.UTC(currentYear, monthIndex, day);
+
+        // If the candidate date is in the future, assume it belongs to the previous year
+        if (candidateUtc > currentDateUtc) {
+          candidateUtc = Date.UTC(currentYear - 1, monthIndex, day);
         }
-        
-        const isoDate = testDate.toISOString().split('T')[0];
+
+        const isoDate = new Date(candidateUtc).toISOString().split('T')[0];
         if (isoDate) {
           game.date = isoDate;
           console.log('[WordleBotScraper] Found date:', game.date, 'from', game.dateString);
@@ -426,13 +435,29 @@ class WordleBotScraper {
         if (numValues.length >= 3 && numValues[2]) {
           const stepsText = numValues[2].textContent?.trim() || '';
           // Check if it's a dash (lost game)
-          if (stepsText === '-' || stepsText === '—' || stepsText === '–') {
+          if (stepsText === '-' || stepsText === '—' || stepsText === '–' || stepsText === '') {
             game.won = false;
-            console.log('[WordleBotScraper] Lost game (dash detected)');
+            game.steps = 7; // Represent failed games with 7 attempts (Wordle convention)
+            console.log('[WordleBotScraper] Lost game (dash or empty detected)');
           } else {
-            game.steps = parseInt(stepsText, 10);
-            game.won = true;
-            console.log('[WordleBotScraper] Found steps:', game.steps);
+            const parsedSteps = parseInt(stepsText, 10);
+            if (isNaN(parsedSteps) || parsedSteps === 0) {
+              game.won = false;
+              game.steps = 7;
+              console.log('[WordleBotScraper] Lost game (invalid steps)');
+            } else {
+              game.steps = parsedSteps;
+              game.won = true;
+              console.log('[WordleBotScraper] Found steps:', game.steps);
+            }
+          }
+        } else {
+          // No steps data available - check if we can infer from other data
+          // If skill and luck exist but no steps, it's likely a lost game
+          if (game.skillScore !== undefined && game.luckScore !== undefined) {
+            game.won = false;
+            game.steps = 7;
+            console.log('[WordleBotScraper] Lost game (no steps data)');
           }
         }
       }
@@ -466,49 +491,81 @@ class WordleBotScraper {
   }
 
   private async loadMoreGames(): Promise<boolean> {
-    // Try multiple selectors for the button
-    let btn = document.querySelector(this.SHOW_MORE_BUTTON_SELECTOR) as HTMLElement;
-    
-    // If not found, try alternative selectors
-    if (!btn) {
-      const alternatives = [
-        '.show-more-button',
-        '[class*="show-more"]',
-        'button[class*="show"]'
-      ];
-      
-      for (const selector of alternatives) {
-        btn = document.querySelector(selector) as HTMLElement;
-        if (btn) break;
-      }
-    }
-    
-    // Check if button exists and is visible
-    if (!btn) {
+    const button = this.findShowMoreButton();
+    if (!button) {
       console.log('[WordleBotScraper] Load more button not found');
       return false;
     }
-    
-    // Check if button is hidden (display: none or visibility: hidden)
-    const style = window.getComputedStyle(btn);
-    if (style.display === 'none' || style.visibility === 'hidden') {
-      console.log('[WordleBotScraper] Load more button is hidden');
+
+    const style = window.getComputedStyle(button);
+    const isHidden = style.display === 'none' || style.visibility === 'hidden';
+    const isDisabled = button.hasAttribute('disabled') || button.getAttribute('aria-disabled') === 'true';
+    if (isHidden || isDisabled) {
+      console.log('[WordleBotScraper] Load more button unavailable (hidden or disabled)');
       return false;
     }
 
     const beforeCount = document.querySelectorAll(this.GAME_CARD_SELECTOR).length;
     console.log(`[WordleBotScraper] Clicking load more button. Current cards: ${beforeCount}`);
-    btn.click();
-    
-    // Wait for new content to load
+
+    try {
+      button.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } catch (error) {
+      console.warn('[WordleBotScraper] Failed to scroll load more button into view:', error);
+    }
+
+    (button as HTMLElement).click();
+
+    // Wait for new content to render
     await new Promise(resolve => setTimeout(resolve, 2500));
-    
+
     const afterCount = document.querySelectorAll(this.GAME_CARD_SELECTOR).length;
     const newCards = afterCount - beforeCount;
-    
     console.log(`[WordleBotScraper] After load more: ${afterCount} cards (${newCards} new)`);
-    
-    return newCards > 0;
+
+    if (newCards > 0) {
+      this.loadMoreNoGrowthAttempts = 0;
+      return true;
+    }
+
+    this.loadMoreNoGrowthAttempts += 1;
+    const stillHasButton = !!this.findShowMoreButton();
+
+    if (stillHasButton && this.loadMoreNoGrowthAttempts < 3) {
+      console.log('[WordleBotScraper] No new cards detected yet; retrying while button remains visible.');
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return true;
+    }
+
+    console.log('[WordleBotScraper] No additional cards after multiple attempts, stopping pagination.');
+    return false;
+  }
+
+  private findShowMoreButton(): HTMLElement | null {
+    const selectors = [
+      this.SHOW_MORE_BUTTON_SELECTOR,
+      '.show-more-button',
+      '.show-more-container button',
+      'button[class*="show-more"]'
+    ];
+
+    for (const selector of selectors) {
+      const element = document.querySelector(selector) as HTMLElement | null;
+      if (element) {
+        return element;
+      }
+    }
+
+    const candidates = Array.from(document.querySelectorAll('button, div[role="button"], a[role="button"]'));
+    for (const candidate of candidates) {
+      const text = candidate.textContent?.toLowerCase().trim();
+      if (!text) continue;
+      if (text.includes('show more') && text.includes('wordle')) {
+        return candidate as HTMLElement;
+      }
+    }
+
+    return null;
   }
 
   private async processAndSendGames(rawGames: RawGameData[]): Promise<void> {
@@ -566,11 +623,15 @@ class WordleBotScraper {
     const dateString = raw.date ?? now.toISOString().split('T')[0];
     const date: string = dateString!; // Safe because split always returns string
     
+    // Determine won status: use raw.won if explicitly set, otherwise infer from steps
+    const attempts = raw.steps ?? 0;
+    const won = raw.won !== undefined ? raw.won : (attempts > 0 && attempts <= 6);
+    
     return {
       date,
       ...(raw.gameNumber && { gameNumber: raw.gameNumber }),
-      won: raw.won ?? true,
-      attempts: raw.steps ?? null,
+      won,
+      attempts: attempts > 0 ? attempts : null,
       hardMode: false, // WordleBot doesn't track this
       ...(raw.solution && { solution: raw.solution }),
       ...(raw.skillScore !== undefined && { skillScore: raw.skillScore }),

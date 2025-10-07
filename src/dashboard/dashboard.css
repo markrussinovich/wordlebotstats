@@ -208,6 +208,19 @@ body {
   text-align: center;
 }
 
+.section-title-meta {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
 .section-subtitle {
   font-size: 13px;
   color: #787c7e;
@@ -314,6 +327,10 @@ body {
 }
 
 .tooltip-result.lost {
+  color: #d73a49;
+}
+
+.tooltip-result.unplayed {
   color: #787c7e;
 }
 

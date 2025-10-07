@@ -23,7 +23,7 @@ interface ChartDataPoint {
   date: string;
   dateObj: Date;
   turns: number;
-  won: boolean;
+  won: boolean | null;
   gameNumber: number | undefined;
   displayDate: string;
   runningAverage?: number;
@@ -43,7 +43,7 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) =
       const actualAttempts = game.attempts || game.guesses || 0;
       
       // Use shared utility functions to determine game status
-      const isWin = isGameWon(game);
+  const isWin = isGameWon(game);
       
       return {
         date: game.date,
@@ -92,7 +92,7 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) =
             date: dateString,
             dateObj: new Date(currentDate),
             turns: 0,
-            won: false,
+            won: null,
             gameNumber: undefined,
             displayDate: currentDate.toLocaleDateString('en-US', { 
               month: 'short', 
@@ -114,7 +114,7 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) =
     const dataWithRunningAvg = filledData.map((point, index) => {
       // Get all games up to and including this point
       const gamesUpToHere = filledData.slice(0, index + 1);
-      const wonGames = gamesUpToHere.filter(g => g.won && g.turns > 0);
+  const wonGames = gamesUpToHere.filter(g => g.won === true && g.turns > 0);
       
       const runningAverage = wonGames.length > 0
         ? wonGames.reduce((sum, g) => sum + g.turns, 0) / wonGames.length
@@ -138,12 +138,17 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) =
   }, [chartData, selectedRange]);
 
   const averageTurns = useMemo(() => {
-    const wonGames = visibleData.filter(d => d.won);
+    const wonGames = visibleData.filter(d => d.won === true);
     if (wonGames.length === 0) return 0;
     
     const sum = wonGames.reduce((acc, game) => acc + (game.turns || 0), 0);
     return sum / wonGames.length;
   }, [visibleData]);
+
+  const playedGames = useMemo(
+    () => visibleData.filter(d => d.turns > 0 && d.won !== null),
+    [visibleData]
+  );
 
   // Format date for X-axis
   const formatXAxis = (dateString: string) => {
@@ -169,11 +174,10 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) =
       // Determine result text based on won field first, then attempts
       let resultText;
       let resultClass;
-      if (data.turns === 0 || !data.turns) {
-        resultText = 'Unplayed';
-        resultClass = 'lost';
-      } else if (!data.won || data.turns >= 7) {
-        // Check won field first - if false, it's a loss regardless of turns
+      if (!data.turns || data.turns === 0 || data.won === null) {
+        resultText = 'No game recorded';
+        resultClass = 'unplayed';
+      } else if (data.won === false || data.turns >= 7) {
         resultText = 'Failed ❌';
         resultClass = 'lost';
       } else {
@@ -211,12 +215,12 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) =
     
     // Determine color based on won field (green for won, red for loss, grey for unplayed)
     let color;
-    if (payload.turns === 0 || !payload.turns) {
+    if (!payload.turns || payload.turns === 0 || payload.won === null) {
       color = '#787c7e'; // Grey for unplayed
-    } else if (payload.won) {
-      color = '#6aaa64'; // Green for wins
-    } else {
+    } else if (payload.won === false || payload.turns >= 7) {
       color = '#d73a49'; // Red for losses
+    } else {
+      color = '#6aaa64'; // Green for wins
     }
     
     return (
@@ -267,7 +271,9 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) =
         <div className="chart-stat">
           <span className="chart-stat-label">Win Rate:</span>
           <span className="chart-stat-value">
-            {((visibleData.filter(d => d.won).length / visibleData.length) * 100).toFixed(1)}%
+            {playedGames.length > 0
+              ? ((visibleData.filter(d => d.won === true).length / playedGames.length) * 100).toFixed(1) + '%'
+              : '—'}
           </span>
         </div>
       </div>

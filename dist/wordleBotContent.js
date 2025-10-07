@@ -314,20 +314,507 @@ var WordleBotContent = (() => {
           }
         }
       }
-      const boardEl = card.querySelector(".wordle-board, .micro");
-      if (boardEl) {
-        console.log("[WordleBotScraper] Found board element");
-      }
-      const boardImage = card.querySelector("img[src]");
-      if (boardImage) {
-        game.boardImageUrl = boardImage.src;
-        console.log("[WordleBotScraper] Found board image:", game.boardImageUrl);
+      const boardVisual = this.extractBoardVisual(card);
+      if (boardVisual) {
+        if (boardVisual.pattern && boardVisual.pattern.length > 0) {
+          game.guessPattern = boardVisual.pattern;
+        }
+        if (boardVisual.image) {
+          game.boardImageUrl = boardVisual.image;
+        }
       }
       const link = card.querySelector('a[href*="analysis"], a[href*="wordle"]');
       if (link && !link.getAttribute("href")?.includes("index.html")) {
         game.analysisUrl = link.href;
       }
       return game;
+    }
+    extractBoardVisual(card) {
+      const svgBoard = this.findSvgBoard(card);
+      if (svgBoard) {
+        const pattern2 = this.extractPatternFromSvg(svgBoard);
+        const image2 = this.serializeSvgElement(svgBoard);
+        if (pattern2 && pattern2.length > 0 || image2) {
+          return {
+            ...image2 ? { image: image2 } : {},
+            ...pattern2.length > 0 ? { pattern: pattern2 } : {}
+          };
+        }
+      }
+      const boardElement = this.findBoardElement(card);
+      let pattern = [];
+      if (boardElement) {
+        pattern = this.extractGuessPatternFromBoard(boardElement);
+      }
+      let image = null;
+      if (pattern.length > 0) {
+        image = this.renderGuessPatternToImage(pattern);
+      }
+      if (!image) {
+        const fallbackImage = card.querySelector("img[src]");
+        if (fallbackImage) {
+          image = fallbackImage.src;
+        }
+      }
+      if (pattern && pattern.length > 0 || image) {
+        return {
+          ...image ? { image } : {},
+          ...pattern.length > 0 ? { pattern } : {}
+        };
+      }
+      return null;
+    }
+    findSvgBoard(card) {
+      const svgCandidates = Array.from(card.querySelectorAll("svg"));
+      for (const svg of svgCandidates) {
+        const rectCount = svg.querySelectorAll("rect").length;
+        if (rectCount >= 10) {
+          return svg;
+        }
+      }
+      return null;
+    }
+    serializeSvgElement(svg) {
+      try {
+        const clone = svg.cloneNode(true);
+        if (!clone.getAttribute("xmlns")) {
+          clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+        }
+        if (!clone.getAttribute("viewBox")) {
+          try {
+            if ("getBBox" in svg) {
+              const bbox = svg.getBBox();
+              if (bbox) {
+                clone.setAttribute("viewBox", `0 0 ${bbox.width} ${bbox.height}`);
+                if (!clone.getAttribute("width")) {
+                  clone.setAttribute("width", `${bbox.width}`);
+                }
+                if (!clone.getAttribute("height")) {
+                  clone.setAttribute("height", `${bbox.height}`);
+                }
+              }
+            }
+          } catch (error) {
+            console.warn("[WordleBotScraper] Failed to calculate SVG bbox", error);
+          }
+        }
+        const serializer = new XMLSerializer();
+        const svgString = serializer.serializeToString(clone);
+        const encoded = window.btoa(unescape(encodeURIComponent(svgString)));
+        return `data:image/svg+xml;base64,${encoded}`;
+      } catch (error) {
+        console.warn("[WordleBotScraper] Failed to serialize SVG board", error);
+        return null;
+      }
+    }
+    findBoardElement(card) {
+      const selectors = [
+        ".wordle-board",
+        ".micro",
+        ".micro-board",
+        ".mini-board",
+        '.rating-left [class*="board"]',
+        '[data-testid*="board"]',
+        '[role="grid"]',
+        '[class*="grid"]'
+      ];
+      for (const selector of selectors) {
+        const element = card.querySelector(selector);
+        if (element && element !== card) {
+          return element;
+        }
+      }
+      const fallbackCandidates = Array.from(card.querySelectorAll('[class*="board"], [data-board], [data-testid], [role="grid"]'));
+      for (const candidate of fallbackCandidates) {
+        if (candidate === card) continue;
+        const tileCount = candidate.querySelectorAll("[data-state], [data-status], rect, canvas").length;
+        if (tileCount >= 10) {
+          return candidate;
+        }
+      }
+      return null;
+    }
+    extractPatternFromSvg(svg) {
+      const rects = Array.from(svg.querySelectorAll("rect"));
+      if (rects.length === 0) {
+        return [];
+      }
+      const xPositions = this.collectUniquePositions(rects, "x");
+      const yPositions = this.collectUniquePositions(rects, "y");
+      if (xPositions.length === 0 || yPositions.length === 0) {
+        return [];
+      }
+      const pattern = [];
+      yPositions.forEach((y) => {
+        const row = [];
+        xPositions.forEach((x) => {
+          const rect = this.findRectAt(rects, x, y);
+          const fill = rect ? this.getSvgFillColor(rect) : null;
+          const colorStatus = this.mapColorToStatus(fill);
+          const status = colorStatus && colorStatus !== "empty" ? colorStatus : "absent";
+          row.push({ letter: "", status });
+        });
+        if (row.length > 0) {
+          pattern.push(row);
+        }
+      });
+      return pattern;
+    }
+    collectUniquePositions(rects, axis) {
+      const values = rects.map((rect) => this.getSvgCoordinate(rect, axis)).filter((value) => value !== null).map((value) => Math.round(value * 10) / 10);
+      return Array.from(new Set(values)).sort((a, b) => a - b);
+    }
+    findRectAt(rects, x, y) {
+      for (const rect of rects) {
+        const rectX = this.getSvgCoordinate(rect, "x");
+        const rectY = this.getSvgCoordinate(rect, "y");
+        if (rectX !== null && rectY !== null && this.nearlyEqual(rectX, x) && this.nearlyEqual(rectY, y)) {
+          return rect;
+        }
+      }
+      return null;
+    }
+    getSvgCoordinate(rect, attribute) {
+      const animated = rect[attribute];
+      if (animated && typeof animated.baseVal?.value === "number") {
+        return animated.baseVal.value;
+      }
+      const attrValue = rect.getAttribute(attribute);
+      if (attrValue) {
+        const parsed = parseFloat(attrValue);
+        if (!Number.isNaN(parsed)) {
+          return parsed;
+        }
+      }
+      return null;
+    }
+    nearlyEqual(a, b, tolerance = 0.5) {
+      return Math.abs(a - b) <= tolerance;
+    }
+    getSvgFillColor(rect) {
+      const attrFill = rect.getAttribute("fill");
+      if (attrFill && attrFill !== "none") {
+        return attrFill;
+      }
+      if (rect.style && rect.style.fill) {
+        return rect.style.fill;
+      }
+      try {
+        const computed = window.getComputedStyle(rect);
+        if (computed && computed.fill && computed.fill !== "none") {
+          return computed.fill;
+        }
+      } catch (error) {
+        console.warn("[WordleBotScraper] Failed to get SVG fill color", error);
+      }
+      return null;
+    }
+    extractGuessPatternFromBoard(boardEl) {
+      const pattern = [];
+      const rows = this.getCandidateBoardRows(boardEl);
+      const expectedLength = this.detectBoardWordLength(boardEl);
+      if (rows.length > 0) {
+        rows.forEach((rowEl) => {
+          const tiles = this.collectTileElements(rowEl);
+          const rowPattern = this.convertTilesToGuessResults(tiles, expectedLength);
+          if (rowPattern) {
+            pattern.push(rowPattern);
+          }
+        });
+        if (pattern.length > 0) {
+          return pattern;
+        }
+      }
+      const fallbackTiles = this.collectTileElements(boardEl);
+      if (fallbackTiles.length === 0) {
+        return [];
+      }
+      const fallbackRowLength = this.detectBoardWordLength(boardEl, fallbackTiles.length);
+      for (let i = 0; i < fallbackTiles.length; i += fallbackRowLength) {
+        const chunk = fallbackTiles.slice(i, i + fallbackRowLength);
+        const rowPattern = this.convertTilesToGuessResults(chunk, fallbackRowLength);
+        if (rowPattern) {
+          pattern.push(rowPattern);
+        }
+      }
+      return pattern;
+    }
+    getCandidateBoardRows(boardEl) {
+      const asElement = boardEl;
+      const directChildren = Array.from(asElement.children);
+      const directRows = directChildren.filter((child) => this.looksLikeBoardRow(child));
+      if (directRows.length > 0) {
+        return directRows;
+      }
+      const selector = '[class*="row"], [data-row], [data-row-index], [role="row"], .history-row, .guess-row, .wordle-row';
+      const candidates = Array.from(asElement.querySelectorAll(selector));
+      return candidates.filter((el) => el !== asElement && this.looksLikeBoardRow(el));
+    }
+    looksLikeBoardRow(element) {
+      const className = (element.className || "").toString().toLowerCase();
+      if (!className && !element.getAttribute("role")) {
+        return false;
+      }
+      if (className.includes("row") || className.includes("guess") || className.includes("attempt") || className.includes("history")) {
+        return true;
+      }
+      const role = element.getAttribute("role");
+      if (role && role.toLowerCase() === "row") {
+        return true;
+      }
+      if (element.getAttribute("data-row") || element.getAttribute("data-row-index")) {
+        return true;
+      }
+      return false;
+    }
+    collectTileElements(root) {
+      const asElement = root;
+      const direct = Array.from(asElement.children);
+      const directTiles = direct.filter((child) => this.getTileStatus(child) !== null);
+      if (directTiles.length > 0) {
+        return directTiles;
+      }
+      const selector = '[data-state], [data-status], [aria-label*="correct"], [aria-label*="present"], [aria-label*="absent"], .tile, .Tile, .board-tile, .micro-tile, .guess-tile, .letter-box, span, div';
+      const fallback = Array.from(asElement.querySelectorAll(selector));
+      const seen = /* @__PURE__ */ new Set();
+      const filtered = [];
+      fallback.forEach((el) => {
+        if (el === asElement || seen.has(el)) {
+          return;
+        }
+        const status = this.getTileStatus(el);
+        if (!status) {
+          return;
+        }
+        seen.add(el);
+        filtered.push(el);
+      });
+      return filtered;
+    }
+    convertTilesToGuessResults(tiles, expectedLength) {
+      if (tiles.length === 0) {
+        return null;
+      }
+      const row = [];
+      let hasMeaningfulTile = false;
+      tiles.forEach((tile) => {
+        const status = this.getTileStatus(tile);
+        if (!status) {
+          return;
+        }
+        if (status !== "empty") {
+          hasMeaningfulTile = true;
+        }
+        const letter = (tile.textContent || "").trim().slice(0, 1).toUpperCase();
+        const normalizedStatus = status === "empty" ? "absent" : status;
+        row.push({
+          letter,
+          status: normalizedStatus
+        });
+      });
+      if (!hasMeaningfulTile) {
+        return null;
+      }
+      if (expectedLength > 0 && row.length > expectedLength) {
+        row.splice(expectedLength);
+      } else if (expectedLength > 0 && row.length < expectedLength) {
+        while (row.length < expectedLength) {
+          row.push({
+            letter: "",
+            status: "absent"
+          });
+        }
+      }
+      return row;
+    }
+    detectBoardWordLength(boardEl, fallbackTileCount) {
+      const asElement = boardEl;
+      const dataLength = asElement.dataset && asElement.dataset.length ? parseInt(asElement.dataset.length, 10) : NaN;
+      if (!Number.isNaN(dataLength) && dataLength > 0) {
+        return dataLength;
+      }
+      const ariaColCount = boardEl.getAttribute("aria-colcount");
+      const parsedAria = ariaColCount ? parseInt(ariaColCount, 10) : NaN;
+      if (!Number.isNaN(parsedAria) && parsedAria > 0) {
+        return parsedAria;
+      }
+      if (fallbackTileCount && fallbackTileCount > 0) {
+        const potential = [5, 6, 7, 4];
+        for (const length of potential) {
+          if (fallbackTileCount % length === 0) {
+            return length;
+          }
+        }
+      }
+      return 5;
+    }
+    getTileStatus(tile) {
+      if (!(tile instanceof HTMLElement)) {
+        return null;
+      }
+      const datasetState = tile.getAttribute("data-state") || tile.getAttribute("data-status");
+      const datasetResult = this.normalizeTileStatus(datasetState);
+      if (datasetResult) {
+        return datasetResult;
+      }
+      const ariaLabel = tile.getAttribute("aria-label");
+      const ariaResult = this.normalizeTileStatus(ariaLabel);
+      if (ariaResult) {
+        return ariaResult;
+      }
+      for (const cls of Array.from(tile.classList)) {
+        const classResult = this.normalizeTileStatus(cls);
+        if (classResult) {
+          return classResult;
+        }
+      }
+      const colorResult = this.getStatusFromComputedColor(tile);
+      if (colorResult) {
+        return colorResult;
+      }
+      const text = tile.textContent?.trim() || "";
+      if (text.length === 0) {
+        return "empty";
+      }
+      return "absent";
+    }
+    normalizeTileStatus(value) {
+      if (!value) {
+        return null;
+      }
+      const normalized = value.toLowerCase();
+      if (normalized.includes("correct") || normalized.includes("exact") || normalized.includes("right")) {
+        return "correct";
+      }
+      if (normalized.includes("present") || normalized.includes("misplaced") || normalized.includes("partial") || normalized.includes("close")) {
+        return "present";
+      }
+      if (normalized.includes("absent") || normalized.includes("wrong") || normalized.includes("miss") || normalized.includes("incorrect") || normalized.includes("bad")) {
+        return "absent";
+      }
+      if (normalized.includes("empty") || normalized.includes("unused") || normalized.includes("pending") || normalized.includes("tbd") || normalized.includes("unknown")) {
+        return "empty";
+      }
+      return null;
+    }
+    getStatusFromComputedColor(tile) {
+      try {
+        const style = window.getComputedStyle(tile);
+        const background = style.backgroundColor || tile.style.backgroundColor;
+        const border = style.borderColor || tile.style.borderColor;
+        const backgroundResult = this.mapColorToStatus(background);
+        if (backgroundResult) {
+          return backgroundResult;
+        }
+        const borderResult = this.mapColorToStatus(border);
+        if (borderResult) {
+          return borderResult;
+        }
+      } catch (error) {
+        console.warn("[WordleBotScraper] Failed to read tile color", error);
+      }
+      return null;
+    }
+    mapColorToStatus(color) {
+      if (!color || color === "transparent" || color === "rgba(0, 0, 0, 0)") {
+        return "empty";
+      }
+      const normalized = color.replace(/\s+/g, "").toLowerCase();
+      if (normalized.includes("106,170,100") || normalized.includes("83,141,78") || normalized.includes("18,137,61")) {
+        return "correct";
+      }
+      if (normalized.includes("201,180,88") || normalized.includes("181,159,59") || normalized.includes("197,180,88") || normalized.includes("212,180,88")) {
+        return "present";
+      }
+      if (normalized.includes("120,124,126") || normalized.includes("58,58,60") || normalized.includes("68,70,74") || normalized.includes("100,117,128") || normalized.includes("134,138,142")) {
+        return "absent";
+      }
+      return null;
+    }
+    renderGuessPatternToImage(pattern) {
+      if (!pattern || pattern.length === 0) {
+        return null;
+      }
+      const columns = Math.max(...pattern.map((row) => row.length));
+      if (!columns) {
+        return null;
+      }
+      const rows = pattern.length;
+      const tileSize = 22;
+      const gap = 4;
+      const radius = 4;
+      const width = columns * tileSize + (columns - 1) * gap;
+      const height = rows * tileSize + (rows - 1) * gap;
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        return null;
+      }
+      ctx.fillStyle = "#f3f2eb";
+      ctx.fillRect(0, 0, width, height);
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.font = 'bold 14px "Clear Sans", "Helvetica Neue", Arial, sans-serif';
+      pattern.forEach((row, rowIndex) => {
+        row.forEach((cell, colIndex) => {
+          const statusColor = this.getColorForStatus(cell.status);
+          const letterColor = this.getLetterColorForStatus(cell.status);
+          const letter = (cell.letter || "").toUpperCase();
+          const x = colIndex * (tileSize + gap);
+          const y = rowIndex * (tileSize + gap);
+          this.fillRoundedRect(ctx, x, y, tileSize, tileSize, radius, statusColor);
+          if (letter) {
+            ctx.fillStyle = letterColor;
+            ctx.fillText(letter, x + tileSize / 2, y + tileSize / 2 + 1);
+          }
+        });
+      });
+      try {
+        return canvas.toDataURL("image/png");
+      } catch (error) {
+        console.warn("[WordleBotScraper] Failed to serialize board canvas", error);
+        return null;
+      }
+    }
+    getColorForStatus(status) {
+      switch (status) {
+        case "correct":
+          return "#6aaa64";
+        case "present":
+          return "#c9b458";
+        case "absent":
+        default:
+          return "#787c7e";
+      }
+    }
+    getLetterColorForStatus(status) {
+      switch (status) {
+        case "correct":
+        case "absent":
+          return "#f8f8f8";
+        case "present":
+          return "#2f2f2f";
+        default:
+          return "#f8f8f8";
+      }
+    }
+    fillRoundedRect(ctx, x, y, width, height, radius, fillStyle) {
+      const r = Math.min(radius, width / 2, height / 2);
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + width - r, y);
+      ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+      ctx.lineTo(x + width, y + height - r);
+      ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+      ctx.lineTo(x + r, y + height);
+      ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+      ctx.fillStyle = fillStyle;
+      ctx.fill();
     }
     async loadMoreGames() {
       const button = this.findShowMoreButton();
@@ -470,6 +957,7 @@ var WordleBotContent = (() => {
         ...raw.skillScore !== void 0 && { skillScore: raw.skillScore },
         ...raw.luckScore !== void 0 && { luckScore: raw.luckScore },
         ...raw.boardImageUrl && { boardImageUrl: raw.boardImageUrl },
+        ...raw.guessPattern && raw.guessPattern.length > 0 && { guessPattern: raw.guessPattern },
         ...raw.analysisUrl && { analysisUrl: raw.analysisUrl },
         scrapedFrom: "wordle-bot",
         source: "wordle-page",

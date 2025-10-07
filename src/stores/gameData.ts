@@ -275,20 +275,24 @@ export const useGameDataStore = create<GameDataState>()(
           const response: QuickStatsResponse = await chrome.runtime.sendMessage(message);
           
           if (response.success && response.statistics) {
+            const gameCount = response.statistics.gameCount;
+            const winCount = response.statistics.winCount ?? Math.round((response.statistics.winRate / 100) * gameCount);
+            const guessDistribution = response.statistics.guessDistribution || [0, 0, 0, 0, 0, 0, 0];
+
             // Convert background statistics to StatisticsPeriod format
             const statisticsPeriod: StatisticsPeriod = {
               startDate: '',
               endDate: new Date().toISOString(),
-              gameCount: response.statistics.gameCount,
-              winCount: Math.round((response.statistics.winRate / 100) * response.statistics.gameCount),
+              gameCount,
+              winCount,
               winRate: response.statistics.winRate,
               averageGuesses: response.statistics.averageGuesses,
               currentStreak: response.statistics.currentStreak,
               maxStreak: response.statistics.maxStreak,
-              guessDistribution: response.statistics.guessDistribution || [0, 0, 0, 0, 0, 0, 0],
+              guessDistribution,
               medianGuesses: response.statistics.averageGuesses || 0,
-              perfectGames: response.statistics.guessDistribution?.[0] || 0,
-              lastGuessWins: response.statistics.guessDistribution?.[5] || 0
+              perfectGames: guessDistribution[0] || 0,
+              lastGuessWins: guessDistribution[5] || 0
             };
 
             // Cache the result

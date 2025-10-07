@@ -1,7 +1,7 @@
 // Content script for Wordle Bot history scraping
 // Automatically scrapes game history from NYTimes Wordle Bot page
 
-import { GameResult } from '@/types/gameTypes';
+import { GameResult, GuessResult } from '@/types/gameTypes';
 import { 
   MessageType,
   WordleBotScrapeProgressMessage,
@@ -20,6 +20,12 @@ interface RawGameData {
   won?: boolean;
   analysisUrl?: string;
   boardImageUrl?: string;
+  guessPattern?: GuessResult[][];
+}
+
+interface BoardVisual {
+  image?: string;
+  pattern?: GuessResult[][];
 }
 
 class WordleBotScraper {
@@ -460,21 +466,14 @@ class WordleBotScraper {
     }
 
     // Extract board image - the wordle-board div contains the game grid
-    const boardEl = card.querySelector('.wordle-board, .micro');
-    if (boardEl) {
-      // Try to convert the board HTML to a data URL or just store a reference
-      // For now, we'll capture the outerHTML as a data structure
-      // In a real implementation, you might want to render this or take a screenshot
-      console.log('[WordleBotScraper] Found board element');
-      // We could serialize this to an image, but for now just note that we found it
-      // game.boardImageUrl = ... (would need canvas rendering)
-    }
-    
-    // Also check for actual image elements
-    const boardImage = card.querySelector('img[src]');
-    if (boardImage) {
-      game.boardImageUrl = (boardImage as HTMLImageElement).src;
-      console.log('[WordleBotScraper] Found board image:', game.boardImageUrl);
+    const boardVisual = this.extractBoardVisual(card);
+    if (boardVisual) {
+      if (boardVisual.pattern && boardVisual.pattern.length > 0) {
+        game.guessPattern = boardVisual.pattern;
+      }
+      if (boardVisual.image) {
+        game.boardImageUrl = boardVisual.image;
+      }
     }
 
     // Get analysis link
@@ -484,6 +483,587 @@ class WordleBotScraper {
     }
 
     return game;
+  }
+
+  private extractBoardVisual(card: HTMLElement): BoardVisual | null {
+    const svgBoard = this.findSvgBoard(card);
+    if (svgBoard) {
+      const pattern = this.extractPatternFromSvg(svgBoard);
+      const image = this.serializeSvgElement(svgBoard);
+      if ((pattern && pattern.length > 0) || image) {
+        return {
+          ...(image ? { image } : {}),
+          ...(pattern.length > 0 ? { pattern } : {})
+        };
+      }
+    }
+
+    const boardElement = this.findBoardElement(card);
+    let pattern: GuessResult[][] = [];
+    if (boardElement) {
+      pattern = this.extractGuessPatternFromBoard(boardElement);
+    }
+
+    let image: string | null = null;
+    if (pattern.length > 0) {
+      image = this.renderGuessPatternToImage(pattern);
+    }
+
+    if (!image) {
+      const fallbackImage = card.querySelector('img[src]') as HTMLImageElement | null;
+      if (fallbackImage) {
+        image = fallbackImage.src;
+      }
+    }
+
+    if ((pattern && pattern.length > 0) || image) {
+      return {
+        ...(image ? { image } : {}),
+        ...(pattern.length > 0 ? { pattern } : {})
+      };
+    }
+
+    return null;
+  }
+
+  private findSvgBoard(card: HTMLElement): SVGElement | null {
+    const svgCandidates = Array.from(card.querySelectorAll('svg')) as SVGElement[];
+    for (const svg of svgCandidates) {
+      const rectCount = svg.querySelectorAll('rect').length;
+      if (rectCount >= 10) {
+        return svg;
+      }
+    }
+    return null;
+  }
+
+  private serializeSvgElement(svg: SVGElement): string | null {
+    try {
+      const clone = svg.cloneNode(true) as SVGElement;
+      if (!clone.getAttribute('xmlns')) {
+        clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+      }
+      if (!clone.getAttribute('viewBox')) {
+        try {
+          if ('getBBox' in svg) {
+            const bbox = (svg as SVGGraphicsElement).getBBox();
+            if (bbox) {
+              clone.setAttribute('viewBox', `0 0 ${bbox.width} ${bbox.height}`);
+              if (!clone.getAttribute('width')) {
+                clone.setAttribute('width', `${bbox.width}`);
+              }
+              if (!clone.getAttribute('height')) {
+                clone.setAttribute('height', `${bbox.height}`);
+              }
+            }
+          }
+        } catch (error) {
+          console.warn('[WordleBotScraper] Failed to calculate SVG bbox', error);
+        }
+      }
+
+      const serializer = new XMLSerializer();
+      const svgString = serializer.serializeToString(clone);
+      const encoded = window.btoa(unescape(encodeURIComponent(svgString)));
+      return `data:image/svg+xml;base64,${encoded}`;
+    } catch (error) {
+      console.warn('[WordleBotScraper] Failed to serialize SVG board', error);
+      return null;
+    }
+  }
+
+  private findBoardElement(card: HTMLElement): Element | null {
+    const selectors = [
+      '.wordle-board',
+      '.micro',
+      '.micro-board',
+      '.mini-board',
+      '.rating-left [class*="board"]',
+      '[data-testid*="board"]',
+      '[role="grid"]',
+      '[class*="grid"]'
+    ];
+
+    for (const selector of selectors) {
+      const element = card.querySelector(selector);
+      if (element && element !== card) {
+        return element;
+      }
+    }
+
+    const fallbackCandidates = Array.from(card.querySelectorAll('[class*="board"], [data-board], [data-testid], [role="grid"]')) as Element[];
+    for (const candidate of fallbackCandidates) {
+      if (candidate === card) continue;
+      const tileCount = candidate.querySelectorAll('[data-state], [data-status], rect, canvas').length;
+      if (tileCount >= 10) {
+        return candidate;
+      }
+    }
+
+    return null;
+  }
+
+  private extractPatternFromSvg(svg: SVGElement): GuessResult[][] {
+    const rects = Array.from(svg.querySelectorAll('rect')) as SVGRectElement[];
+    if (rects.length === 0) {
+      return [];
+    }
+
+    const xPositions = this.collectUniquePositions(rects, 'x');
+    const yPositions = this.collectUniquePositions(rects, 'y');
+    if (xPositions.length === 0 || yPositions.length === 0) {
+      return [];
+    }
+
+    const pattern: GuessResult[][] = [];
+    yPositions.forEach(y => {
+      const row: GuessResult[] = [];
+      xPositions.forEach(x => {
+        const rect = this.findRectAt(rects, x, y);
+  const fill = rect ? this.getSvgFillColor(rect) : null;
+  const colorStatus = this.mapColorToStatus(fill);
+  const status: GuessResult['status'] = colorStatus && colorStatus !== 'empty' ? colorStatus : 'absent';
+  row.push({ letter: '', status });
+      });
+      if (row.length > 0) {
+        pattern.push(row);
+      }
+    });
+
+    return pattern;
+  }
+
+  private collectUniquePositions(rects: SVGRectElement[], axis: 'x' | 'y'): number[] {
+    const values = rects
+      .map(rect => this.getSvgCoordinate(rect, axis))
+      .filter((value): value is number => value !== null)
+      .map(value => Math.round(value * 10) / 10);
+
+    return Array.from(new Set(values)).sort((a, b) => a - b);
+  }
+
+  private findRectAt(rects: SVGRectElement[], x: number, y: number): SVGRectElement | null {
+    for (const rect of rects) {
+      const rectX = this.getSvgCoordinate(rect, 'x');
+      const rectY = this.getSvgCoordinate(rect, 'y');
+      if (rectX !== null && rectY !== null && this.nearlyEqual(rectX, x) && this.nearlyEqual(rectY, y)) {
+        return rect;
+      }
+    }
+    return null;
+  }
+
+  private getSvgCoordinate(rect: SVGRectElement, attribute: 'x' | 'y'): number | null {
+    const animated = (rect as any)[attribute];
+    if (animated && typeof animated.baseVal?.value === 'number') {
+      return animated.baseVal.value;
+    }
+    const attrValue = rect.getAttribute(attribute);
+    if (attrValue) {
+      const parsed = parseFloat(attrValue);
+      if (!Number.isNaN(parsed)) {
+        return parsed;
+      }
+    }
+    return null;
+  }
+
+  private nearlyEqual(a: number, b: number, tolerance = 0.5): boolean {
+    return Math.abs(a - b) <= tolerance;
+  }
+
+  private getSvgFillColor(rect: SVGRectElement): string | null {
+    const attrFill = rect.getAttribute('fill');
+    if (attrFill && attrFill !== 'none') {
+      return attrFill;
+    }
+
+    if (rect.style && rect.style.fill) {
+      return rect.style.fill;
+    }
+
+    try {
+      const computed = window.getComputedStyle(rect);
+      if (computed && computed.fill && computed.fill !== 'none') {
+        return computed.fill;
+      }
+    } catch (error) {
+      console.warn('[WordleBotScraper] Failed to get SVG fill color', error);
+    }
+
+    return null;
+  }
+
+  private extractGuessPatternFromBoard(boardEl: Element): GuessResult[][] {
+    const pattern: GuessResult[][] = [];
+    const rows = this.getCandidateBoardRows(boardEl);
+    const expectedLength = this.detectBoardWordLength(boardEl);
+
+    if (rows.length > 0) {
+      rows.forEach(rowEl => {
+        const tiles = this.collectTileElements(rowEl);
+        const rowPattern = this.convertTilesToGuessResults(tiles, expectedLength);
+        if (rowPattern) {
+          pattern.push(rowPattern);
+        }
+      });
+      if (pattern.length > 0) {
+        return pattern;
+      }
+    }
+
+    const fallbackTiles = this.collectTileElements(boardEl);
+    if (fallbackTiles.length === 0) {
+      return [];
+    }
+
+    const fallbackRowLength = this.detectBoardWordLength(boardEl, fallbackTiles.length);
+    for (let i = 0; i < fallbackTiles.length; i += fallbackRowLength) {
+      const chunk = fallbackTiles.slice(i, i + fallbackRowLength);
+      const rowPattern = this.convertTilesToGuessResults(chunk, fallbackRowLength);
+      if (rowPattern) {
+        pattern.push(rowPattern);
+      }
+    }
+
+    return pattern;
+  }
+
+  private getCandidateBoardRows(boardEl: Element): HTMLElement[] {
+    const asElement = boardEl as HTMLElement;
+    const directChildren = Array.from(asElement.children) as HTMLElement[];
+    const directRows = directChildren.filter(child => this.looksLikeBoardRow(child));
+    if (directRows.length > 0) {
+      return directRows;
+    }
+
+    const selector = '[class*="row"], [data-row], [data-row-index], [role="row"], .history-row, .guess-row, .wordle-row';
+    const candidates = Array.from(asElement.querySelectorAll(selector)) as HTMLElement[];
+    return candidates.filter(el => el !== asElement && this.looksLikeBoardRow(el));
+  }
+
+  private looksLikeBoardRow(element: HTMLElement): boolean {
+    const className = (element.className || '').toString().toLowerCase();
+    if (!className && !element.getAttribute('role')) {
+      return false;
+    }
+    if (className.includes('row') || className.includes('guess') || className.includes('attempt') || className.includes('history')) {
+      return true;
+    }
+    const role = element.getAttribute('role');
+    if (role && role.toLowerCase() === 'row') {
+      return true;
+    }
+    if (element.getAttribute('data-row') || element.getAttribute('data-row-index')) {
+      return true;
+    }
+    return false;
+  }
+
+  private collectTileElements(root: Element): HTMLElement[] {
+    const asElement = root as HTMLElement;
+    const direct = Array.from(asElement.children) as HTMLElement[];
+    const directTiles = direct.filter(child => this.getTileStatus(child) !== null);
+    if (directTiles.length > 0) {
+      return directTiles;
+    }
+
+    const selector = '[data-state], [data-status], [aria-label*="correct"], [aria-label*="present"], [aria-label*="absent"], .tile, .Tile, .board-tile, .micro-tile, .guess-tile, .letter-box, span, div';
+    const fallback = Array.from(asElement.querySelectorAll(selector)) as HTMLElement[];
+    const seen = new Set<HTMLElement>();
+    const filtered: HTMLElement[] = [];
+
+    fallback.forEach(el => {
+      if (el === asElement || seen.has(el)) {
+        return;
+      }
+      const status = this.getTileStatus(el);
+      if (!status) {
+        return;
+      }
+      seen.add(el);
+      filtered.push(el);
+    });
+
+    return filtered;
+  }
+
+  private convertTilesToGuessResults(tiles: HTMLElement[], expectedLength: number): GuessResult[] | null {
+    if (tiles.length === 0) {
+      return null;
+    }
+
+    const row: GuessResult[] = [];
+    let hasMeaningfulTile = false;
+
+    tiles.forEach(tile => {
+      const status = this.getTileStatus(tile);
+      if (!status) {
+        return;
+      }
+
+      if (status !== 'empty') {
+        hasMeaningfulTile = true;
+      }
+
+      const letter = (tile.textContent || '').trim().slice(0, 1).toUpperCase();
+      const normalizedStatus = status === 'empty' ? 'absent' : status;
+
+      row.push({
+        letter,
+        status: normalizedStatus
+      });
+    });
+
+    if (!hasMeaningfulTile) {
+      return null;
+    }
+
+    if (expectedLength > 0 && row.length > expectedLength) {
+      row.splice(expectedLength);
+    } else if (expectedLength > 0 && row.length < expectedLength) {
+      while (row.length < expectedLength) {
+        row.push({
+          letter: '',
+          status: 'absent'
+        });
+      }
+    }
+
+    return row;
+  }
+
+  private detectBoardWordLength(boardEl: Element, fallbackTileCount?: number): number {
+    const asElement = boardEl as HTMLElement;
+    const dataLength = (asElement.dataset && asElement.dataset.length) ? parseInt(asElement.dataset.length, 10) : NaN;
+    if (!Number.isNaN(dataLength) && dataLength > 0) {
+      return dataLength;
+    }
+
+    const ariaColCount = boardEl.getAttribute('aria-colcount');
+    const parsedAria = ariaColCount ? parseInt(ariaColCount, 10) : NaN;
+    if (!Number.isNaN(parsedAria) && parsedAria > 0) {
+      return parsedAria;
+    }
+
+    if (fallbackTileCount && fallbackTileCount > 0) {
+      const potential = [5, 6, 7, 4];
+      for (const length of potential) {
+        if (fallbackTileCount % length === 0) {
+          return length;
+        }
+      }
+    }
+
+    return 5;
+  }
+
+  private getTileStatus(tile: Element): 'correct' | 'present' | 'absent' | 'empty' | null {
+    if (!(tile instanceof HTMLElement)) {
+      return null;
+    }
+
+    const datasetState = tile.getAttribute('data-state') || tile.getAttribute('data-status');
+    const datasetResult = this.normalizeTileStatus(datasetState);
+    if (datasetResult) {
+      return datasetResult;
+    }
+
+    const ariaLabel = tile.getAttribute('aria-label');
+    const ariaResult = this.normalizeTileStatus(ariaLabel);
+    if (ariaResult) {
+      return ariaResult;
+    }
+
+    for (const cls of Array.from(tile.classList)) {
+      const classResult = this.normalizeTileStatus(cls);
+      if (classResult) {
+        return classResult;
+      }
+    }
+
+    const colorResult = this.getStatusFromComputedColor(tile);
+    if (colorResult) {
+      return colorResult;
+    }
+
+    const text = tile.textContent?.trim() || '';
+    if (text.length === 0) {
+      return 'empty';
+    }
+
+    return 'absent';
+  }
+
+  private normalizeTileStatus(value?: string | null): 'correct' | 'present' | 'absent' | 'empty' | null {
+    if (!value) {
+      return null;
+    }
+    const normalized = value.toLowerCase();
+    if (normalized.includes('correct') || normalized.includes('exact') || normalized.includes('right')) {
+      return 'correct';
+    }
+    if (normalized.includes('present') || normalized.includes('misplaced') || normalized.includes('partial') || normalized.includes('close')) {
+      return 'present';
+    }
+    if (normalized.includes('absent') || normalized.includes('wrong') || normalized.includes('miss') || normalized.includes('incorrect') || normalized.includes('bad')) {
+      return 'absent';
+    }
+    if (normalized.includes('empty') || normalized.includes('unused') || normalized.includes('pending') || normalized.includes('tbd') || normalized.includes('unknown')) {
+      return 'empty';
+    }
+    return null;
+  }
+
+  private getStatusFromComputedColor(tile: HTMLElement): 'correct' | 'present' | 'absent' | 'empty' | null {
+    try {
+      const style = window.getComputedStyle(tile);
+      const background = style.backgroundColor || tile.style.backgroundColor;
+      const border = style.borderColor || tile.style.borderColor;
+
+      const backgroundResult = this.mapColorToStatus(background);
+      if (backgroundResult) {
+        return backgroundResult;
+      }
+
+      const borderResult = this.mapColorToStatus(border);
+      if (borderResult) {
+        return borderResult;
+      }
+    } catch (error) {
+      console.warn('[WordleBotScraper] Failed to read tile color', error);
+    }
+
+    return null;
+  }
+
+  private mapColorToStatus(color?: string | null): 'correct' | 'present' | 'absent' | 'empty' | null {
+    if (!color || color === 'transparent' || color === 'rgba(0, 0, 0, 0)') {
+      return 'empty';
+    }
+
+    const normalized = color.replace(/\s+/g, '').toLowerCase();
+
+    if (normalized.includes('106,170,100') || normalized.includes('83,141,78') || normalized.includes('18,137,61')) {
+      return 'correct';
+    }
+
+    if (normalized.includes('201,180,88') || normalized.includes('181,159,59') || normalized.includes('197,180,88') || normalized.includes('212,180,88')) {
+      return 'present';
+    }
+
+    if (normalized.includes('120,124,126') || normalized.includes('58,58,60') || normalized.includes('68,70,74') || normalized.includes('100,117,128') || normalized.includes('134,138,142')) {
+      return 'absent';
+    }
+
+    return null;
+  }
+
+  private renderGuessPatternToImage(pattern: GuessResult[][]): string | null {
+    if (!pattern || pattern.length === 0) {
+      return null;
+    }
+
+    const columns = Math.max(...pattern.map(row => row.length));
+    if (!columns) {
+      return null;
+    }
+
+    const rows = pattern.length;
+    const tileSize = 22;
+    const gap = 4;
+    const radius = 4;
+    const width = columns * tileSize + (columns - 1) * gap;
+    const height = rows * tileSize + (rows - 1) * gap;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      return null;
+    }
+
+    ctx.fillStyle = '#f3f2eb';
+    ctx.fillRect(0, 0, width, height);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = 'bold 14px "Clear Sans", "Helvetica Neue", Arial, sans-serif';
+
+    pattern.forEach((row, rowIndex) => {
+      row.forEach((cell, colIndex) => {
+        const statusColor = this.getColorForStatus(cell.status);
+        const letterColor = this.getLetterColorForStatus(cell.status);
+        const letter = (cell.letter || '').toUpperCase();
+
+        const x = colIndex * (tileSize + gap);
+        const y = rowIndex * (tileSize + gap);
+
+        this.fillRoundedRect(ctx, x, y, tileSize, tileSize, radius, statusColor);
+
+        if (letter) {
+          ctx.fillStyle = letterColor;
+          ctx.fillText(letter, x + tileSize / 2, y + tileSize / 2 + 1);
+        }
+      });
+    });
+
+    try {
+      return canvas.toDataURL('image/png');
+    } catch (error) {
+      console.warn('[WordleBotScraper] Failed to serialize board canvas', error);
+      return null;
+    }
+  }
+
+  private getColorForStatus(status: GuessResult['status']): string {
+    switch (status) {
+      case 'correct':
+        return '#6aaa64';
+      case 'present':
+        return '#c9b458';
+      case 'absent':
+      default:
+        return '#787c7e';
+    }
+  }
+
+  private getLetterColorForStatus(status: GuessResult['status']): string {
+    switch (status) {
+      case 'correct':
+      case 'absent':
+        return '#f8f8f8';
+      case 'present':
+        return '#2f2f2f';
+      default:
+        return '#f8f8f8';
+    }
+  }
+
+  private fillRoundedRect(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    radius: number,
+    fillStyle: string
+  ): void {
+    const r = Math.min(radius, width / 2, height / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + width - r, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+    ctx.lineTo(x + width, y + height - r);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+    ctx.lineTo(x + r, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+    ctx.fillStyle = fillStyle;
+    ctx.fill();
   }
 
   private async loadMoreGames(): Promise<boolean> {
@@ -661,7 +1241,8 @@ class WordleBotScraper {
       ...(raw.solution && { solution: raw.solution }),
       ...(raw.skillScore !== undefined && { skillScore: raw.skillScore }),
       ...(raw.luckScore !== undefined && { luckScore: raw.luckScore }),
-      ...(raw.boardImageUrl && { boardImageUrl: raw.boardImageUrl }),
+  ...(raw.boardImageUrl && { boardImageUrl: raw.boardImageUrl }),
+  ...(raw.guessPattern && raw.guessPattern.length > 0 && { guessPattern: raw.guessPattern }),
       ...(raw.analysisUrl && { analysisUrl: raw.analysisUrl }),
       scrapedFrom: 'wordle-bot' as const,
       source: 'wordle-page' as const,

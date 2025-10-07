@@ -1,5 +1,5 @@
 // Interactive timeline chart showing game performance with zoomable date range
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, CSSProperties } from 'react';
 import {
   ComposedChart,
   Scatter,
@@ -34,8 +34,19 @@ interface ChartDataPoint {
   luckScore?: number;
 }
 
+const CHART_MARGINS = { top: 20, right: 30, left: 20, bottom: 20 } as const;
+
 const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) => {
   const [selectedRange, setSelectedRange] = useState<{ start: number; end: number } | null>(null);
+
+  const chartContainerStyle = useMemo(
+    () =>
+      ({
+        '--chart-padding-left': `${CHART_MARGINS.left}px`,
+        '--chart-padding-right': `${CHART_MARGINS.right}px`
+      }) as CSSProperties,
+    []
+  );
 
   // Prepare chart data - show ALL games including unplayed (grey dots)
   const chartData = useMemo(() => {
@@ -187,30 +198,54 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) =
   };
 
   // Custom tooltip
+  const renderGuessPattern = (pattern: GuessResult[][]) => {
+    const getTileColor = (status: GuessResult['status']) => {
+      switch (status) {
+        case 'correct':
+          return '#6aaa64';
+        case 'present':
+          return '#c9b458';
+            case 'absent':
+            default:
+              return '#787c7e';
+      }
+    };
+
+    return (
+      <div className="tooltip-grid" role="presentation" aria-hidden="true">
+        {pattern.map((row, rowIndex) => (
+          <div key={`row-${rowIndex}`} className="tooltip-grid-row">
+            {row.map((cell, cellIndex) => (
+              <span
+                key={`cell-${rowIndex}-${cellIndex}`}
+                className={`tooltip-grid-cell tooltip-grid-cell-${cell.status}`}
+                style={{ backgroundColor: getTileColor(cell.status) }}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length > 0) {
       const data = payload[0].payload as ChartDataPoint;
+      let hasBoard = false;
       const preview = (() => {
+        if (data.guessPattern && data.guessPattern.length > 0) {
+          hasBoard = true;
+          return renderGuessPattern(data.guessPattern);
+        }
         if (data.boardImageUrl) {
+          hasBoard = true;
           return (
             <div className="tooltip-board">
-              <img src={data.boardImageUrl} alt="Game board" />
-            </div>
-          );
-        }
-        if (data.guessPattern && data.guessPattern.length > 0) {
-          return (
-            <div className="tooltip-grid">
-              {data.guessPattern.map((row, rowIndex) => (
-                <div key={`row-${rowIndex}`} className="tooltip-grid-row">
-                  {row.map((cell, cellIndex) => (
-                    <span
-                      key={`cell-${rowIndex}-${cellIndex}`}
-                      className={`tooltip-grid-cell tooltip-grid-cell-${cell.status}`}
-                    />
-                  ))}
-                </div>
-              ))}
+              <img
+                src={data.boardImageUrl}
+                alt={data.solution ? `Game board for ${data.solution}` : `Game board on ${data.displayDate}`}
+                loading="lazy"
+              />
             </div>
           );
         }
@@ -231,6 +266,8 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) =
         resultClass = 'won';
       }
       
+      const shouldRenderResult = !(hasBoard && resultClass === 'won');
+
       return (
         <div className="chart-tooltip">
           <div className="tooltip-date">{data.displayDate}</div>
@@ -251,9 +288,11 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) =
               )}
             </div>
           )}
-          <div className={`tooltip-result ${resultClass}`}>
-            {resultText}
-          </div>
+          {shouldRenderResult && (
+            <div className={`tooltip-result ${resultClass}`}>
+              {resultText}
+            </div>
+          )}
         </div>
       );
     }
@@ -268,7 +307,7 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) =
     // Determine color based on won field (green for won, red for loss, grey for unplayed)
     let color;
     if (!payload.turns || payload.turns === 0 || payload.won === null) {
-      color = '#787c7e'; // Grey for unplayed
+            color = '#d3d6da'; // Grey for unplayed
     } else if (payload.won === false || payload.turns >= 7) {
       color = '#d73a49'; // Red for losses
     } else {
@@ -312,7 +351,7 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) =
   }
 
   return (
-    <div className="timeline-chart">
+    <div className="timeline-chart" style={chartContainerStyle}>
       <div className="chart-stats">
         <div className="chart-stat">
           <span className="chart-stat-label">Games Played</span>
@@ -335,10 +374,7 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) =
       </div>
 
       <ResponsiveContainer width="100%" height={400}>
-        <ComposedChart
-          data={chartData}
-          margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
-        >
+        <ComposedChart data={chartData} margin={CHART_MARGINS}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
           
           <XAxis

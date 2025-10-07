@@ -73,6 +73,7 @@ export interface QuickStatsResponse {
     currentStreak: number;
     gameCount: number;
     maxStreak: number;
+    winCount: number;
     guessDistribution?: number[];
   };
   error?: string;

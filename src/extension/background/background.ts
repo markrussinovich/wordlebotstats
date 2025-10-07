@@ -197,10 +197,7 @@ async function handleGetQuickStats(message: GetQuickStatsMessage): Promise<Quick
     
     return {
       success: true,
-      statistics: {
-        ...statistics,
-        gameCount: filteredGames.length
-      },
+      statistics,
       timeFrame: message.timeFrame
     };
   } catch (error) {
@@ -399,11 +396,19 @@ async function handleWordleBotScrapeComplete(message: any): Promise<{ success: b
   console.log('[Background] Scrape complete:', message);
   
   // Update scraper metadata
-  await storageService.updateScraperMetadata({
-    lastScrape: new Date().toISOString(),
-    lastScrapeMode: 'auto', // or get from message
-    totalScraped: message.totalGames
-  });
+  try {
+    if (!storageService) {
+      storageService = ExtensionStorage.getInstance();
+      await storageService.initialize();
+    }
+    await storageService.updateScraperMetadata({
+      lastScrape: new Date().toISOString(),
+      lastScrapeMode: 'auto', // TODO: derive real mode from message when available
+      totalScraped: message.totalGames
+    });
+  } catch (metadataError) {
+    console.error('[Background] Failed to update scraper metadata after completion:', metadataError);
+  }
   
   // Close the scraper tab after a short delay
   if (scraperTabId) {
@@ -431,9 +436,17 @@ async function handleWordleBotScrapeError(message: any): Promise<{ success: bool
   console.error('[Background] Scrape error:', message);
   
   // Update scraper metadata
-  await storageService.updateScraperMetadata({
-    lastError: message.error
-  });
+  try {
+    if (!storageService) {
+      storageService = ExtensionStorage.getInstance();
+      await storageService.initialize();
+    }
+    await storageService.updateScraperMetadata({
+      lastError: message.error
+    });
+  } catch (metadataError) {
+    console.error('[Background] Failed to update scraper metadata after error:', metadataError);
+  }
   
   // Close the scraper tab
   if (scraperTabId) {
@@ -508,22 +521,59 @@ function calculateStatistics(games: any[], allGames?: any[]): any {
       averageGuesses: 0,
       currentStreak: 0,
       maxStreak: 0,
-      gameCount: 0
+      gameCount: 0,
+      winCount: 0,
+      guessDistribution: [0, 0, 0, 0, 0, 0, 0]
     };
   }
   
-  const wins = games.filter(game => game.won);
-  const winRate = (wins.length / games.length) * 100;
+  const getAttemptCount = (game: any): number => {
+    if (typeof game.attempts === 'number') return game.attempts;
+    if (typeof game.guesses === 'number') return game.guesses;
+    if (typeof game.steps === 'number') return game.steps;
+    return 0;
+  };
+
+  const playedGames = games.filter(game => getAttemptCount(game) > 0);
+
+  if (playedGames.length === 0) {
+    return {
+      winRate: 0,
+      averageGuesses: 0,
+      currentStreak: 0,
+      maxStreak: 0,
+      gameCount: 0,
+      winCount: 0,
+      guessDistribution: [0, 0, 0, 0, 0, 0, 0]
+    };
+  }
+
+  const wins = playedGames.filter(game => game.won);
+  const winRate = (wins.length / playedGames.length) * 100;
   
-  const totalGuesses = wins.reduce((sum, game) => sum + (game.attempts || 0), 0);
+  const totalGuesses = wins.reduce((sum, game) => sum + getAttemptCount(game), 0);
   const averageGuesses = wins.length > 0 ? totalGuesses / wins.length : 0;
+
+  const guessDistribution = [0, 0, 0, 0, 0, 0, 0];
+  for (const game of playedGames) {
+    const attempts = getAttemptCount(game);
+    if (!game.won) {
+      guessDistribution[6] = (guessDistribution[6] ?? 0) + 1;
+      continue;
+    }
+
+    if (attempts >= 1 && attempts <= 6) {
+      const index = attempts - 1;
+      guessDistribution[index] = (guessDistribution[index] ?? 0) + 1;
+    }
+  }
   
   // Use all games for streak calculation if provided, otherwise use filtered games
   const gamesToUseForStreaks = allGames || games;
   
   // Filter out unplayed games (attempts=0 or null) before calculating streaks
   const playedGamesForStreaks = gamesToUseForStreaks.filter(game => 
-    game.attempts && game.attempts > 0
+    getAttemptCount(game) > 0
   );
   
   const sortedAllGames = [...playedGamesForStreaks].sort((a, b) => 
@@ -552,7 +602,7 @@ function calculateStatistics(games: any[], allGames?: any[]): any {
     }
   }
   
-  console.log(`[BACKGROUND DEBUG] calculateStatistics: Using ${gamesToUseForStreaks.length} games for streaks, ${games.length} games for other stats`);
+  console.log(`[BACKGROUND DEBUG] calculateStatistics: Using ${gamesToUseForStreaks.length} games for streaks, ${playedGames.length} played games for other stats`);
   console.log(`[BACKGROUND DEBUG] calculateStatistics: currentStreak=${currentStreak}, maxStreak=${maxStreak}`);
   
   return {
@@ -560,7 +610,9 @@ function calculateStatistics(games: any[], allGames?: any[]): any {
     averageGuesses,
     currentStreak,
     maxStreak,
-    gameCount: games.length
+    gameCount: playedGames.length,
+    winCount: wins.length,
+    guessDistribution
   };
 }
 

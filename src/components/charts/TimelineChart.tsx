@@ -27,13 +27,17 @@ interface ChartDataPoint {
   gameNumber: number | undefined;
   displayDate: string;
   runningAverage?: number;
+  solution?: string | undefined;
+  boardImageUrl?: string | undefined;
 }
 
 const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) => {
   const [selectedRange, setSelectedRange] = useState<{ start: number; end: number } | null>(null);
 
-  // Prepare chart data - only show days with games played
+  // Prepare chart data - show ALL games including unplayed (grey dots)
   const chartData = useMemo(() => {
+    if (games.length === 0) return [];
+    
     const data: ChartDataPoint[] = games.map((game) => {
       const dateObj = new Date(game.date);
       const actualAttempts = game.attempts || game.guesses || 0;
@@ -51,14 +55,65 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) =
           month: 'short', 
           day: 'numeric',
           year: dateObj.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
-        })
+        }),
+        solution: game.solution,
+        boardImageUrl: game.boardImageUrl
       };
     }).sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
 
+    // Fill in missing dates with "no game" points
+    const filledData: ChartDataPoint[] = [];
+    const firstGame = data[0];
+    const lastGame = data[data.length - 1];
+    if (data.length > 0 && firstGame && lastGame) {
+      const startDate = new Date(firstGame.dateObj);
+      const endDate = new Date(lastGame.dateObj);
+      
+      // Create a map of existing game dates for quick lookup
+      const gameDateMap = new Map<string, ChartDataPoint>();
+      data.forEach(game => {
+        gameDateMap.set(game.date, game);
+      });
+      
+      // Iterate through all dates in the range
+      const currentDate = new Date(startDate);
+      while (currentDate <= endDate) {
+        const dateString = currentDate.toISOString().split('T')[0];
+        
+        if (dateString && gameDateMap.has(dateString)) {
+          // Use existing game data
+          const existingGame = gameDateMap.get(dateString);
+          if (existingGame) {
+            filledData.push(existingGame);
+          }
+        } else if (dateString) {
+          // Add a "no game" point
+          filledData.push({
+            date: dateString,
+            dateObj: new Date(currentDate),
+            turns: 0,
+            won: false,
+            gameNumber: undefined,
+            displayDate: currentDate.toLocaleDateString('en-US', { 
+              month: 'short', 
+              day: 'numeric',
+              year: currentDate.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
+            })
+          });
+        }
+        
+        // Move to next day
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+    } else {
+      // If no valid data, just use what we have
+      filledData.push(...data);
+    }
+
     // Calculate running average for each point in the full dataset
-    const dataWithRunningAvg = data.map((point, index) => {
+    const dataWithRunningAvg = filledData.map((point, index) => {
       // Get all games up to and including this point
-      const gamesUpToHere = data.slice(0, index + 1);
+      const gamesUpToHere = filledData.slice(0, index + 1);
       const wonGames = gamesUpToHere.filter(g => g.won && g.turns > 0);
       
       const runningAverage = wonGames.length > 0
@@ -111,13 +166,14 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) =
     if (active && payload && payload.length > 0) {
       const data = payload[0].payload as ChartDataPoint;
       
-      // Determine result text based on attempts
+      // Determine result text based on won field first, then attempts
       let resultText;
       let resultClass;
       if (data.turns === 0 || !data.turns) {
         resultText = 'Unplayed';
         resultClass = 'lost';
-      } else if (data.turns >= 7) {
+      } else if (!data.won || data.turns >= 7) {
+        // Check won field first - if false, it's a loss regardless of turns
         resultText = 'Failed ❌';
         resultClass = 'lost';
       } else {
@@ -130,6 +186,14 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) =
           <div className="tooltip-date">{data.displayDate}</div>
           {data.gameNumber && (
             <div className="tooltip-game">Wordle #{data.gameNumber}</div>
+          )}
+          {data.solution && (
+            <div className="tooltip-word">{data.solution.toUpperCase()}</div>
+          )}
+          {data.boardImageUrl && (
+            <div className="tooltip-board">
+              <img src={data.boardImageUrl} alt="Game board" style={{ maxWidth: '150px', marginTop: '8px' }} />
+            </div>
           )}
           <div className={`tooltip-result ${resultClass}`}>
             {resultText}

@@ -284,9 +284,29 @@ body {
   font-weight: 500;
 }
 
+.tooltip-word {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1a1a1b;
+  margin: 6px 0;
+  letter-spacing: 0.05em;
+}
+
+.tooltip-board {
+  margin: 8px 0;
+  text-align: center;
+}
+
+.tooltip-board img {
+  display: block;
+  margin: 0 auto;
+  border-radius: 2px;
+}
+
 .tooltip-result {
   font-size: 13px;
   font-weight: 700;
+  margin-top: 6px;
 }
 
 .tooltip-result.won {

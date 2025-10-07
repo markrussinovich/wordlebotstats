@@ -49,6 +49,7 @@ export interface GameResult {
   skillScore?: number; // 0-100 rating from WordleBot
   luckScore?: number; // 0-100 rating from WordleBot
   analysisUrl?: string; // Link to detailed WordleBot analysis
+  boardImageUrl?: string; // Data URL or URL of the game board image
   scrapedFrom?: 'wordle-bot' | 'manual' | 'live-capture'; // Source of the data
 }
 

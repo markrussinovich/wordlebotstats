@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wordle Bot Scraper Test</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ccc; }
+    .rating-container { border: 2px solid #333; margin: 10px 0; padding: 10px; }
+    .rating-left, .rating-right { display: inline-block; vertical-align: top; }
+    .rating-right { margin-left: 20px; }
+    .solution { font-weight: bold; font-size: 18px; }
+    .date-label { color: #666; }
+    .rating-value.num { margin: 5px 0; }
+    .num { font-weight: bold; color: #00f; }
+    .results { background: #f0f0f0; padding: 10px; margin-top: 10px; }
+    .error { color: red; }
+    .success { color: green; }
+  </style>
+</head>
+<body>
+  <h1>Wordle Bot Scraper Extraction Test</h1>
+  
+  <div class="test-section">
+    <h2>Test Case 1: Won Game (AMUSE - Oct 6, 4 steps)</h2>
+    <div class="rating-container svelte-pnoxcy">
+      <div class="rating-left svelte-pnoxcy">
+        <div class="rating-value game-number svelte-pnoxcy">
+          <span class="">
+            <strong class="solution svelte-pnoxcy">amuse</strong>
+            <br>
+            <span class="date-label svelte-pnoxcy">October 6</span>
+          </span>
+        </div>
+      </div>
+      <div class="rating-right svelte-pnoxcy">
+        <div class="rating-value num svelte-pnoxcy">
+          <span class="num svelte-pnoxcy">94</span>
+        </div>
+        <div class="rating-value num svelte-pnoxcy">
+          <span class="num svelte-pnoxcy">49</span>
+        </div>
+        <div class="rating-value num steps svelte-pnoxcy">
+          <span class="num svelte-pnoxcy">4</span>
+        </div>
+      </div>
+    </div>
+    <div class="results" id="result1"></div>
+  </div>
+
+  <div class="test-section">
+    <h2>Test Case 2: Lost Game (TIZZY - July 21, no steps)</h2>
+    <div class="rating-container svelte-pnoxcy">
+      <div class="rating-left svelte-pnoxcy">
+        <div class="rating-value game-number svelte-pnoxcy">
+          <span class="">
+            <strong class="solution svelte-pnoxcy">tizzy</strong>
+            <br>
+            <span class="date-label svelte-pnoxcy">July 21</span>
+          </span>
+        </div>
+      </div>
+      <div class="rating-right svelte-pnoxcy">
+        <div class="rating-value num svelte-pnoxcy">
+          <span class="num svelte-pnoxcy">39</span>
+        </div>
+        <div class="rating-value num svelte-pnoxcy">
+          <span class="num svelte-pnoxcy">39</span>
+        </div>
+        <div class="rating-value num steps svelte-pnoxcy">
+          <span class="num svelte-pnoxcy">-</span>
+        </div>
+      </div>
+    </div>
+    <div class="results" id="result2"></div>
+  </div>
+
+  <div class="test-section">
+    <h2>Test Case 3: Won Game (BURNT - July 22, 3 steps)</h2>
+    <div class="rating-container svelte-pnoxcy">
+      <div class="rating-left svelte-pnoxcy">
+        <div class="rating-value game-number svelte-pnoxcy">
+          <span class="">
+            <strong class="solution svelte-pnoxcy">burnt</strong>
+            <br>
+            <span class="date-label svelte-pnoxcy">July 22</span>
+          </span>
+        </div>
+      </div>
+      <div class="rating-right svelte-pnoxcy">
+        <div class="rating-value num svelte-pnoxcy">
+          <span class="num svelte-pnoxcy">92</span>
+        </div>
+        <div class="rating-value num svelte-pnoxcy">
+          <span class="num svelte-pnoxcy">74</span>
+        </div>
+        <div class="rating-value num steps svelte-pnoxcy">
+          <span class="num svelte-pnoxcy">3</span>
+        </div>
+      </div>
+    </div>
+    <div class="results" id="result3"></div>
+  </div>
+
+  <script>
+    // Simulate the extraction function
+    function extractGameFromCard(card) {
+      const game = {};
+
+      // Extract solution word from <strong class="solution">
+      const solutionEl = card.querySelector('strong.solution');
+      if (solutionEl) {
+        game.solution = solutionEl.textContent?.trim().toUpperCase();
+        console.log('Found solution:', game.solution);
+      }
+
+      // Extract date from <span class="date-label">
+      const dateEl = card.querySelector('span.date-label');
+      if (dateEl) {
+        const dateText = dateEl.textContent?.trim() || '';
+        game.dateString = dateText;
+        
+        const dateMatch = dateText.match(/(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2})/);
+        if (dateMatch && dateMatch[1] && dateMatch[2]) {
+          const month = dateMatch[1];
+          const day = parseInt(dateMatch[2], 10);
+          const currentDate = new Date();
+          const currentYear = currentDate.getFullYear();
+          
+          let testDate = new Date(`${month} ${day}, ${currentYear}`);
+          if (testDate > currentDate) {
+            testDate = new Date(`${month} ${day}, ${currentYear - 1}`);
+          }
+          
+          const isoDate = testDate.toISOString().split('T')[0];
+          if (isoDate) {
+            game.date = isoDate;
+            console.log('Found date:', game.date, 'from', game.dateString);
+          }
+        }
+      }
+
+      // Extract skill, luck, and steps from <div class="rating-value num"> elements
+      const ratingRight = card.querySelector('.rating-right');
+      if (ratingRight) {
+        const numValues = ratingRight.querySelectorAll('.rating-value.num span.num');
+        
+        if (numValues.length >= 2 && numValues[0] && numValues[1]) {
+          // First is skill
+          game.skillScore = parseInt(numValues[0].textContent?.trim() || '0', 10);
+          console.log('Found skill:', game.skillScore);
+          
+          // Second is luck  
+          game.luckScore = parseInt(numValues[1].textContent?.trim() || '0', 10);
+          console.log('Found luck:', game.luckScore);
+          
+          // Third is steps (if exists)
+          if (numValues.length >= 3 && numValues[2]) {
+            const stepsText = numValues[2].textContent?.trim() || '';
+            // Check if it's a dash (lost game)
+            if (stepsText === '-' || stepsText === '—' || stepsText === '–') {
+              game.won = false;
+              console.log('Lost game (dash detected)');
+            } else {
+              game.steps = parseInt(stepsText, 10);
+              game.won = true;
+              console.log('Found steps:', game.steps);
+            }
+          }
+        }
+      }
+
+      return game;
+    }
+
+    // Run tests
+    function runTest(testNum) {
+      const card = document.querySelectorAll('.rating-container')[testNum - 1];
+      const result = extractGameFromCard(card);
+      const resultDiv = document.getElementById(`result${testNum}`);
+      
+      let html = '<h3>Extracted Data:</h3>';
+      html += `<div>Solution: <strong>${result.solution || 'NOT FOUND'}</strong></div>`;
+      html += `<div>Date String: ${result.dateString || 'NOT FOUND'}</div>`;
+      html += `<div>ISO Date: ${result.date || 'NOT FOUND'}</div>`;
+      html += `<div>Skill: ${result.skillScore !== undefined ? result.skillScore : 'NOT FOUND'}</div>`;
+      html += `<div>Luck: ${result.luckScore !== undefined ? result.luckScore : 'NOT FOUND'}</div>`;
+      html += `<div>Steps: ${result.steps !== undefined ? result.steps : (result.won === false ? 'LOST (-)' : 'NOT FOUND')}</div>`;
+      html += `<div>Won: ${result.won !== undefined ? result.won : 'NOT FOUND'}</div>`;
+      
+      // Validation
+      html += '<h3>Validation:</h3>';
+      const validations = [];
+      
+      if (testNum === 1) {
+        validations.push({ check: result.solution === 'AMUSE', msg: 'Solution should be AMUSE' });
+        validations.push({ check: result.date === '2025-10-06', msg: 'Date should be 2025-10-06' });
+        validations.push({ check: result.skillScore === 94, msg: 'Skill should be 94' });
+        validations.push({ check: result.luckScore === 49, msg: 'Luck should be 49' });
+        validations.push({ check: result.steps === 4, msg: 'Steps should be 4' });
+        validations.push({ check: result.won === true, msg: 'Won should be true' });
+      } else if (testNum === 2) {
+        validations.push({ check: result.solution === 'TIZZY', msg: 'Solution should be TIZZY' });
+        validations.push({ check: result.date === '2024-07-21', msg: 'Date should be 2024-07-21' });
+        validations.push({ check: result.skillScore === 39, msg: 'Skill should be 39' });
+        validations.push({ check: result.luckScore === 39, msg: 'Luck should be 39' });
+        validations.push({ check: result.steps === undefined, msg: 'Steps should be undefined' });
+        validations.push({ check: result.won === false, msg: 'Won should be false' });
+      } else if (testNum === 3) {
+        validations.push({ check: result.solution === 'BURNT', msg: 'Solution should be BURNT' });
+        validations.push({ check: result.date === '2024-07-22', msg: 'Date should be 2024-07-22' });
+        validations.push({ check: result.skillScore === 92, msg: 'Skill should be 92' });
+        validations.push({ check: result.luckScore === 74, msg: 'Luck should be 74' });
+        validations.push({ check: result.steps === 3, msg: 'Steps should be 3' });
+        validations.push({ check: result.won === true, msg: 'Won should be true' });
+      }
+      
+      validations.forEach(v => {
+        const className = v.check ? 'success' : 'error';
+        const icon = v.check ? '✓' : '✗';
+        html += `<div class="${className}">${icon} ${v.msg}</div>`;
+      });
+      
+      resultDiv.innerHTML = html;
+    }
+
+    // Run all tests
+    runTest(1);
+    runTest(2);
+    runTest(3);
+  </script>
+</body>
+</html>

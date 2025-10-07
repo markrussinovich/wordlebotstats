@@ -19,6 +19,7 @@ interface RawGameData {
   steps?: number;
   won?: boolean;
   analysisUrl?: string;
+  boardImageUrl?: string;
 }
 
 class WordleBotScraper {
@@ -372,61 +373,87 @@ class WordleBotScraper {
 
   private extractGameFromCard(card: HTMLElement): RawGameData {
     const game: RawGameData = {};
-    const fullText = card.textContent || '';
 
-    // Extract solution word
-    const solutionMatch = fullText.match(/solution was:\s*([a-z]{5})/i);
-    if (solutionMatch && solutionMatch[1]) {
-      game.solution = solutionMatch[1].toUpperCase();
+    // Extract solution word from <strong class="solution">
+    const solutionEl = card.querySelector('strong.solution');
+    if (solutionEl) {
+      game.solution = solutionEl.textContent?.trim().toUpperCase();
+      console.log('[WordleBotScraper] Found solution:', game.solution);
     }
 
-    // Extract date
-    const dateMatch = fullText.match(/(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2})/);
-    if (dateMatch && dateMatch[1] && dateMatch[2]) {
-      game.dateString = `${dateMatch[1]} ${dateMatch[2]}`;
+    // Extract date from <span class="date-label">
+    const dateEl = card.querySelector('span.date-label');
+    if (dateEl) {
+      const dateText = dateEl.textContent?.trim() || '';
+      game.dateString = dateText;
       
-      const month = dateMatch[1];
-      const day = parseInt(dateMatch[2], 10);
-      const currentDate = new Date();
-      const currentYear = currentDate.getFullYear();
-      
-      let testDate = new Date(`${month} ${day}, ${currentYear}`);
-      if (testDate > currentDate) {
-        testDate = new Date(`${month} ${day}, ${currentYear - 1}`);
-      }
-      
-      const isoDate = testDate.toISOString().split('T')[0];
-      if (isoDate) {
-        game.date = isoDate;
-      }
-    }
-
-    // Extract game number
-    const gameNumMatch = fullText.match(/Game Number[^:]*:\s*(\d{3,4})|#(\d{3,4})|Wordle\s+(\d{3,4})/i);
-    if (gameNumMatch) {
-      const numStr = gameNumMatch[1] || gameNumMatch[2] || gameNumMatch[3];
-      if (numStr) {
-        game.gameNumber = parseInt(numStr, 10);
+      const dateMatch = dateText.match(/(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2})/);
+      if (dateMatch && dateMatch[1] && dateMatch[2]) {
+        const month = dateMatch[1];
+        const day = parseInt(dateMatch[2], 10);
+        const currentDate = new Date();
+        const currentYear = currentDate.getFullYear();
+        
+        let testDate = new Date(`${month} ${day}, ${currentYear}`);
+        if (testDate > currentDate) {
+          testDate = new Date(`${month} ${day}, ${currentYear - 1}`);
+        }
+        
+        const isoDate = testDate.toISOString().split('T')[0];
+        if (isoDate) {
+          game.date = isoDate;
+          console.log('[WordleBotScraper] Found date:', game.date, 'from', game.dateString);
+        }
       }
     }
 
-    // Extract skill score
-    const skillMatch = fullText.match(/Your score was:\s*(\d{1,3})/i);
-    if (skillMatch && skillMatch[1]) {
-      game.skillScore = parseInt(skillMatch[1], 10);
+    // Extract skill, luck, and steps from <div class="rating-value num"> elements
+    // The HTML has rating-right section with three rating-value num divs in order: skill, luck, steps
+    const ratingRight = card.querySelector('.rating-right');
+    if (ratingRight) {
+      const numValues = ratingRight.querySelectorAll('.rating-value.num span.num');
+      
+      if (numValues.length >= 2 && numValues[0] && numValues[1]) {
+        // First is skill
+        game.skillScore = parseInt(numValues[0].textContent?.trim() || '0', 10);
+        console.log('[WordleBotScraper] Found skill:', game.skillScore);
+        
+        // Second is luck  
+        game.luckScore = parseInt(numValues[1].textContent?.trim() || '0', 10);
+        console.log('[WordleBotScraper] Found luck:', game.luckScore);
+        
+        // Third is steps (if exists)
+        if (numValues.length >= 3 && numValues[2]) {
+          const stepsText = numValues[2].textContent?.trim() || '';
+          // Check if it's a dash (lost game)
+          if (stepsText === '-' || stepsText === '—' || stepsText === '–') {
+            game.won = false;
+            console.log('[WordleBotScraper] Lost game (dash detected)');
+          } else {
+            game.steps = parseInt(stepsText, 10);
+            game.won = true;
+            console.log('[WordleBotScraper] Found steps:', game.steps);
+          }
+        }
+      }
     }
 
-    // Extract luck score
-    const luckMatch = fullText.match(/Your luck was:\s*(\d{1,3})/i);
-    if (luckMatch && luckMatch[1]) {
-      game.luckScore = parseInt(luckMatch[1], 10);
+    // Extract board image - the wordle-board div contains the game grid
+    const boardEl = card.querySelector('.wordle-board, .micro');
+    if (boardEl) {
+      // Try to convert the board HTML to a data URL or just store a reference
+      // For now, we'll capture the outerHTML as a data structure
+      // In a real implementation, you might want to render this or take a screenshot
+      console.log('[WordleBotScraper] Found board element');
+      // We could serialize this to an image, but for now just note that we found it
+      // game.boardImageUrl = ... (would need canvas rendering)
     }
-
-    // Extract steps
-    const stepsMatch = fullText.match(/It took you:\s*(\d+)/i);
-    if (stepsMatch && stepsMatch[1]) {
-      game.steps = parseInt(stepsMatch[1], 10);
-      game.won = true;
+    
+    // Also check for actual image elements
+    const boardImage = card.querySelector('img[src]');
+    if (boardImage) {
+      game.boardImageUrl = (boardImage as HTMLImageElement).src;
+      console.log('[WordleBotScraper] Found board image:', game.boardImageUrl);
     }
 
     // Get analysis link
@@ -548,6 +575,7 @@ class WordleBotScraper {
       ...(raw.solution && { solution: raw.solution }),
       ...(raw.skillScore !== undefined && { skillScore: raw.skillScore }),
       ...(raw.luckScore !== undefined && { luckScore: raw.luckScore }),
+      ...(raw.boardImageUrl && { boardImageUrl: raw.boardImageUrl }),
       ...(raw.analysisUrl && { analysisUrl: raw.analysisUrl }),
       scrapedFrom: 'wordle-bot' as const,
       source: 'wordle-page' as const,

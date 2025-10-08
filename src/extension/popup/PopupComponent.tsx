@@ -1,7 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { TimeFrame } from '@/types/benchmarkTypes';
 import { useGameDataStore } from '@/stores/gameData';
-import { MessageType } from '@/types/messagingTypes';
+import { 
+  MessageType,
+  WordleBotScrapeStatusSnapshot,
+  WordleBotScrapePhase,
+  WordleBotScrapeStatusResponse 
+} from '@/types/messagingTypes';
 
 interface PopupProps {}
 
@@ -9,20 +14,59 @@ interface ScraperStatus {
   checking: boolean;
   importing: boolean;
   gamesFound: number;
+  gamesProcessed: number;
   newGames: number;
+  duplicates: number;
+  errors: number;
   error: string | null;
+  phase: WordleBotScrapePhase;
+  statusMessage: string | null;
+  lastUpdated: string | null;
+  mode: WordleBotScrapeStatusSnapshot['mode'];
 }
+
+const INITIAL_SCRAPER_STATUS: ScraperStatus = {
+  checking: false,
+  importing: false,
+  gamesFound: 0,
+  gamesProcessed: 0,
+  newGames: 0,
+  duplicates: 0,
+  errors: 0,
+  error: null,
+  phase: 'idle',
+  statusMessage: 'Idle',
+  lastUpdated: null,
+  mode: null
+};
 
 const Popup: React.FC<PopupProps> = () => {
   const [selectedTimeFrame, setSelectedTimeFrame] = useState<TimeFrame>('7d');
   const [error, setError] = useState<string | null>(null);
   const [scraperStatus, setScraperStatus] = useState<ScraperStatus>({
-    checking: false,
-    importing: false,
-    gamesFound: 0,
-    newGames: 0,
-    error: null
+    ...INITIAL_SCRAPER_STATUS
   });
+  const applyScrapeSnapshot = React.useCallback((snapshot: WordleBotScrapeStatusSnapshot) => {
+    setScraperStatus({
+      checking: snapshot.phase === 'checking',
+      importing: snapshot.phase === 'importing',
+      gamesFound: snapshot.gamesFound ?? 0,
+      gamesProcessed: snapshot.gamesProcessed ?? 0,
+      newGames: snapshot.newGames ?? 0,
+      duplicates: snapshot.duplicates ?? 0,
+      errors: snapshot.errors ?? 0,
+      error: snapshot.phase === 'error' ? (snapshot.error ?? 'Unknown error') : null,
+      phase: snapshot.phase,
+  statusMessage: snapshot.statusMessage ?? (snapshot.phase === 'idle' ? 'Idle' : null),
+      lastUpdated: snapshot.lastUpdated ?? null,
+      mode: snapshot.mode ?? null
+    });
+  }, []);
+  const resetScraperStatus = React.useCallback(() => {
+    setScraperStatus({
+      ...INITIAL_SCRAPER_STATUS
+    });
+  }, []);
   const { 
     sendStatsRequest, 
     getStatisticsForTimeFrame, 
@@ -43,7 +87,7 @@ const Popup: React.FC<PopupProps> = () => {
   });
 
   // Load statistics using store method
-  const loadStatistics = async (timeFrame: TimeFrame) => {
+  const loadStatistics = React.useCallback(async (timeFrame: TimeFrame) => {
     try {
       setError(null);
       await sendStatsRequest(timeFrame);
@@ -51,7 +95,7 @@ const Popup: React.FC<PopupProps> = () => {
       console.error('[Popup] Failed to load statistics:', err);
       setError(err instanceof Error ? err.message : 'Unknown error');
     }
-  };
+  }, [sendStatsRequest]);
 
   // Auto-import from WordleBot
   const triggerAutoImport = async () => {
@@ -59,7 +103,21 @@ const Popup: React.FC<PopupProps> = () => {
       console.log('[POPUP DEBUG] triggerAutoImport called');
       setScraperStatus(prev => {
         console.log('[POPUP DEBUG] Setting scraper status to checking=true, prev:', prev);
-        return { ...prev, checking: true };
+        return {
+          ...prev,
+          checking: true,
+          importing: false,
+          phase: 'checking',
+          statusMessage: 'Checking for latest games...',
+          gamesFound: 0,
+          gamesProcessed: 0,
+          newGames: 0,
+          duplicates: 0,
+          errors: prev.errors,
+          error: null,
+          lastUpdated: new Date().toISOString(),
+          mode: 'auto'
+        };
       });
       console.log('[POPUP DEBUG] Triggering auto-import from WordleBot');
       
@@ -74,78 +132,129 @@ const Popup: React.FC<PopupProps> = () => {
       
       // Set timeout in case scraper doesn't respond
       setTimeout(() => {
+        let timedOut = false;
         setScraperStatus(prev => {
           if (prev.checking || prev.importing) {
             console.warn('[Popup] Auto-import timed out, loading stats anyway');
+            timedOut = true;
             return {
+              ...prev,
               checking: false,
               importing: false,
+              phase: 'error',
+              statusMessage: 'Timed out waiting for scraper',
               gamesFound: 0,
+              gamesProcessed: 0,
               newGames: 0,
-              error: null
+              duplicates: 0,
+              error: 'Timed out waiting for WordleBot',
+              errors: prev.errors + 1,
+              lastUpdated: new Date().toISOString()
             };
           }
           return prev;
         });
+        if (timedOut) {
+          loadStatistics(selectedTimeFrame);
+        }
       }, 10000); // 10 second timeout
       
     } catch (err) {
       console.error('[POPUP DEBUG] Failed to trigger auto-import:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
       setScraperStatus(prev => ({
         ...prev,
         checking: false,
-        error: err instanceof Error ? err.message : 'Unknown error'
+        importing: false,
+        phase: 'error',
+        statusMessage: `Failed to start auto-import: ${errorMessage}`,
+        error: errorMessage,
+        errors: prev.errors + 1,
+        lastUpdated: new Date().toISOString()
       }));
     }
   };
 
   // Listen for scraper messages
   useEffect(() => {
+    const formatProgressMessage = (progressMessage: any): string => {
+      if (progressMessage.status === 'processing') {
+        return 'Processing imported games...';
+      }
+      const count = progressMessage.gamesFound ?? 0;
+      if (count > 0) {
+        return `Importing ${count} game${count === 1 ? '' : 's'}...`;
+      }
+      return 'Importing games...';
+    };
+
     const messageListener = (message: any) => {
       console.log('[POPUP DEBUG] Received message:', message);
       switch (message.type) {
+        case MessageType.WORDLE_BOT_SCRAPE_STATUS_UPDATED:
+          if (message.status) {
+            applyScrapeSnapshot(message.status as WordleBotScrapeStatusSnapshot);
+          }
+          break;
+
         case MessageType.WORDLE_BOT_SCRAPE_PROGRESS:
           console.log('[POPUP DEBUG] Progress message received:', message);
           setScraperStatus(prev => ({
             ...prev,
             checking: false,
             importing: true,
-            gamesFound: message.gamesFound
+            phase: 'importing',
+            gamesFound: message.gamesFound ?? prev.gamesFound,
+            gamesProcessed: message.gamesProcessed ?? prev.gamesProcessed,
+            duplicates: message.duplicatesSkipped ?? prev.duplicates,
+            statusMessage: formatProgressMessage(message),
+            error: null,
+            lastUpdated: new Date().toISOString()
           }));
           break;
-          
+
         case MessageType.WORDLE_BOT_SCRAPE_COMPLETE:
           console.log('[POPUP DEBUG] Scrape complete message received:', message);
           setScraperStatus(prev => ({
             ...prev,
+            checking: false,
             importing: false,
-            newGames: message.newGames,
-            error: null
+            phase: 'complete',
+            gamesFound: message.totalGames ?? prev.gamesFound,
+            gamesProcessed: message.totalGames ?? prev.gamesProcessed,
+            newGames: message.newGames ?? 0,
+            duplicates: message.duplicates ?? prev.duplicates,
+            errors: message.errors ?? prev.errors,
+            statusMessage: message.newGames && message.newGames > 0
+              ? `✓ Added ${message.newGames} new game${message.newGames === 1 ? '' : 's'}!`
+              : 'Scrape complete',
+            error: null,
+            lastUpdated: new Date().toISOString()
           }));
-          
+
           // Reload statistics
           console.log('[POPUP DEBUG] Reloading statistics after scrape complete');
           loadStatistics(selectedTimeFrame);
-          
-          // Clear status after 3 seconds
+
+          // Clear status after a short pause
           setTimeout(() => {
-            setScraperStatus({
-              checking: false,
-              importing: false,
-              gamesFound: 0,
-              newGames: 0,
-              error: null
-            });
-          }, 3000);
+            resetScraperStatus();
+          }, 5000);
           break;
-          
+
         case MessageType.WORDLE_BOT_SCRAPE_ERROR:
           console.log('[POPUP DEBUG] Scrape error message received:', message);
           setScraperStatus(prev => ({
             ...prev,
             checking: false,
             importing: false,
-            error: message.error
+            phase: 'error',
+            statusMessage: message.error
+              ? `Scrape failed: ${message.error}`
+              : 'Scrape failed',
+            error: message.error ?? 'Unknown error',
+            errors: prev.errors + 1,
+            lastUpdated: new Date().toISOString()
           }));
           break;
       }
@@ -153,12 +262,57 @@ const Popup: React.FC<PopupProps> = () => {
 
     chrome.runtime.onMessage.addListener(messageListener);
     return () => chrome.runtime.onMessage.removeListener(messageListener);
-  }, [selectedTimeFrame]);
+  }, [applyScrapeSnapshot, loadStatistics, resetScraperStatus, selectedTimeFrame]);
+
+  useEffect(() => {
+    if (!chrome?.runtime?.sendMessage) {
+      return;
+    }
+
+    let cancelled = false;
+
+    chrome.runtime.sendMessage({ type: MessageType.GET_WORDLE_BOT_SCRAPE_STATUS })
+      .then((response: WordleBotScrapeStatusResponse) => {
+        if (!cancelled && response?.success && response.status) {
+          applyScrapeSnapshot(response.status);
+        }
+      })
+      .catch((err: unknown) => {
+        console.warn('[POPUP DEBUG] Failed to fetch initial scrape status:', err);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [applyScrapeSnapshot]);
+
+  useEffect(() => {
+    if (!chrome?.storage?.onChanged) {
+      return;
+    }
+
+    const storageListener = (
+      changes: Record<string, chrome.storage.StorageChange>,
+      areaName: string
+    ) => {
+      if (areaName !== 'local') {
+        return;
+      }
+
+      const statusChange = changes.wordleBotScrapeStatus;
+      if (statusChange?.newValue) {
+        applyScrapeSnapshot(statusChange.newValue as WordleBotScrapeStatusSnapshot);
+      }
+    };
+
+    chrome.storage.onChanged.addListener(storageListener);
+    return () => chrome.storage.onChanged.removeListener(storageListener);
+  }, [applyScrapeSnapshot]);
 
   useEffect(() => {
     console.log('[POPUP DEBUG] selectedTimeFrame changed:', selectedTimeFrame);
     loadStatistics(selectedTimeFrame);
-  }, [selectedTimeFrame]);
+  }, [loadStatistics, selectedTimeFrame]);
 
   // Initialize data and trigger auto-import on mount
   useEffect(() => {
@@ -205,6 +359,12 @@ const Popup: React.FC<PopupProps> = () => {
 
       if (tabs && tabs.length > 0) {
         const existingTab = tabs[0];
+        if (!existingTab) {
+          chrome.tabs.create({ url: dashboardUrl });
+          window.close();
+          return;
+        }
+
         if (existingTab.id !== undefined) {
           chrome.tabs.reload(existingTab.id);
           chrome.tabs.update(existingTab.id, { active: true });
@@ -259,17 +419,21 @@ const Popup: React.FC<PopupProps> = () => {
       <main id="main-content" className="popup-main" role="main">
         {scraperStatus.checking ? (
           <div className="loading" role="status" aria-live="polite">
-            <span className="sr-only">Checking for latest games...</span>
-            <span aria-hidden="true">🔄 Checking for latest games...</span>
+            <span className="sr-only">{scraperStatus.statusMessage ?? 'Checking for latest games...'}</span>
+            <span aria-hidden="true">🔄 {scraperStatus.statusMessage ?? 'Checking for latest games...'}</span>
           </div>
         ) : scraperStatus.importing ? (
           <div className="loading" role="status" aria-live="polite">
-            <span className="sr-only">Importing games...</span>
-            <span aria-hidden="true">📥 Importing {scraperStatus.gamesFound} games...</span>
+            <span className="sr-only">
+              {scraperStatus.statusMessage ?? `Importing ${scraperStatus.gamesFound || scraperStatus.gamesProcessed} games...`}
+            </span>
+            <span aria-hidden="true">
+              📥 {scraperStatus.statusMessage ?? `Importing ${scraperStatus.gamesProcessed}/${scraperStatus.gamesFound || Math.max(scraperStatus.gamesProcessed, 1)} games...`}
+            </span>
           </div>
         ) : scraperStatus.newGames > 0 ? (
           <div className="success" role="status" aria-live="polite" style={{ textAlign: 'center', padding: '20px', color: '#6aaa64' }}>
-            <span>✓ Added {scraperStatus.newGames} new game{scraperStatus.newGames > 1 ? 's' : ''}!</span>
+            <span>{scraperStatus.statusMessage ?? `✓ Added ${scraperStatus.newGames} new game${scraperStatus.newGames > 1 ? 's' : ''}!`}</span>
           </div>
         ) : scraperStatus.error ? (
           <div className="error" role="alert">

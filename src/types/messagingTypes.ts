@@ -35,7 +35,9 @@ export enum MessageType {
   START_WORDLE_BOT_SCRAPE = 'START_WORDLE_BOT_SCRAPE',
   WORDLE_BOT_SCRAPE_PROGRESS = 'WORDLE_BOT_SCRAPE_PROGRESS',
   WORDLE_BOT_SCRAPE_COMPLETE = 'WORDLE_BOT_SCRAPE_COMPLETE',
-  WORDLE_BOT_SCRAPE_ERROR = 'WORDLE_BOT_SCRAPE_ERROR'
+  WORDLE_BOT_SCRAPE_ERROR = 'WORDLE_BOT_SCRAPE_ERROR',
+  GET_WORDLE_BOT_SCRAPE_STATUS = 'GET_WORDLE_BOT_SCRAPE_STATUS',
+  WORDLE_BOT_SCRAPE_STATUS_UPDATED = 'WORDLE_BOT_SCRAPE_STATUS_UPDATED'
 }
 
 // Background ↔ Content Script Messages
@@ -222,6 +224,36 @@ export interface WordleBotScrapeErrorMessage {
   recoverable: boolean;
 }
 
+export type WordleBotScrapePhase = 'idle' | 'checking' | 'importing' | 'complete' | 'error';
+
+export interface WordleBotScrapeStatusSnapshot {
+  phase: WordleBotScrapePhase;
+  gamesFound: number;
+  gamesProcessed: number;
+  newGames: number;
+  duplicates: number;
+  errors: number;
+  lastUpdated: string;
+  mode?: StartWordleBotScrapeMessage['mode'] | null;
+  statusMessage?: string | null;
+  error?: string | null;
+  dateRange?: WordleBotScrapeCompleteMessage['dateRange'] | null;
+}
+
+export interface GetWordleBotScrapeStatusMessage {
+  type: MessageType.GET_WORDLE_BOT_SCRAPE_STATUS;
+}
+
+export interface WordleBotScrapeStatusResponse {
+  success: boolean;
+  status: WordleBotScrapeStatusSnapshot;
+}
+
+export interface WordleBotScrapeStatusUpdatedMessage {
+  type: MessageType.WORDLE_BOT_SCRAPE_STATUS_UPDATED;
+  status: WordleBotScrapeStatusSnapshot;
+}
+
 // Union type for all messages
 export type ExtensionMessage = 
   | ImportGameResultMessage
@@ -238,7 +270,9 @@ export type ExtensionMessage =
   | StartWordleBotScrapeMessage
   | WordleBotScrapeProgressMessage
   | WordleBotScrapeCompleteMessage
-  | WordleBotScrapeErrorMessage;
+  | WordleBotScrapeErrorMessage
+  | GetWordleBotScrapeStatusMessage
+  | WordleBotScrapeStatusUpdatedMessage;
 
 // Re-export types for convenience
 export type {

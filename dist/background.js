@@ -148,6 +148,58 @@ var ExtensionStorage = class _ExtensionStorage {
 
 // src/extension/background/background.ts
 var storageService;
+var SCRAPE_STATUS_STORAGE_KEY = "wordleBotScrapeStatus";
+var currentScrapeStatus = {
+  phase: "idle",
+  gamesFound: 0,
+  gamesProcessed: 0,
+  newGames: 0,
+  duplicates: 0,
+  errors: 0,
+  lastUpdated: (/* @__PURE__ */ new Date()).toISOString(),
+  statusMessage: "Idle",
+  error: null
+};
+async function updateScrapeStatus(update) {
+  const nextPhase = update.phase ?? currentScrapeStatus.phase;
+  currentScrapeStatus = {
+    ...currentScrapeStatus,
+    ...update,
+    phase: nextPhase,
+    lastUpdated: (/* @__PURE__ */ new Date()).toISOString()
+  };
+  try {
+    await chrome.storage.local.set({
+      [SCRAPE_STATUS_STORAGE_KEY]: currentScrapeStatus
+    });
+  } catch (storageError) {
+    console.error("[Background] Failed to persist scrape status:", storageError);
+  }
+  chrome.runtime.sendMessage({
+    type: "WORDLE_BOT_SCRAPE_STATUS_UPDATED" /* WORDLE_BOT_SCRAPE_STATUS_UPDATED */,
+    status: currentScrapeStatus
+  }).catch(() => {
+  });
+}
+async function loadInitialScrapeStatus() {
+  try {
+    const result = await chrome.storage.local.get([SCRAPE_STATUS_STORAGE_KEY]);
+    if (result && result[SCRAPE_STATUS_STORAGE_KEY]) {
+      currentScrapeStatus = {
+        ...currentScrapeStatus,
+        ...result[SCRAPE_STATUS_STORAGE_KEY]
+      };
+    } else {
+      await chrome.storage.local.set({
+        [SCRAPE_STATUS_STORAGE_KEY]: currentScrapeStatus
+      });
+    }
+  } catch (error) {
+    console.error("[Background] Failed to hydrate scrape status from storage:", error);
+  }
+}
+loadInitialScrapeStatus().catch(() => {
+});
 chrome.runtime.onInstalled.addListener(async (details) => {
   console.log("[Background] Extension installed:", details.reason);
   try {
@@ -237,6 +289,8 @@ async function handleExtensionMessage(message, _sender) {
       return handleWordleBotScrapeComplete(message);
     case "WORDLE_BOT_SCRAPE_ERROR" /* WORDLE_BOT_SCRAPE_ERROR */:
       return handleWordleBotScrapeError(message);
+    case "GET_WORDLE_BOT_SCRAPE_STATUS" /* GET_WORDLE_BOT_SCRAPE_STATUS */:
+      return handleGetWordleBotScrapeStatus();
     default:
       throw new Error(`Unknown message type: ${message.type}`);
   }
@@ -388,9 +442,26 @@ async function handleStartWordleBotScrape(message) {
     scraperTabId = tab.id || null;
     console.log("[BACKGROUND DEBUG] Opened WordleBot tab:", scraperTabId);
     console.log("[BACKGROUND DEBUG] Tab created, content script will auto-start scraping");
+    await updateScrapeStatus({
+      phase: "checking",
+      gamesFound: 0,
+      gamesProcessed: 0,
+      newGames: 0,
+      duplicates: 0,
+      errors: 0,
+      mode: message.mode,
+      error: null,
+      statusMessage: "Checking for latest games"
+    });
     return { success: true, ...scraperTabId ? { tabId: scraperTabId } : {}, message: "Scraping started" };
   } catch (error) {
     console.error("[Background] Failed to start WordleBot scrape:", error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    await updateScrapeStatus({
+      phase: "error",
+      statusMessage: "Failed to start scrape",
+      error: errorMessage
+    });
     if (scraperTabId) {
       chrome.tabs.remove(scraperTabId).catch(() => {
       });
@@ -398,6 +469,14 @@ async function handleStartWordleBotScrape(message) {
     }
     throw error;
   }
+}
+async function handleGetWordleBotScrapeStatus() {
+  return {
+    success: true,
+    status: {
+      ...currentScrapeStatus
+    }
+  };
 }
 async function handleBulkImportGames(games) {
   try {
@@ -418,6 +497,24 @@ async function handleBulkImportGames(games) {
 }
 async function handleWordleBotScrapeProgress(message) {
   console.log("[Background] Scrape progress:", message);
+  const progressStatusMessage = (() => {
+    switch (message.status) {
+      case "processing":
+        return "Processing imported games";
+      case "loading":
+        return `Importing ${message.gamesFound ?? 0} games...`;
+      default:
+        return "Importing games";
+    }
+  })();
+  await updateScrapeStatus({
+    phase: "importing",
+    gamesFound: message.gamesFound ?? currentScrapeStatus.gamesFound,
+    gamesProcessed: message.gamesProcessed ?? currentScrapeStatus.gamesProcessed,
+    duplicates: message.duplicatesSkipped ?? currentScrapeStatus.duplicates,
+    statusMessage: progressStatusMessage,
+    error: null
+  });
   chrome.runtime.sendMessage(message).catch(() => {
   });
   return { success: true };
@@ -447,6 +544,17 @@ async function handleWordleBotScrapeComplete(message) {
       }
     }, 2e3);
   }
+  await updateScrapeStatus({
+    phase: "complete",
+    gamesFound: message.totalGames ?? currentScrapeStatus.gamesFound,
+    gamesProcessed: message.totalGames ?? currentScrapeStatus.gamesProcessed,
+    newGames: message.newGames ?? currentScrapeStatus.newGames,
+    duplicates: message.duplicates ?? currentScrapeStatus.duplicates,
+    errors: message.errors ?? currentScrapeStatus.errors,
+    statusMessage: message.newGames && message.newGames > 0 ? `Added ${message.newGames} new game${message.newGames === 1 ? "" : "s"}` : "Scrape complete",
+    error: null,
+    dateRange: message.dateRange ?? currentScrapeStatus.dateRange
+  });
   console.log("[Background] Forwarding COMPLETE message to popup");
   try {
     await chrome.runtime.sendMessage(message);
@@ -454,6 +562,21 @@ async function handleWordleBotScrapeComplete(message) {
   } catch (err) {
     console.log("[Background] Could not forward to popup:", err);
   }
+  setTimeout(() => {
+    updateScrapeStatus({
+      phase: "idle",
+      gamesFound: 0,
+      gamesProcessed: 0,
+      newGames: 0,
+      duplicates: 0,
+      errors: 0,
+      statusMessage: "Idle",
+      error: null,
+      dateRange: null,
+      mode: null
+    }).catch(() => {
+    });
+  }, 5e3);
   return { success: true };
 }
 async function handleWordleBotScrapeError(message) {
@@ -474,6 +597,12 @@ async function handleWordleBotScrapeError(message) {
     });
     scraperTabId = null;
   }
+  await updateScrapeStatus({
+    phase: "error",
+    statusMessage: message.error ? `Scrape failed: ${message.error}` : "Scrape failed",
+    error: message.error ?? "Unknown error",
+    errors: currentScrapeStatus.errors + 1
+  });
   chrome.runtime.sendMessage(message).catch(() => {
   });
   return { success: true };

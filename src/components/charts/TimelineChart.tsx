@@ -19,6 +19,18 @@ interface TimelineChartProps {
   onRangeChange?: (startDate: Date, endDate: Date) => void;
 }
 
+type LegacyGuessCell =
+  | string
+  | {
+      letter?: string;
+      status?: string;
+      state?: string;
+      result?: string;
+      value?: string;
+    };
+
+type LegacyGuessRow = LegacyGuessCell[] | string;
+
 interface ChartDataPoint {
   date: string;
   dateObj: Date;
@@ -35,6 +47,110 @@ interface ChartDataPoint {
 }
 
 const CHART_MARGINS = { top: 20, right: 30, left: 20, bottom: 20 } as const;
+
+const normalizeGuessStatus = (rawStatus: string | undefined): GuessResult['status'] => {
+  if (!rawStatus) {
+    return 'absent';
+  }
+
+  const lower = rawStatus.toLowerCase();
+
+  if (lower.includes('correct') || lower.includes('right') || lower.includes('exact')) {
+    return 'correct';
+  }
+
+  if (
+    lower.includes('present') ||
+    lower.includes('misplaced') ||
+    lower.includes('close') ||
+    lower.includes('partial')
+  ) {
+    return 'present';
+  }
+
+  if (
+    lower.includes('absent') ||
+    lower.includes('miss') ||
+    lower.includes('wrong') ||
+    lower.includes('bad') ||
+    lower.includes('unused') ||
+    lower.includes('empty')
+  ) {
+    return 'absent';
+  }
+
+  // Emoji handling
+  if (rawStatus === '🟩' || rawStatus === '🟢' || rawStatus === '✅') {
+    return 'correct';
+  }
+  if (rawStatus === '🟨' || rawStatus === '🟡') {
+    return 'present';
+  }
+  if (rawStatus === '⬛' || rawStatus === '⬜' || rawStatus === '⬜️' || rawStatus === '⬛️') {
+    return 'absent';
+  }
+
+  return 'absent';
+};
+
+const normalizeGuessLetter = (rawLetter: string | undefined): string => {
+  if (!rawLetter) {
+    return '';
+  }
+  return rawLetter.slice(0, 1).toUpperCase();
+};
+
+const normalizeGuessCell = (cell: LegacyGuessCell): GuessResult => {
+  if (typeof cell === 'string') {
+    // When the legacy cell is a single emoji or status string, treat it as status only
+    if (cell.length === 1 && /[A-Z]/i.test(cell)) {
+      return {
+        letter: cell.toUpperCase(),
+        status: 'absent'
+      };
+    }
+
+    return {
+      letter: '',
+      status: normalizeGuessStatus(cell)
+    };
+  }
+
+  if (!cell || typeof cell !== 'object') {
+    return {
+      letter: '',
+      status: 'absent'
+    };
+  }
+
+  const letter = normalizeGuessLetter(cell.letter || cell.value);
+  const status = normalizeGuessStatus(cell.status || cell.state || cell.result);
+
+  return { letter, status };
+};
+
+const normalizeGuessPattern = (rawPattern: LegacyGuessRow[] | GuessResult[][] | undefined): GuessResult[][] => {
+  if (!rawPattern || !Array.isArray(rawPattern) || rawPattern.length === 0) {
+    return [];
+  }
+
+  return rawPattern
+    .map((rawRow) => {
+      if (typeof rawRow === 'string') {
+        // Legacy share text row (emoji string)
+        const cells = Array.from(rawRow);
+        return cells.map((cell) => normalizeGuessCell(cell));
+      }
+
+      if (!Array.isArray(rawRow)) {
+        return null;
+      }
+
+      const normalizedRow = rawRow.map((cell) => normalizeGuessCell(cell));
+      return normalizedRow;
+    })
+    .filter((row): row is GuessResult[] => Array.isArray(row) && row.length > 0);
+};
 
 const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) => {
   const [selectedRange, setSelectedRange] = useState<{ start: number; end: number } | null>(null);
@@ -79,7 +195,10 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) =
         point.boardImageUrl = game.boardImageUrl;
       }
       if (game.guessPattern && game.guessPattern.length > 0) {
-        point.guessPattern = game.guessPattern;
+        const normalizedPattern = normalizeGuessPattern(game.guessPattern as unknown as LegacyGuessRow[]);
+        if (normalizedPattern.length > 0) {
+          point.guessPattern = normalizedPattern;
+        }
       }
       if (typeof game.skillScore === 'number') {
         point.skillScore = game.skillScore;
@@ -219,8 +338,17 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) =
               <span
                 key={`cell-${rowIndex}-${cellIndex}`}
                 className={`tooltip-grid-cell tooltip-grid-cell-${cell.status}`}
-                style={{ backgroundColor: getTileColor(cell.status) }}
-              />
+                style={{ 
+                  backgroundColor: getTileColor(cell.status),
+                  color: '#ffffff',
+                  fontWeight: 'bold',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                {cell.letter?.toUpperCase() || ''}
+              </span>
             ))}
           </div>
         ))}
@@ -231,10 +359,25 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) =
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length > 0) {
       const data = payload[0].payload as ChartDataPoint;
+      
+      // Debug logging for tooltip data
+      console.log('[TOOLTIP DEBUG] Raw game data:', {
+        date: data.date,
+        displayDate: data.displayDate,
+        guessPattern: data.guessPattern,
+        won: data.won,
+        turns: data.turns,
+        solution: data.solution
+      });
+      
       let hasBoard = false;
       const preview = (() => {
         if (data.guessPattern && data.guessPattern.length > 0) {
           hasBoard = true;
+          console.log('[TOOLTIP DEBUG] Rendering guess pattern with', data.guessPattern.length, 'rows');
+          data.guessPattern.forEach((row, idx) => {
+            console.log(`[TOOLTIP DEBUG] Row ${idx}:`, row.map(cell => `${cell.letter}(${cell.status})`).join(' '));
+          });
           return renderGuessPattern(data.guessPattern);
         }
         if (data.boardImageUrl) {
@@ -443,3 +586,10 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) =
 };
 
 export default TimelineChart;
+
+// Exported for unit tests
+export const __timelineChartTestUtils = {
+  normalizeGuessStatus,
+  normalizeGuessCell,
+  normalizeGuessPattern
+};

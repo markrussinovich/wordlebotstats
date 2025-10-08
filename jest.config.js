@@ -15,7 +15,7 @@ export default {
     '!src/extension/manifest.json',
   ],
   setupFilesAfterEnv: ['<rootDir>/tests/setup.ts'],
-  moduleNameMapping: {
+  moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
     '^@/components/(.*)$': '<rootDir>/src/components/$1',
     '^@/stores/(.*)$': '<rootDir>/src/stores/$1',

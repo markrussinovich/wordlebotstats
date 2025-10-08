@@ -231,15 +231,18 @@ class WordleBotScraper {
     }
 
     // Try to click load more button
+    console.log(`[WordleBotScraper] Iteration ${iteration}: Attempting to load more games...`);
     const loadedMore = await this.loadMoreGames();
+    console.log(`[WordleBotScraper] Iteration ${iteration}: loadMoreGames returned ${loadedMore}`);
     
     if (loadedMore) {
       // Wait for new content, then scrape again
+      console.log(`[WordleBotScraper] Iteration ${iteration}: Continuing to next iteration`);
       await this.delay(900);
       return this.scrapeWithRetry(stopAtDate, maxIterations, iteration + 1, allGames);
     } else {
       // No more games to load
-      console.log('[WordleBotScraper] No more games to load');
+      console.log(`[WordleBotScraper] Iteration ${iteration}: No more games to load, completing scrape with ${allGames.size} games`);
       await this.processAndSendGames(Array.from(allGames.values()));
     }
   }
@@ -896,10 +899,23 @@ class WordleBotScraper {
   }
 
   private normalizeTileStatus(value?: string | null): 'correct' | 'present' | 'absent' | 'empty' | null {
-    if (!value) {
+    if (!value || value.trim() === '') {
       return null;
     }
     const normalized = value.toLowerCase();
+    
+    // WordleBot CSS class names
+    if (normalized.includes('green')) {
+      return 'correct';
+    }
+    if (normalized.includes('yellow')) {
+      return 'present';
+    }
+    if (normalized.includes('gray') || normalized.includes('grey')) {
+      return 'absent';
+    }
+    
+    // Legacy descriptive strings
     if (normalized.includes('correct') || normalized.includes('exact') || normalized.includes('right')) {
       return 'correct';
     }
@@ -1174,7 +1190,7 @@ class WordleBotScraper {
   }
 
   private async processAndSendGames(rawGames: RawGameData[]): Promise<void> {
-    console.log(`[WordleBotScraper] Processing ${rawGames.length} games`);
+    console.log(`[WordleBotScraper] =====> processAndSendGames called with ${rawGames.length} games`);
     this.sendProgress(rawGames.length, 0, 'Processing games...');
     
     // Sort by game number (newest first)
@@ -1220,7 +1236,9 @@ class WordleBotScraper {
     }
 
     // Send completion message
+    console.log(`[WordleBotScraper] =====> Calling sendComplete: imported=${imported}, duplicates=${duplicates}, errors=${errors}, total=${sortedGames.length}`);
     this.sendComplete(imported, duplicates, errors, sortedGames);
+    console.log(`[WordleBotScraper] =====> sendComplete called successfully`);
   }
 
   private convertToGameResult(raw: RawGameData): GameResult {
@@ -1276,6 +1294,7 @@ class WordleBotScraper {
     errors: number,
     games: RawGameData[]
   ): void {
+    console.log(`[WordleBotScraper] =====> sendComplete building message...`);
     const message: WordleBotScrapeCompleteMessage = {
       type: MessageType.WORDLE_BOT_SCRAPE_COMPLETE,
       totalGames: games.length,
@@ -1296,9 +1315,11 @@ class WordleBotScraper {
       }
     }
 
+    console.log(`[WordleBotScraper] =====> Sending WORDLE_BOT_SCRAPE_COMPLETE message:`, message);
     chrome.runtime.sendMessage(message).catch(error => {
       console.error('[WordleBotScraper] Error sending completion:', error);
     });
+    console.log(`[WordleBotScraper] =====> sendMessage called (async, may not have completed yet)`);
   }
 
   private sendError(error: string, code: 'AUTH_REQUIRED' | 'NETWORK_ERROR' | 'PARSE_ERROR' | 'UNKNOWN', recoverable: boolean): void {

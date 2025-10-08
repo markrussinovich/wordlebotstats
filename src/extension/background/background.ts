@@ -14,25 +14,8 @@ import {
 } from '@/types/messagingTypes';
 import { GameResult } from '@/types/gameTypes';
 import { ExtensionStorage } from './extensionStorage';
-
-// Override console methods to add timestamps
-const originalLog = console.log;
-const originalError = console.error;
-const originalWarn = console.warn;
-
-const getTimestamp = () => new Date().toISOString();
-
-console.log = (...args: any[]) => {
-  originalLog(`[${getTimestamp()}]`, ...args);
-};
-
-console.error = (...args: any[]) => {
-  originalError(`[${getTimestamp()}]`, ...args);
-};
-
-console.warn = (...args: any[]) => {
-  originalWarn(`[${getTimestamp()}]`, ...args);
-};
+import logger from '../utils/logger';
+const log = logger.log; const warn = logger.warn; const errorLog = logger.error;
 
 // Initialize storage service
 let storageService: ExtensionStorage;
@@ -69,17 +52,17 @@ async function updateScrapeStatus(update: ScrapeStatusUpdate): Promise<void> {
       [SCRAPE_STATUS_STORAGE_KEY]: currentScrapeStatus
     });
   } catch (storageError) {
-    console.error('[Background] Failed to persist scrape status:', storageError);
+  errorLog('[Background] Failed to persist scrape status:', storageError);
   }
 
-  console.log('[Background] =====> Sending WORDLE_BOT_SCRAPE_STATUS_UPDATED message:', currentScrapeStatus);
+  log('[Background] =====> Sending WORDLE_BOT_SCRAPE_STATUS_UPDATED message:', currentScrapeStatus);
   chrome.runtime.sendMessage({
     type: MessageType.WORDLE_BOT_SCRAPE_STATUS_UPDATED,
     status: currentScrapeStatus
   }).then(() => {
-    console.log('[Background] =====> STATUS_UPDATED message sent successfully');
+  log('[Background] =====> STATUS_UPDATED message sent successfully');
   }).catch((err) => {
-    console.log('[Background] =====> STATUS_UPDATED message failed:', err);
+  log('[Background] =====> STATUS_UPDATED message failed:', err);
   });
 }
 
@@ -97,7 +80,7 @@ async function loadInitialScrapeStatus(): Promise<void> {
       });
     }
   } catch (error) {
-    console.error('[Background] Failed to hydrate scrape status from storage:', error);
+  errorLog('[Background] Failed to hydrate scrape status from storage:', error);
   }
 }
 
@@ -107,7 +90,7 @@ loadInitialScrapeStatus().catch(() => {
 
 // Extension installation and updates
 chrome.runtime.onInstalled.addListener(async (details) => {
-  console.log('[Background] Extension installed:', details.reason);
+  log('[Background] Extension installed:', details.reason);
   
   try {
     // Initialize storage service
@@ -122,19 +105,19 @@ chrome.runtime.onInstalled.addListener(async (details) => {
       await handleExtensionUpdate(details.previousVersion);
     }
   } catch (error) {
-    console.error('[Background] Extension initialization failed:', error);
+  errorLog('[Background] Extension initialization failed:', error);
   }
 });
 
 // Message routing between extension components
 chrome.runtime.onMessage.addListener(
   (message: any, sender, sendResponse) => {
-    console.log('[BACKGROUND DEBUG] Received message:', message.type, message);
-    console.log('[BACKGROUND DEBUG] Sender:', sender);
+  log('[BACKGROUND DEBUG] Received message:', message.type, message);
+  log('[BACKGROUND DEBUG] Sender:', sender);
     
     handleExtensionMessage(message, sender)
       .then(response => {
-        console.log('[BACKGROUND DEBUG] Sending response:', response);
+  log('[BACKGROUND DEBUG] Sending response:', response);
         if (response) {
           sendResponse(response);
         }

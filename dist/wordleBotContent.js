@@ -1,19 +1,61 @@
 "use strict";
 var WordleBotContent = (() => {
+  // src/extension/utils/logger.ts
+  var import_meta = {};
+  var g = globalThis;
+  function resolveEnvFlag() {
+    try {
+      if (typeof import_meta !== "undefined" && import_meta?.env) {
+        const val = import_meta.env.VITE_DEBUG_LOGS;
+        if (val != null) return val === "true" || val === true;
+      }
+    } catch {
+    }
+    try {
+      if (typeof process !== "undefined" && process?.env) {
+        const v = process.env.VITE_DEBUG_LOGS;
+        if (v != null) return v === "true";
+      }
+    } catch {
+    }
+    return false;
+  }
+  function resolveStorageFlag() {
+    try {
+      return localStorage.getItem("WORDLE_DEBUG_LOGS") === "true";
+    } catch {
+      return false;
+    }
+  }
+  var enabled = resolveEnvFlag() || resolveStorageFlag();
+  function setDebugLogging(on) {
+    enabled = on;
+    try {
+      localStorage.setItem("WORDLE_DEBUG_LOGS", on ? "true" : "false");
+    } catch {
+    }
+  }
+  g.WORDLE_ENABLE_DEBUG_LOGS = () => setDebugLogging(true);
+  g.WORDLE_DISABLE_DEBUG_LOGS = () => setDebugLogging(false);
+  function prefix() {
+    return `[${(/* @__PURE__ */ new Date()).toISOString()}]`;
+  }
+  function build(method) {
+    return (...args) => {
+      if (enabled) console[method](prefix(), ...args);
+    };
+  }
+  var logger = {
+    enabled: () => enabled,
+    log: build("log"),
+    warn: build("warn"),
+    error: build("error")
+  };
+  var logger_default = logger;
+
   // src/extension/content/wordleBotContent.ts
-  var originalLog = console.log;
-  var originalError = console.error;
-  var originalWarn = console.warn;
-  var getTimestamp = () => (/* @__PURE__ */ new Date()).toISOString();
-  console.log = (...args) => {
-    originalLog(`[${getTimestamp()}]`, ...args);
-  };
-  console.error = (...args) => {
-    originalError(`[${getTimestamp()}]`, ...args);
-  };
-  console.warn = (...args) => {
-    originalWarn(`[${getTimestamp()}]`, ...args);
-  };
+  var log = logger_default.log;
+  var errorLog = logger_default.error;
   var WordleBotScraper = class {
     constructor() {
       this.isRunning = false;
@@ -26,7 +68,7 @@ var WordleBotContent = (() => {
       this.GAME_CARD_SELECTOR = ".rating-container:not(.label-container)";
       this.SHOW_MORE_BUTTON_SELECTOR = '[class*="show-more-button"]';
       this.loadMoreNoGrowthAttempts = 0;
-      console.log("[WordleBotScraper] Initialized");
+      log("[WordleBotScraper] Initialized");
       this.setupMessageListener();
       this.checkAutoStart();
     }
@@ -38,7 +80,7 @@ var WordleBotContent = (() => {
           const paramTime = params.wordleBotScrapeParams.timestamp;
           const age = now - paramTime;
           if (age < 3e4) {
-            console.log("[WordleBotScraper] Auto-starting scraper...");
+            log("[WordleBotScraper] Auto-starting scraper...");
             const { mode, stopAtDate, maxIterations } = params.wordleBotScrapeParams;
             setTimeout(() => {
               this.startScraping(mode, stopAtDate, maxIterations);
@@ -46,7 +88,7 @@ var WordleBotContent = (() => {
           }
         }
       } catch (error) {
-        console.error("[WordleBotScraper] Error checking auto-start:", error);
+        errorLog("[WordleBotScraper] Error checking auto-start:", error);
       }
     }
     setupMessageListener() {
@@ -123,7 +165,7 @@ var WordleBotContent = (() => {
           return;
         }
       }
-      await this.delay(900);
+      await this.delay(300);
       if (iteration === 0) {
         this.sendProgress(0, 0, "Scanning for games...");
       }
@@ -131,7 +173,7 @@ var WordleBotContent = (() => {
       console.log(`[WordleBotScraper] Iteration ${iteration + 1}: Found ${games.length} games`);
       if (games.length === 0 && iteration === 0) {
         console.log("[WordleBotScraper] No games found on first attempt, retrying...");
-        await this.delay(1200);
+        await this.delay(500);
         return this.scrapeWithRetry(stopAtDate, maxIterations, iteration, allGames);
       }
       let newGamesThisIteration = 0;
@@ -164,7 +206,7 @@ var WordleBotContent = (() => {
       console.log(`[WordleBotScraper] Iteration ${iteration}: loadMoreGames returned ${loadedMore}`);
       if (loadedMore) {
         console.log(`[WordleBotScraper] Iteration ${iteration}: Continuing to next iteration`);
-        await this.delay(900);
+        await this.delay(300);
         return this.scrapeWithRetry(stopAtDate, maxIterations, iteration + 1, allGames);
       } else {
         console.log(`[WordleBotScraper] =====> Iteration ${iteration}: loadMoreGames returned FALSE`);
@@ -192,7 +234,7 @@ var WordleBotContent = (() => {
           if (compareButton) {
             break;
           }
-          await this.delay(600);
+          await this.delay(300);
         }
         if (compareButton) {
           console.log('[WordleBotScraper] Clicking "Compare and view your recent scores"...');
@@ -219,7 +261,7 @@ var WordleBotContent = (() => {
               bubbles: true
             });
             document.dispatchEvent(rightArrowEvent);
-            await this.delay(450);
+            await this.delay(200);
           }
           const cardsViaKeyboard = await this.waitForSelector(this.GAME_CARD_SELECTOR, 1200);
           if (cardsViaKeyboard) {
@@ -231,7 +273,7 @@ var WordleBotContent = (() => {
           if (arrowButtons.length > 0) {
             for (let i = 0; i < 2; i++) {
               arrowButtons[0].click();
-              await this.delay(450);
+              await this.delay(200);
             }
             const cardsAfterArrow = await this.waitForSelector(this.GAME_CARD_SELECTOR, 1200);
             if (cardsAfterArrow) {
@@ -886,7 +928,7 @@ var WordleBotContent = (() => {
         console.warn("[WordleBotScraper] Failed to scroll load more button into view:", error);
       }
       button.click();
-      await this.delay(150);
+      await this.delay(50);
       const afterCount = await this.waitForCardIncrease(beforeCount, 6e3, 250);
       const newCards = afterCount - beforeCount;
       console.log(`[WordleBotScraper] After load more: ${afterCount} cards (${newCards} new)`);
@@ -898,7 +940,7 @@ var WordleBotContent = (() => {
       const stillHasButton = !!this.findShowMoreButton();
       if (stillHasButton && this.loadMoreNoGrowthAttempts < 3) {
         console.log("[WordleBotScraper] No new cards detected yet; polling again while button remains visible.");
-        await this.delay(400);
+        await this.delay(200);
         return true;
       }
       console.log("[WordleBotScraper] No additional cards after multiple attempts, stopping pagination.");
@@ -925,7 +967,7 @@ var WordleBotContent = (() => {
         if (document.querySelector(selector)) {
           return true;
         }
-        await this.delay(200);
+        await this.delay(100);
       }
       return !!document.querySelector(selector);
     }

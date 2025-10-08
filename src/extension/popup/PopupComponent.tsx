@@ -7,25 +7,8 @@ import {
   WordleBotScrapePhase,
   WordleBotScrapeStatusResponse 
 } from '@/types/messagingTypes';
-
-// Override console methods to add timestamps
-const originalLog = console.log;
-const originalError = console.error;
-const originalWarn = console.warn;
-
-const getTimestamp = () => new Date().toISOString();
-
-console.log = (...args: any[]) => {
-  originalLog(`[${getTimestamp()}]`, ...args);
-};
-
-console.error = (...args: any[]) => {
-  originalError(`[${getTimestamp()}]`, ...args);
-};
-
-console.warn = (...args: any[]) => {
-  originalWarn(`[${getTimestamp()}]`, ...args);
-};
+import logger from '../utils/logger';
+// Use logger directly where needed (avoid unused vars for linter)
 
 interface PopupProps {}
 

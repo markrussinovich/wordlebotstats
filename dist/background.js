@@ -1,17 +1,58 @@
+// src/extension/utils/logger.ts
+var g = globalThis;
+function resolveEnvFlag() {
+  try {
+    if (typeof import.meta !== "undefined" && import.meta?.env) {
+      const val = import.meta.env.VITE_DEBUG_LOGS;
+      if (val != null) return val === "true" || val === true;
+    }
+  } catch {
+  }
+  try {
+    if (typeof process !== "undefined" && process?.env) {
+      const v = process.env.VITE_DEBUG_LOGS;
+      if (v != null) return v === "true";
+    }
+  } catch {
+  }
+  return false;
+}
+function resolveStorageFlag() {
+  try {
+    return localStorage.getItem("WORDLE_DEBUG_LOGS") === "true";
+  } catch {
+    return false;
+  }
+}
+var enabled = resolveEnvFlag() || resolveStorageFlag();
+function setDebugLogging(on) {
+  enabled = on;
+  try {
+    localStorage.setItem("WORDLE_DEBUG_LOGS", on ? "true" : "false");
+  } catch {
+  }
+}
+g.WORDLE_ENABLE_DEBUG_LOGS = () => setDebugLogging(true);
+g.WORDLE_DISABLE_DEBUG_LOGS = () => setDebugLogging(false);
+function prefix() {
+  return `[${(/* @__PURE__ */ new Date()).toISOString()}]`;
+}
+function build(method) {
+  return (...args) => {
+    if (enabled) console[method](prefix(), ...args);
+  };
+}
+var logger = {
+  enabled: () => enabled,
+  log: build("log"),
+  warn: build("warn"),
+  error: build("error")
+};
+var logger_default = logger;
+
 // src/extension/background/extensionStorage.ts
-var originalLog = console.log;
-var originalError = console.error;
-var originalWarn = console.warn;
-var getTimestamp = () => (/* @__PURE__ */ new Date()).toISOString();
-console.log = (...args) => {
-  originalLog(`[${getTimestamp()}]`, ...args);
-};
-console.error = (...args) => {
-  originalError(`[${getTimestamp()}]`, ...args);
-};
-console.warn = (...args) => {
-  originalWarn(`[${getTimestamp()}]`, ...args);
-};
+var log = logger_default.log;
+var errorLog = logger_default.error;
 var ExtensionStorage = class _ExtensionStorage {
   constructor() {
   }
@@ -22,21 +63,21 @@ var ExtensionStorage = class _ExtensionStorage {
     return _ExtensionStorage.instance;
   }
   async initialize() {
-    console.log("[ExtensionStorage] Initialized");
+    log("[ExtensionStorage] Initialized");
   }
   async getAllGames() {
     try {
       const result = await chrome.storage.local.get("games");
       return result.games || [];
     } catch (error) {
-      console.error("[ExtensionStorage] Failed to get games:", error);
+      errorLog("[ExtensionStorage] Failed to get games:", error);
       return [];
     }
   }
   async saveGame(game) {
     try {
       const games = await this.getAllGames();
-      const existingIndex = games.findIndex((g) => g.date === game.date);
+      const existingIndex = games.findIndex((g2) => g2.date === game.date);
       if (existingIndex >= 0) {
         games[existingIndex] = game;
       } else {
@@ -44,25 +85,25 @@ var ExtensionStorage = class _ExtensionStorage {
       }
       await chrome.storage.local.set({ games });
     } catch (error) {
-      console.error("[ExtensionStorage] Failed to save game:", error);
+      errorLog("[ExtensionStorage] Failed to save game:", error);
       throw error;
     }
   }
   async bulkImportGames(newGames) {
-    console.log(`[ExtensionStorage] =====> bulkImportGames called with ${newGames.length} games`);
+    log(`[ExtensionStorage] =====> bulkImportGames called with ${newGames.length} games`);
     let imported = 0;
     let duplicates = 0;
     let errors = 0;
     try {
-      console.log(`[ExtensionStorage] =====> Reading existing games...`);
+      log(`[ExtensionStorage] =====> Reading existing games...`);
       const startRead = performance.now();
       const existingGames = await this.getAllGames();
-      console.log(`[ExtensionStorage] =====> Read ${existingGames.length} existing games in ${(performance.now() - startRead).toFixed(0)}ms`);
+      log(`[ExtensionStorage] =====> Read ${existingGames.length} existing games in ${(performance.now() - startRead).toFixed(0)}ms`);
       const gameMap = /* @__PURE__ */ new Map();
       existingGames.forEach((game) => {
         gameMap.set(game.date, game);
       });
-      console.log(`[ExtensionStorage] =====> Processing ${newGames.length} new games...`);
+      log(`[ExtensionStorage] =====> Processing ${newGames.length} new games...`);
       for (const game of newGames) {
         try {
           const existing = gameMap.get(game.date);
@@ -79,27 +120,27 @@ var ExtensionStorage = class _ExtensionStorage {
             imported++;
           }
         } catch (error) {
-          console.error("[ExtensionStorage] Failed to process game:", game.date, error);
+          errorLog("[ExtensionStorage] Failed to process game:", game.date, error);
           errors++;
         }
       }
-      console.log(`[ExtensionStorage] =====> Writing ${gameMap.size} total games to storage...`);
+      log(`[ExtensionStorage] =====> Writing ${gameMap.size} total games to storage...`);
       const startWrite = performance.now();
       const allGames = Array.from(gameMap.values());
-      console.log(`[ExtensionStorage] =====> Stripping board images from ${allGames.length} games...`);
-      const lightweightGames = allGames.map((g) => ({
-        ...g,
+      log(`[ExtensionStorage] =====> Stripping board images from ${allGames.length} games...`);
+      const lightweightGames = allGames.map((g2) => ({
+        ...g2,
         boardImageUrl: void 0
         // Strip large base64 data URLs
       }));
-      console.log(`[ExtensionStorage] =====> Calling chrome.storage.local.set...`);
+      log(`[ExtensionStorage] =====> Calling chrome.storage.local.set...`);
       await chrome.storage.local.set({ games: lightweightGames });
-      console.log(`[ExtensionStorage] =====> Write completed in ${(performance.now() - startWrite).toFixed(0)}ms`);
+      log(`[ExtensionStorage] =====> Write completed in ${(performance.now() - startWrite).toFixed(0)}ms`);
     } catch (error) {
       console.error("[ExtensionStorage] Bulk import failed:", error);
       throw error;
     }
-    console.log(`[ExtensionStorage] =====> bulkImportGames complete: imported=${imported}, duplicates=${duplicates}, errors=${errors}`);
+    log(`[ExtensionStorage] =====> bulkImportGames complete: imported=${imported}, duplicates=${duplicates}, errors=${errors}`);
     return { imported, duplicates, errors };
   }
   shouldReplaceExisting(existing, newGame) {
@@ -176,19 +217,9 @@ var ExtensionStorage = class _ExtensionStorage {
 };
 
 // src/extension/background/background.ts
-var originalLog2 = console.log;
-var originalError2 = console.error;
-var originalWarn2 = console.warn;
-var getTimestamp2 = () => (/* @__PURE__ */ new Date()).toISOString();
-console.log = (...args) => {
-  originalLog2(`[${getTimestamp2()}]`, ...args);
-};
-console.error = (...args) => {
-  originalError2(`[${getTimestamp2()}]`, ...args);
-};
-console.warn = (...args) => {
-  originalWarn2(`[${getTimestamp2()}]`, ...args);
-};
+var log2 = logger_default.log;
+var warn = logger_default.warn;
+var errorLog2 = logger_default.error;
 var storageService;
 var SCRAPE_STATUS_STORAGE_KEY = "wordleBotScrapeStatus";
 var currentScrapeStatus = {
@@ -215,16 +246,16 @@ async function updateScrapeStatus(update) {
       [SCRAPE_STATUS_STORAGE_KEY]: currentScrapeStatus
     });
   } catch (storageError) {
-    console.error("[Background] Failed to persist scrape status:", storageError);
+    errorLog2("[Background] Failed to persist scrape status:", storageError);
   }
-  console.log("[Background] =====> Sending WORDLE_BOT_SCRAPE_STATUS_UPDATED message:", currentScrapeStatus);
+  log2("[Background] =====> Sending WORDLE_BOT_SCRAPE_STATUS_UPDATED message:", currentScrapeStatus);
   chrome.runtime.sendMessage({
     type: "WORDLE_BOT_SCRAPE_STATUS_UPDATED" /* WORDLE_BOT_SCRAPE_STATUS_UPDATED */,
     status: currentScrapeStatus
   }).then(() => {
-    console.log("[Background] =====> STATUS_UPDATED message sent successfully");
+    log2("[Background] =====> STATUS_UPDATED message sent successfully");
   }).catch((err) => {
-    console.log("[Background] =====> STATUS_UPDATED message failed:", err);
+    log2("[Background] =====> STATUS_UPDATED message failed:", err);
   });
 }
 async function loadInitialScrapeStatus() {
@@ -241,13 +272,13 @@ async function loadInitialScrapeStatus() {
       });
     }
   } catch (error) {
-    console.error("[Background] Failed to hydrate scrape status from storage:", error);
+    errorLog2("[Background] Failed to hydrate scrape status from storage:", error);
   }
 }
 loadInitialScrapeStatus().catch(() => {
 });
 chrome.runtime.onInstalled.addListener(async (details) => {
-  console.log("[Background] Extension installed:", details.reason);
+  log2("[Background] Extension installed:", details.reason);
   try {
     storageService = ExtensionStorage.getInstance();
     await storageService.initialize();
@@ -257,15 +288,15 @@ chrome.runtime.onInstalled.addListener(async (details) => {
       await handleExtensionUpdate(details.previousVersion);
     }
   } catch (error) {
-    console.error("[Background] Extension initialization failed:", error);
+    errorLog2("[Background] Extension initialization failed:", error);
   }
 });
 chrome.runtime.onMessage.addListener(
   (message, sender, sendResponse) => {
-    console.log("[BACKGROUND DEBUG] Received message:", message.type, message);
-    console.log("[BACKGROUND DEBUG] Sender:", sender);
+    log2("[BACKGROUND DEBUG] Received message:", message.type, message);
+    log2("[BACKGROUND DEBUG] Sender:", sender);
     handleExtensionMessage(message, sender).then((response) => {
-      console.log("[BACKGROUND DEBUG] Sending response:", response);
+      log2("[BACKGROUND DEBUG] Sending response:", response);
       if (response) {
         sendResponse(response);
       }
@@ -366,12 +397,12 @@ async function handleGetQuickStats(message) {
     console.log(`[BACKGROUND DEBUG] GET_QUICK_STATS: Total games in storage: ${games.length}`);
     console.log(`[BACKGROUND DEBUG] GET_QUICK_STATS: Timeframe requested: ${message.timeFrame}`);
     if (games.length > 0) {
-      console.log(`[BACKGROUND DEBUG] GET_QUICK_STATS: Sample game dates:`, games.slice(0, 5).map((g) => g.date));
+      console.log(`[BACKGROUND DEBUG] GET_QUICK_STATS: Sample game dates:`, games.slice(0, 5).map((g2) => g2.date));
     }
     const filteredGames = filterGamesByTimeFrame(games, message.timeFrame);
     console.log(`[BACKGROUND DEBUG] GET_QUICK_STATS: Filtered games count: ${filteredGames.length}`);
     if (filteredGames.length > 0) {
-      console.log(`[BACKGROUND DEBUG] GET_QUICK_STATS: Filtered game dates:`, filteredGames.map((g) => g.date));
+      console.log(`[BACKGROUND DEBUG] GET_QUICK_STATS: Filtered game dates:`, filteredGames.map((g2) => g2.date));
     }
     const statistics = calculateStatistics(filteredGames, games);
     console.log(`[BACKGROUND DEBUG] GET_QUICK_STATS: Calculated statistics:`, statistics);

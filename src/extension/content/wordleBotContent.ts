@@ -8,25 +8,8 @@ import {
   WordleBotScrapeCompleteMessage,
   WordleBotScrapeErrorMessage 
 } from '@/types/messagingTypes';
-
-// Override console methods to add timestamps
-const originalLog = console.log;
-const originalError = console.error;
-const originalWarn = console.warn;
-
-const getTimestamp = () => new Date().toISOString();
-
-console.log = (...args: any[]) => {
-  originalLog(`[${getTimestamp()}]`, ...args);
-};
-
-console.error = (...args: any[]) => {
-  originalError(`[${getTimestamp()}]`, ...args);
-};
-
-console.warn = (...args: any[]) => {
-  originalWarn(`[${getTimestamp()}]`, ...args);
-};
+import logger from '../utils/logger';
+const log = logger.log; const errorLog = logger.error;
 
 interface RawGameData {
   solution?: string;
@@ -60,7 +43,7 @@ class WordleBotScraper {
   private loadMoreNoGrowthAttempts = 0;
   
   constructor() {
-    console.log('[WordleBotScraper] Initialized');
+  log('[WordleBotScraper] Initialized');
     this.setupMessageListener();
     this.checkAutoStart();
   }
@@ -76,7 +59,7 @@ class WordleBotScraper {
         
         // If params are less than 30 seconds old, auto-start
         if (age < 30000) {
-          console.log('[WordleBotScraper] Auto-starting scraper...');
+          log('[WordleBotScraper] Auto-starting scraper...');
           const { mode, stopAtDate, maxIterations } = params.wordleBotScrapeParams;
           
           // Wait for page to be ready
@@ -86,7 +69,7 @@ class WordleBotScraper {
         }
       }
     } catch (error) {
-      console.error('[WordleBotScraper] Error checking auto-start:', error);
+  errorLog('[WordleBotScraper] Error checking auto-start:', error);
     }
   }
 

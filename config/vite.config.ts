@@ -19,7 +19,7 @@ export default defineConfig(({ mode }) => {
     ],
     resolve: {
       alias: {
-        '@': resolve(__dirname, './src'),
+        '@': resolve(__dirname, '../src'),
       },
     },
     build: {
@@ -28,10 +28,10 @@ export default defineConfig(({ mode }) => {
       
       // Enable tree shaking
       rollupOptions: isExtensionBuild ? {
-        input: resolve(__dirname, 'src/extension/background/background.ts'),
+        input: resolve(__dirname, '../src/extension/background/background.ts'),
         output: {
           entryFileNames: 'background.js',
-          dir: 'dist',
+          dir: '../dist',
           format: 'iife',
           name: 'background',
         },
@@ -47,7 +47,7 @@ export default defineConfig(({ mode }) => {
         },
       },
       
-      outDir: 'dist',
+      outDir: '../dist',
       sourcemap: isDevelopment,
       minify: isProduction ? 'terser' : false,
       

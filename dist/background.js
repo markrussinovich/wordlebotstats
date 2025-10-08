@@ -1,4 +1,11 @@
-// src/extension/utils/logger.ts
+var __defProp = Object.defineProperty;
+var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __publicField = (obj, key, value) => {
+  __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
+  return value;
+};
+
+// ../src/extension/utils/logger.ts
 var g = globalThis;
 function resolveEnvFlag() {
   try {
@@ -53,10 +60,10 @@ var logger = {
 };
 var logger_default = logger;
 
-// src/extension/background/extensionStorage.ts
+// ../src/extension/background/extensionStorage.ts
 var log = logger_default.log;
 var errorLog = logger_default.error;
-var ExtensionStorage = class _ExtensionStorage {
+var _ExtensionStorage = class _ExtensionStorage {
   constructor() {
   }
   static getInstance() {
@@ -225,8 +232,10 @@ var ExtensionStorage = class _ExtensionStorage {
     }
   }
 };
+__publicField(_ExtensionStorage, "instance");
+var ExtensionStorage = _ExtensionStorage;
 
-// src/extension/background/background.ts
+// ../src/extension/background/background.ts
 var log2 = logger_default.log;
 var warn = logger_default.warn;
 var errorLog2 = logger_default.error;

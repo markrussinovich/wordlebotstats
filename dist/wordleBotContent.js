@@ -1,6 +1,12 @@
-"use strict";
 var WordleBotContent = (() => {
-  // src/extension/utils/logger.ts
+  var __defProp = Object.defineProperty;
+  var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+  var __publicField = (obj, key, value) => {
+    __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
+    return value;
+  };
+
+  // ../src/extension/utils/logger.ts
   var import_meta = {};
   var g = globalThis;
   function resolveEnvFlag() {
@@ -56,21 +62,21 @@ var WordleBotContent = (() => {
   };
   var logger_default = logger;
 
-  // src/extension/content/wordleBotContent.ts
+  // ../src/extension/content/wordleBotContent.ts
   var log = logger_default.log;
   var errorLog = logger_default.error;
   var WordleBotScraper = class {
     constructor() {
-      this.isRunning = false;
-      this.shouldStop = false;
-      this.gamesProcessed = 0;
-      this.duplicatesSkipped = 0;
-      this.processedCardElements = /* @__PURE__ */ new WeakSet();
+      __publicField(this, "isRunning", false);
+      __publicField(this, "shouldStop", false);
+      __publicField(this, "gamesProcessed", 0);
+      __publicField(this, "duplicatesSkipped", 0);
+      __publicField(this, "processedCardElements", /* @__PURE__ */ new WeakSet());
       // Track processed cards to avoid re-extraction
       // Confirmed selectors from v5
-      this.GAME_CARD_SELECTOR = ".rating-container:not(.label-container)";
-      this.SHOW_MORE_BUTTON_SELECTOR = '[class*="show-more-button"]';
-      this.loadMoreNoGrowthAttempts = 0;
+      __publicField(this, "GAME_CARD_SELECTOR", ".rating-container:not(.label-container)");
+      __publicField(this, "SHOW_MORE_BUTTON_SELECTOR", '[class*="show-more-button"]');
+      __publicField(this, "loadMoreNoGrowthAttempts", 0);
       log("[WordleBotScraper] Initialized");
       this.setupMessageListener();
       this.checkAutoStart();

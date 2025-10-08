@@ -1,11 +1,17 @@
-"use strict";
 var WordleContent = (() => {
-  // src/extension/content/wordleContent.ts
+  var __defProp = Object.defineProperty;
+  var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+  var __publicField = (obj, key, value) => {
+    __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
+    return value;
+  };
+
+  // ../src/extension/content/wordleContent.ts
   var WordleIntegration = class {
     constructor() {
-      this.observer = null;
-      this.isInitialized = false;
-      this.lastProcessedDate = null;
+      __publicField(this, "observer", null);
+      __publicField(this, "isInitialized", false);
+      __publicField(this, "lastProcessedDate", null);
       this.init();
     }
     async init() {

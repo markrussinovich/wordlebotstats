@@ -14,8 +14,8 @@ export default defineConfig({
     {
       name: 'move-dashboard-html',
       closeBundle() {
-        const src = resolve(__dirname, 'dist/src/dashboard/dashboard.html');
-        const dest = resolve(__dirname, 'dist/dashboard.html');
+        const src = resolve(__dirname, '../dist/src/dashboard/dashboard.html');
+        const dest = resolve(__dirname, '../dist/dashboard.html');
         try {
           copyFileSync(src, dest);
           console.log('✓ Moved dashboard.html to dist root');
@@ -27,14 +27,14 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      '@': resolve(__dirname, './src'),
+      '@': resolve(__dirname, '../src'),
     },
   },
   build: {
     target: 'es2020',
     
     rollupOptions: {
-      input: resolve(__dirname, 'src/dashboard/dashboard.html'),
+      input: resolve(__dirname, '../src/dashboard/dashboard.html'),
       output: {
         entryFileNames: 'dashboard.js',
         assetFileNames: (assetInfo) => {
@@ -47,13 +47,13 @@ export default defineConfig({
           return 'assets/[name].[ext]';
         },
         chunkFileNames: 'chunks/[name]-[hash].js',
-        dir: 'dist',
+        dir: '../dist',
       },
       
       external: ['chrome'],
     },
     
-    outDir: 'dist',
+    outDir: '../dist',
     sourcemap: false,
     minify: 'terser',
     

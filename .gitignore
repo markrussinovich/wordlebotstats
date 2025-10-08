@@ -1,1 +1,35 @@
-node_modules
+# Dependencies
+node_modules/
+package-lock.json
+
+# Build outputs
+dist/
+*.tsbuildinfo
+
+# Artifacts and temporary files
+artifacts/
+*.log
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Temporary files
+temp_*
+*.tmp

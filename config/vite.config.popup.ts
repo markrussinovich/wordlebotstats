@@ -12,7 +12,7 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      '@': resolve(__dirname, './src'),
+      '@': resolve(__dirname, '../src'),
     },
   },
   build: {
@@ -20,20 +20,20 @@ export default defineConfig({
     
     rollupOptions: {
       input: {
-        popup: resolve(__dirname, 'src/extension/popup/popup.tsx'),
+        popup: resolve(__dirname, '../src/extension/popup/popup.tsx'),
       },
       output: {
         entryFileNames: 'popup.js',
         format: 'iife',
         // Bundle everything into one file
         inlineDynamicImports: true,
-        dir: 'dist',
+        dir: '../dist',
       },
       
       external: ['chrome'],
     },
     
-    outDir: 'dist',
+    outDir: '../dist',
     sourcemap: false,
     minify: 'terser',
     

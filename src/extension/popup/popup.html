@@ -172,14 +172,15 @@
 
     .popup-footer {
       padding: 12px 16px 8px;
-      border-top: 1px solid #e9ecef;
+      border-top: 1px solid rgba(255,255,255,0.2);
+      background: linear-gradient(135deg, #6aaa64 0%, #538d4e 100%);
     }
 
     .dashboard-link {
       width: 100%;
       padding: 10px;
       border: none;
-      background: #6aaa64;
+      background: linear-gradient(135deg, #6aaa64 0%, #538d4e 100%);
       color: white;
       border-radius: 6px;
       font-size: 14px;
@@ -189,13 +190,73 @@
     }
 
     .dashboard-link:hover {
-      background: #538d4e;
+      background: linear-gradient(135deg, #5b9456 0%, #436f41 100%);
     }
 
     .dashboard-link:disabled {
       opacity: 0.6;
       cursor: not-allowed;
       background: #9cc891;
+    }
+
+    /* Dark mode support */
+    @media (prefers-color-scheme: dark) {
+      body {
+        background-color: #1e1e1e;
+      }
+
+      .popup-container {
+        background: #1e1e1e;
+        color: #cccccc;
+      }
+
+      .popup-header {
+        background: linear-gradient(135deg, #3a5f38 0%, #2d4a2b 100%);
+      }
+
+      .popup-main {
+        background: #1e1e1e;
+      }
+
+      .loading, .no-data {
+        color: #858585;
+      }
+
+      .error {
+        color: #f48771;
+      }
+
+      .stat-card {
+        background: #252526;
+        border-color: #3e3e42;
+      }
+
+      .stat-value {
+        color: #6aaa64;
+      }
+
+      .stat-label {
+        color: #858585;
+      }
+
+      .help-text {
+        color: #858585;
+      }
+
+      .popup-footer {
+        background: linear-gradient(135deg, #3a5f38 0%, #2d4a2b 100%);
+        border-color: rgba(255,255,255,0.1);
+      }
+
+      .cta-button {
+        background: #374151;
+        color: #f9fafb;
+        border: 1px solid #4b5563;
+      }
+
+      .cta-button:hover {
+        background: #4b5563;
+      }
     }
   </style>
 </head>

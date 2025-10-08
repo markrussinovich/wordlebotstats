@@ -7,14 +7,16 @@ var WordleBotContent = (() => {
     try {
       if (typeof import_meta !== "undefined" && import_meta?.env) {
         const val = import_meta.env.VITE_DEBUG_LOGS;
-        if (val != null) return val === "true" || val === true;
+        if (val != null)
+          return val === "true" || val === true;
       }
     } catch {
     }
     try {
       if (typeof process !== "undefined" && process?.env) {
         const v = process.env.VITE_DEBUG_LOGS;
-        if (v != null) return v === "true";
+        if (v != null)
+          return v === "true";
       }
     } catch {
     }
@@ -42,7 +44,8 @@ var WordleBotContent = (() => {
   }
   function build(method) {
     return (...args) => {
-      if (enabled) console[method](prefix(), ...args);
+      if (enabled)
+        console[method](prefix(), ...args);
     };
   }
   var logger = {
@@ -505,7 +508,8 @@ var WordleBotContent = (() => {
       }
       const fallbackCandidates = Array.from(card.querySelectorAll('[class*="board"], [data-board], [data-testid], [role="grid"]'));
       for (const candidate of fallbackCandidates) {
-        if (candidate === card) continue;
+        if (candidate === card)
+          continue;
         const tileCount = candidate.querySelectorAll("[data-state], [data-status], rect, canvas").length;
         if (tileCount >= 10) {
           return candidate;
@@ -987,7 +991,8 @@ var WordleBotContent = (() => {
       const candidates = Array.from(document.querySelectorAll('button, div[role="button"], a[role="button"]'));
       for (const candidate of candidates) {
         const text = candidate.textContent?.toLowerCase().trim();
-        if (!text) continue;
+        if (!text)
+          continue;
         if (text.includes("show more") && text.includes("wordle")) {
           return candidate;
         }

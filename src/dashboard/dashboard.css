@@ -72,7 +72,6 @@ body {
   padding: 24px 18px;
   background: #ffffff;
   border-radius: 14px;
-  border: 1px solid #d3d6da;
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.06);
 }
 
@@ -335,13 +334,12 @@ body {
   display: inline-flex;
   flex-direction: column;
   gap: 4px;
-  margin: 4px 0 12px 0;
+  margin: 4px auto 12px auto;
   padding: 5px;
   background: #ffffff;
   border-radius: 6px;
   border: 1px solid #d3d6da;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-  align-self: center;
 }
 
 .tooltip-grid-row {
@@ -504,8 +502,8 @@ body {
 /* Dark Mode Support */
 @media (prefers-color-scheme: dark) {
   body {
-    background: #1f2937;
-    color: #f9fafb;
+    background: #1e1e1e;
+    color: #cccccc;
   }
 
   .dashboard-header h1 {
@@ -513,39 +511,43 @@ body {
   }
 
   .dashboard-header .subtitle {
-    color: #9ca3af;
+    color: #858585;
+  }
+
+  .dashboard-container {
+    background: #1e1e1e;
   }
 
   .stat-item {
-    background: #2f3a45;
-    border-color: #4b5563;
+    background: #252526;
+    border-color: #3e3e42;
   }
 
   .stat-label {
-    color: #9ca3af;
+    color: #858585;
   }
 
   .stat-value,
   .stat-value-small {
-    color: #f9fafb;
+    color: #cccccc;
   }
 
   .chart-section {
-    background: #374151;
-    border-color: #4b5563;
+    background: #252526;
+    border-color: #3e3e42;
   }
 
   .section-title {
-    color: #f9fafb;
+    color: #cccccc;
   }
 
   .section-subtitle {
-    color: #9ca3af;
+    color: #858585;
   }
 
   .chart-stats {
-    background: #4f814c;
-    border-color: #436f41;
+    background: #3a5f38;
+    border-color: #2d4a2b;
   }
 
   .chart-stat-label {
@@ -553,36 +555,36 @@ body {
   }
 
   .chart-stat-value {
-    color: #f9fafb;
+    color: #ffffff;
   }
 
   .chart-tooltip {
-    background: #374151;
-    border-color: #4b5563;
+    background: #252526;
+    border-color: #3e3e42;
   }
 
   .tooltip-date {
-    color: #f9fafb;
+    color: #cccccc;
   }
 
   .tooltip-game {
-    color: #9ca3af;
+    color: #858585;
   }
 
   .chart-legend-custom {
-    border-color: #4b5563;
+    border-color: #3e3e42;
   }
 
   .legend-item {
-    color: #9ca3af;
+    color: #858585;
   }
 
   .dashboard-empty h2 {
-    color: #f9fafb;
+    color: #cccccc;
   }
 
   .dashboard-empty p {
-    color: #9ca3af;
+    color: #858585;
   }
 }
 

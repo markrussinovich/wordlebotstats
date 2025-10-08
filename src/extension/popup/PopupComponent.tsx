@@ -8,6 +8,25 @@ import {
   WordleBotScrapeStatusResponse 
 } from '@/types/messagingTypes';
 
+// Override console methods to add timestamps
+const originalLog = console.log;
+const originalError = console.error;
+const originalWarn = console.warn;
+
+const getTimestamp = () => new Date().toISOString();
+
+console.log = (...args: any[]) => {
+  originalLog(`[${getTimestamp()}]`, ...args);
+};
+
+console.error = (...args: any[]) => {
+  originalError(`[${getTimestamp()}]`, ...args);
+};
+
+console.warn = (...args: any[]) => {
+  originalWarn(`[${getTimestamp()}]`, ...args);
+};
+
 interface PopupProps {}
 
 interface ScraperStatus {
@@ -178,22 +197,43 @@ const Popup: React.FC<PopupProps> = () => {
   // Listen for scraper messages
   useEffect(() => {
     const formatProgressMessage = (progressMessage: any): string => {
-      if (progressMessage.status === 'processing') {
-        return 'Processing imported games...';
+      const status = progressMessage.status;
+      const gamesFound = progressMessage.gamesFound ?? 0;
+      const gamesProcessed = progressMessage.gamesProcessed ?? 0;
+
+      switch (status) {
+        case 'ready':
+          return gamesFound > 0
+            ? `Found ${gamesFound} game${gamesFound === 1 ? '' : 's'}. Import starting...`
+            : 'Import starting...';
+        case 'processing': {
+          const total = gamesFound || gamesProcessed;
+          if (total > 0) {
+            return `Importing ${gamesProcessed}/${total} game${total === 1 ? '' : 's'}...`;
+          }
+          return `Importing ${gamesProcessed} game${gamesProcessed === 1 ? '' : 's'}...`;
+        }
+        case 'processed':
+          return gamesFound > 0
+            ? `Processed ${gamesFound} game${gamesFound === 1 ? '' : 's'}. Finalizing...`
+            : 'Processed games. Finalizing...';
+        case 'loading':
+          return gamesFound > 0
+            ? `Importing ${gamesFound} game${gamesFound === 1 ? '' : 's'}...`
+            : 'Importing games...';
+        default:
+          return 'Importing games...';
       }
-      const count = progressMessage.gamesFound ?? 0;
-      if (count > 0) {
-        return `Importing ${count} game${count === 1 ? '' : 's'}...`;
-      }
-      return 'Importing games...';
     };
 
     const messageListener = (message: any) => {
-      console.log('[POPUP DEBUG] Received message:', message);
+      console.log('[POPUP DEBUG] =====> MESSAGE RECEIVED:', message.type, message);
       switch (message.type) {
         case MessageType.WORDLE_BOT_SCRAPE_STATUS_UPDATED:
+          console.log('[POPUP DEBUG] =====> STATUS_UPDATED message, applying snapshot:', message.status);
           if (message.status) {
             applyScrapeSnapshot(message.status as WordleBotScrapeStatusSnapshot);
+            console.log('[POPUP DEBUG] =====> Snapshot applied, new status:', message.status);
           }
           break;
 
@@ -260,8 +300,12 @@ const Popup: React.FC<PopupProps> = () => {
       }
     };
 
+    console.log('[POPUP DEBUG] =====> Setting up message listener');
     chrome.runtime.onMessage.addListener(messageListener);
-    return () => chrome.runtime.onMessage.removeListener(messageListener);
+    return () => {
+      console.log('[POPUP DEBUG] =====> Removing message listener');
+      chrome.runtime.onMessage.removeListener(messageListener);
+    };
   }, [applyScrapeSnapshot, loadStatistics, resetScraperStatus, selectedTimeFrame]);
 
   useEffect(() => {
@@ -273,7 +317,9 @@ const Popup: React.FC<PopupProps> = () => {
 
     chrome.runtime.sendMessage({ type: MessageType.GET_WORDLE_BOT_SCRAPE_STATUS })
       .then((response: WordleBotScrapeStatusResponse) => {
+        console.log('[POPUP DEBUG] Received scrape status response:', response);
         if (!cancelled && response?.success && response.status) {
+          console.log('[POPUP DEBUG] Applying scrape snapshot:', response.status);
           applyScrapeSnapshot(response.status);
         }
       })

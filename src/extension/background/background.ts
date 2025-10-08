@@ -15,6 +15,25 @@ import {
 import { GameResult } from '@/types/gameTypes';
 import { ExtensionStorage } from './extensionStorage';
 
+// Override console methods to add timestamps
+const originalLog = console.log;
+const originalError = console.error;
+const originalWarn = console.warn;
+
+const getTimestamp = () => new Date().toISOString();
+
+console.log = (...args: any[]) => {
+  originalLog(`[${getTimestamp()}]`, ...args);
+};
+
+console.error = (...args: any[]) => {
+  originalError(`[${getTimestamp()}]`, ...args);
+};
+
+console.warn = (...args: any[]) => {
+  originalWarn(`[${getTimestamp()}]`, ...args);
+};
+
 // Initialize storage service
 let storageService: ExtensionStorage;
 
@@ -53,11 +72,14 @@ async function updateScrapeStatus(update: ScrapeStatusUpdate): Promise<void> {
     console.error('[Background] Failed to persist scrape status:', storageError);
   }
 
+  console.log('[Background] =====> Sending WORDLE_BOT_SCRAPE_STATUS_UPDATED message:', currentScrapeStatus);
   chrome.runtime.sendMessage({
     type: MessageType.WORDLE_BOT_SCRAPE_STATUS_UPDATED,
     status: currentScrapeStatus
-  }).catch(() => {
-    // Popup/dashboard might not be listening; that's okay.
+  }).then(() => {
+    console.log('[Background] =====> STATUS_UPDATED message sent successfully');
+  }).catch((err) => {
+    console.log('[Background] =====> STATUS_UPDATED message failed:', err);
   });
 }
 
@@ -202,6 +224,7 @@ async function handleExtensionMessage(
       return handleStartWordleBotScrape(message);
       
     case 'BULK_IMPORT_GAMES':
+      console.log(`[Background] =====> Received BULK_IMPORT_GAMES message`);
       return handleBulkImportGames(message.games);
       
     case MessageType.WORDLE_BOT_SCRAPE_PROGRESS:
@@ -438,15 +461,20 @@ async function handleStartWordleBotScrape(message: any): Promise<void | { succes
       statusMessage: 'Failed to start scrape',
       error: errorMessage
     });
+    // TEMPORARILY DISABLED FOR DEBUGGING
+    console.log('[Background] Tab close on start error DISABLED for debugging - tab will remain open');
+    /*
     if (scraperTabId) {
       chrome.tabs.remove(scraperTabId).catch(() => {});
       scraperTabId = null;
     }
+    */
     throw error;
   }
 }
 
 async function handleGetWordleBotScrapeStatus(): Promise<WordleBotScrapeStatusResponse> {
+  console.log('[Background] GET_WORDLE_BOT_SCRAPE_STATUS requested, returning:', currentScrapeStatus);
   return {
     success: true,
     status: {
@@ -457,15 +485,20 @@ async function handleGetWordleBotScrapeStatus(): Promise<WordleBotScrapeStatusRe
 
 async function handleBulkImportGames(games: GameResult[]): Promise<{ success: boolean; imported: number; duplicates: number; errors: number }> {
   try {
-    console.log(`[Background] Bulk importing ${games.length} games`);
+    console.log(`[Background] =====> handleBulkImportGames called with ${games.length} games`);
+    const startTime = performance.now();
     
     if (!storageService) {
+      console.log(`[Background] =====> Initializing storage service...`);
       storageService = ExtensionStorage.getInstance();
       await storageService.initialize();
+      console.log(`[Background] =====> Storage service initialized`);
     }
     
+    console.log(`[Background] =====> Calling storageService.bulkImportGames...`);
     const result = await storageService.bulkImportGames(games);
-    console.log('[Background] Bulk import complete:', result);
+    const duration = (performance.now() - startTime).toFixed(0);
+    console.log(`[Background] =====> Bulk import complete in ${duration}ms:`, result);
     
     // Update badge
     const allGames = await storageService.getAllGames();
@@ -482,11 +515,20 @@ async function handleWordleBotScrapeProgress(message: any): Promise<{ success: b
   console.log('[Background] Scrape progress:', message);
 
   const progressStatusMessage = (() => {
+    const gamesFound = message.gamesFound ?? currentScrapeStatus.gamesFound ?? 0;
+    const gamesProcessed = message.gamesProcessed ?? currentScrapeStatus.gamesProcessed ?? 0;
+
     switch (message.status) {
+      case 'ready':
+        return gamesFound > 0
+          ? `Found ${gamesFound} game${gamesFound === 1 ? '' : 's'}. Preparing import...`
+          : 'Preparing import...';
       case 'processing':
-        return 'Processing imported games';
+        return `Processing games (${gamesProcessed}/${gamesFound})`;
+      case 'processed':
+        return 'All games processed. Finalizing...';
       case 'loading':
-        return `Importing ${message.gamesFound ?? 0} games...`;
+        return `Importing ${gamesFound} game${gamesFound === 1 ? '' : 's'}...`;
       default:
         return 'Importing games';
     }
@@ -529,6 +571,9 @@ async function handleWordleBotScrapeComplete(message: any): Promise<{ success: b
   }
   
   // Close the scraper tab after a short delay
+  // TEMPORARILY DISABLED FOR DEBUGGING
+  console.log('[Background] Tab close DISABLED for debugging - tab will remain open');
+  /*
   if (scraperTabId) {
     setTimeout(() => {
       if (scraperTabId) {
@@ -537,6 +582,7 @@ async function handleWordleBotScrapeComplete(message: any): Promise<{ success: b
       }
     }, 2000);
   }
+  */
   
   await updateScrapeStatus({
     phase: 'complete',
@@ -552,7 +598,7 @@ async function handleWordleBotScrapeComplete(message: any): Promise<{ success: b
     dateRange: message.dateRange ?? currentScrapeStatus.dateRange
   });
 
-  // Forward to popup/dashboard
+  // Forward to popup/dashboard (restored from working version)
   console.log('[Background] Forwarding COMPLETE message to popup');
   try {
     await chrome.runtime.sendMessage(message);
@@ -598,10 +644,14 @@ async function handleWordleBotScrapeError(message: any): Promise<{ success: bool
   }
   
   // Close the scraper tab
+  // TEMPORARILY DISABLED FOR DEBUGGING
+  console.log('[Background] Tab close on error DISABLED for debugging - tab will remain open');
+  /*
   if (scraperTabId) {
     chrome.tabs.remove(scraperTabId).catch(() => {});
     scraperTabId = null;
   }
+  */
   
   await updateScrapeStatus({
     phase: 'error',

@@ -3,6 +3,25 @@
 
 import { GameResult } from '@/types/gameTypes';
 
+// Override console methods to add timestamps
+const originalLog = console.log;
+const originalError = console.error;
+const originalWarn = console.warn;
+
+const getTimestamp = () => new Date().toISOString();
+
+console.log = (...args: any[]) => {
+  originalLog(`[${getTimestamp()}]`, ...args);
+};
+
+console.error = (...args: any[]) => {
+  originalError(`[${getTimestamp()}]`, ...args);
+};
+
+console.warn = (...args: any[]) => {
+  originalWarn(`[${getTimestamp()}]`, ...args);
+};
+
 export class ExtensionStorage {
   private static instance: ExtensionStorage;
 
@@ -53,12 +72,17 @@ export class ExtensionStorage {
     duplicates: number;
     errors: number;
   }> {
+    console.log(`[ExtensionStorage] =====> bulkImportGames called with ${newGames.length} games`);
     let imported = 0;
     let duplicates = 0;
     let errors = 0;
 
     try {
+      console.log(`[ExtensionStorage] =====> Reading existing games...`);
+      const startRead = performance.now();
       const existingGames = await this.getAllGames();
+      console.log(`[ExtensionStorage] =====> Read ${existingGames.length} existing games in ${(performance.now() - startRead).toFixed(0)}ms`);
+      
       const gameMap = new Map<string, GameResult>();
       
       // Add existing games to map
@@ -66,6 +90,7 @@ export class ExtensionStorage {
         gameMap.set(game.date, game);
       });
       
+      console.log(`[ExtensionStorage] =====> Processing ${newGames.length} new games...`);
       // Process new games
       for (const game of newGames) {
         try {
@@ -92,14 +117,28 @@ export class ExtensionStorage {
       }
       
       // Save all games
+      console.log(`[ExtensionStorage] =====> Writing ${gameMap.size} total games to storage...`);
+      const startWrite = performance.now();
       const allGames = Array.from(gameMap.values());
-      await chrome.storage.local.set({ games: allGames });
+      
+      // OPTIMIZATION: Remove board images before storage to speed up writes
+      // Board images are large base64 strings that slow down chrome.storage.local.set
+      console.log(`[ExtensionStorage] =====> Stripping board images from ${allGames.length} games...`);
+      const lightweightGames = allGames.map(g => ({
+        ...g,
+        boardImageUrl: undefined  // Strip large base64 data URLs
+      }));
+      
+      console.log(`[ExtensionStorage] =====> Calling chrome.storage.local.set...`);
+      await chrome.storage.local.set({ games: lightweightGames });
+      console.log(`[ExtensionStorage] =====> Write completed in ${(performance.now() - startWrite).toFixed(0)}ms`);
       
     } catch (error) {
       console.error('[ExtensionStorage] Bulk import failed:', error);
       throw error;
     }
 
+    console.log(`[ExtensionStorage] =====> bulkImportGames complete: imported=${imported}, duplicates=${duplicates}, errors=${errors}`);
     return { imported, duplicates, errors };
   }
 

@@ -1,4 +1,17 @@
 // src/extension/background/extensionStorage.ts
+var originalLog = console.log;
+var originalError = console.error;
+var originalWarn = console.warn;
+var getTimestamp = () => (/* @__PURE__ */ new Date()).toISOString();
+console.log = (...args) => {
+  originalLog(`[${getTimestamp()}]`, ...args);
+};
+console.error = (...args) => {
+  originalError(`[${getTimestamp()}]`, ...args);
+};
+console.warn = (...args) => {
+  originalWarn(`[${getTimestamp()}]`, ...args);
+};
 var ExtensionStorage = class _ExtensionStorage {
   constructor() {
   }
@@ -36,15 +49,20 @@ var ExtensionStorage = class _ExtensionStorage {
     }
   }
   async bulkImportGames(newGames) {
+    console.log(`[ExtensionStorage] =====> bulkImportGames called with ${newGames.length} games`);
     let imported = 0;
     let duplicates = 0;
     let errors = 0;
     try {
+      console.log(`[ExtensionStorage] =====> Reading existing games...`);
+      const startRead = performance.now();
       const existingGames = await this.getAllGames();
+      console.log(`[ExtensionStorage] =====> Read ${existingGames.length} existing games in ${(performance.now() - startRead).toFixed(0)}ms`);
       const gameMap = /* @__PURE__ */ new Map();
       existingGames.forEach((game) => {
         gameMap.set(game.date, game);
       });
+      console.log(`[ExtensionStorage] =====> Processing ${newGames.length} new games...`);
       for (const game of newGames) {
         try {
           const existing = gameMap.get(game.date);
@@ -65,12 +83,23 @@ var ExtensionStorage = class _ExtensionStorage {
           errors++;
         }
       }
+      console.log(`[ExtensionStorage] =====> Writing ${gameMap.size} total games to storage...`);
+      const startWrite = performance.now();
       const allGames = Array.from(gameMap.values());
-      await chrome.storage.local.set({ games: allGames });
+      console.log(`[ExtensionStorage] =====> Stripping board images from ${allGames.length} games...`);
+      const lightweightGames = allGames.map((g) => ({
+        ...g,
+        boardImageUrl: void 0
+        // Strip large base64 data URLs
+      }));
+      console.log(`[ExtensionStorage] =====> Calling chrome.storage.local.set...`);
+      await chrome.storage.local.set({ games: lightweightGames });
+      console.log(`[ExtensionStorage] =====> Write completed in ${(performance.now() - startWrite).toFixed(0)}ms`);
     } catch (error) {
       console.error("[ExtensionStorage] Bulk import failed:", error);
       throw error;
     }
+    console.log(`[ExtensionStorage] =====> bulkImportGames complete: imported=${imported}, duplicates=${duplicates}, errors=${errors}`);
     return { imported, duplicates, errors };
   }
   shouldReplaceExisting(existing, newGame) {
@@ -147,6 +176,19 @@ var ExtensionStorage = class _ExtensionStorage {
 };
 
 // src/extension/background/background.ts
+var originalLog2 = console.log;
+var originalError2 = console.error;
+var originalWarn2 = console.warn;
+var getTimestamp2 = () => (/* @__PURE__ */ new Date()).toISOString();
+console.log = (...args) => {
+  originalLog2(`[${getTimestamp2()}]`, ...args);
+};
+console.error = (...args) => {
+  originalError2(`[${getTimestamp2()}]`, ...args);
+};
+console.warn = (...args) => {
+  originalWarn2(`[${getTimestamp2()}]`, ...args);
+};
 var storageService;
 var SCRAPE_STATUS_STORAGE_KEY = "wordleBotScrapeStatus";
 var currentScrapeStatus = {
@@ -175,10 +217,14 @@ async function updateScrapeStatus(update) {
   } catch (storageError) {
     console.error("[Background] Failed to persist scrape status:", storageError);
   }
+  console.log("[Background] =====> Sending WORDLE_BOT_SCRAPE_STATUS_UPDATED message:", currentScrapeStatus);
   chrome.runtime.sendMessage({
     type: "WORDLE_BOT_SCRAPE_STATUS_UPDATED" /* WORDLE_BOT_SCRAPE_STATUS_UPDATED */,
     status: currentScrapeStatus
-  }).catch(() => {
+  }).then(() => {
+    console.log("[Background] =====> STATUS_UPDATED message sent successfully");
+  }).catch((err) => {
+    console.log("[Background] =====> STATUS_UPDATED message failed:", err);
   });
 }
 async function loadInitialScrapeStatus() {
@@ -282,6 +328,7 @@ async function handleExtensionMessage(message, _sender) {
     case "START_WORDLE_BOT_SCRAPE" /* START_WORDLE_BOT_SCRAPE */:
       return handleStartWordleBotScrape(message);
     case "BULK_IMPORT_GAMES":
+      console.log(`[Background] =====> Received BULK_IMPORT_GAMES message`);
       return handleBulkImportGames(message.games);
     case "WORDLE_BOT_SCRAPE_PROGRESS" /* WORDLE_BOT_SCRAPE_PROGRESS */:
       return handleWordleBotScrapeProgress(message);
@@ -462,15 +509,12 @@ async function handleStartWordleBotScrape(message) {
       statusMessage: "Failed to start scrape",
       error: errorMessage
     });
-    if (scraperTabId) {
-      chrome.tabs.remove(scraperTabId).catch(() => {
-      });
-      scraperTabId = null;
-    }
+    console.log("[Background] Tab close on start error DISABLED for debugging - tab will remain open");
     throw error;
   }
 }
 async function handleGetWordleBotScrapeStatus() {
+  console.log("[Background] GET_WORDLE_BOT_SCRAPE_STATUS requested, returning:", currentScrapeStatus);
   return {
     success: true,
     status: {
@@ -480,13 +524,18 @@ async function handleGetWordleBotScrapeStatus() {
 }
 async function handleBulkImportGames(games) {
   try {
-    console.log(`[Background] Bulk importing ${games.length} games`);
+    console.log(`[Background] =====> handleBulkImportGames called with ${games.length} games`);
+    const startTime = performance.now();
     if (!storageService) {
+      console.log(`[Background] =====> Initializing storage service...`);
       storageService = ExtensionStorage.getInstance();
       await storageService.initialize();
+      console.log(`[Background] =====> Storage service initialized`);
     }
+    console.log(`[Background] =====> Calling storageService.bulkImportGames...`);
     const result = await storageService.bulkImportGames(games);
-    console.log("[Background] Bulk import complete:", result);
+    const duration = (performance.now() - startTime).toFixed(0);
+    console.log(`[Background] =====> Bulk import complete in ${duration}ms:`, result);
     const allGames = await storageService.getAllGames();
     await updateExtensionBadge(allGames);
     return { success: true, ...result };
@@ -498,11 +547,17 @@ async function handleBulkImportGames(games) {
 async function handleWordleBotScrapeProgress(message) {
   console.log("[Background] Scrape progress:", message);
   const progressStatusMessage = (() => {
+    const gamesFound = message.gamesFound ?? currentScrapeStatus.gamesFound ?? 0;
+    const gamesProcessed = message.gamesProcessed ?? currentScrapeStatus.gamesProcessed ?? 0;
     switch (message.status) {
+      case "ready":
+        return gamesFound > 0 ? `Found ${gamesFound} game${gamesFound === 1 ? "" : "s"}. Preparing import...` : "Preparing import...";
       case "processing":
-        return "Processing imported games";
+        return `Processing games (${gamesProcessed}/${gamesFound})`;
+      case "processed":
+        return "All games processed. Finalizing...";
       case "loading":
-        return `Importing ${message.gamesFound ?? 0} games...`;
+        return `Importing ${gamesFound} game${gamesFound === 1 ? "" : "s"}...`;
       default:
         return "Importing games";
     }
@@ -535,15 +590,7 @@ async function handleWordleBotScrapeComplete(message) {
   } catch (metadataError) {
     console.error("[Background] Failed to update scraper metadata after completion:", metadataError);
   }
-  if (scraperTabId) {
-    setTimeout(() => {
-      if (scraperTabId) {
-        chrome.tabs.remove(scraperTabId).catch(() => {
-        });
-        scraperTabId = null;
-      }
-    }, 2e3);
-  }
+  console.log("[Background] Tab close DISABLED for debugging - tab will remain open");
   await updateScrapeStatus({
     phase: "complete",
     gamesFound: message.totalGames ?? currentScrapeStatus.gamesFound,
@@ -592,11 +639,7 @@ async function handleWordleBotScrapeError(message) {
   } catch (metadataError) {
     console.error("[Background] Failed to update scraper metadata after error:", metadataError);
   }
-  if (scraperTabId) {
-    chrome.tabs.remove(scraperTabId).catch(() => {
-    });
-    scraperTabId = null;
-  }
+  console.log("[Background] Tab close on error DISABLED for debugging - tab will remain open");
   await updateScrapeStatus({
     phase: "error",
     statusMessage: message.error ? `Scrape failed: ${message.error}` : "Scrape failed",

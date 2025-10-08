@@ -39,6 +39,8 @@ interface ChartDataPoint {
   gameNumber: number | undefined;
   displayDate: string;
   runningAverage?: number;
+  runningSkillAvg?: number;
+  runningLuckAvg?: number;
   solution?: string;
   boardImageUrl?: string;
   guessPattern?: GuessResult[][];
@@ -259,20 +261,35 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) =
       filledData.push(...data);
     }
 
-    // Calculate running average for each point in the full dataset
-    const dataWithRunningAvg = filledData.map((point, index) => {
-      // Get all games up to and including this point
-      const gamesUpToHere = filledData.slice(0, index + 1);
-  const wonGames = gamesUpToHere.filter(g => g.won === true && g.turns > 0);
-      
-      const runningAverage = wonGames.length > 0
-        ? wonGames.reduce((sum, g) => sum + g.turns, 0) / wonGames.length
-        : undefined;
-      
-      return {
-        ...point,
-        runningAverage
-      };
+    // Calculate cumulative running averages (turns, skill, luck)
+    let sumTurns = 0;
+    let countTurns = 0;
+    let sumSkill = 0; let countSkill = 0;
+    let sumLuck = 0; let countLuck = 0;
+
+    const dataWithRunningAvg = filledData.map((point) => {
+      // Turns (won games only with >0 turns)
+      if (point.won === true && point.turns > 0) {
+        sumTurns += point.turns;
+        countTurns += 1;
+      }
+      const runningAverage = countTurns > 0 ? sumTurns / countTurns : undefined;
+
+      // Skill score
+      if (typeof point.skillScore === 'number') {
+        sumSkill += point.skillScore;
+        countSkill += 1;
+      }
+      const runningSkillAvg = countSkill > 0 ? sumSkill / countSkill : undefined;
+
+      // Luck score
+      if (typeof point.luckScore === 'number') {
+        sumLuck += point.luckScore;
+        countLuck += 1;
+      }
+      const runningLuckAvg = countLuck > 0 ? sumLuck / countLuck : undefined;
+
+      return { ...point, runningAverage, runningSkillAvg, runningLuckAvg };
     });
 
     return dataWithRunningAvg;
@@ -528,23 +545,56 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) =
           />
           
           <YAxis
+            yAxisId="turns"
             domain={[0, 8]}
             ticks={[1, 2, 3, 4, 5, 6, 7]}
             stroke="#6b7280"
             style={{ fontSize: '12px' }}
             label={{ value: 'Turns', angle: -90, position: 'insideLeft' }}
           />
+          <YAxis
+            yAxisId="score"
+            orientation="right"
+            domain={[0, 100]}
+            ticks={[0,20,40,60,80,100]}
+            stroke="#64748b"
+            style={{ fontSize: '12px' }}
+            label={{ value: 'Score', angle: 90, position: 'insideRight' }}
+          />
 
           <Tooltip content={<CustomTooltip />} />
 
-          {/* Running average line */}
+          {/* Running averages */}
           <Line
             type="monotone"
             dataKey="runningAverage"
             stroke="#c9b458"
-            strokeWidth={2}
+            strokeWidth={3}
             dot={false}
-            name="Running Average"
+            name="Avg Turns"
+            yAxisId="turns"
+            connectNulls
+          />
+          <Line
+            type="monotone"
+            dataKey="runningSkillAvg"
+            stroke="rgba(29,78,216,0.55)"
+            strokeWidth={2}
+            strokeOpacity={0.75}
+            dot={false}
+            name="Avg Skill"
+            yAxisId="score"
+            connectNulls
+          />
+          <Line
+            type="monotone"
+            dataKey="runningLuckAvg"
+            stroke="rgba(147,51,234,0.55)"
+            strokeWidth={2}
+            strokeOpacity={0.75}
+            dot={false}
+            name="Avg Luck"
+            yAxisId="score"
             connectNulls
           />
 
@@ -554,6 +604,7 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) =
             dataKey="turns"
             fill="#6aaa64"
             shape={<CustomDot />}
+            yAxisId="turns"
           />
 
           {/* Brush for range selection */}
@@ -578,7 +629,15 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) =
         </div>
         <div className="legend-item">
           <span className="legend-line legend-line-avg"></span>
-          <span>Running Average</span>
+          <span>Avg Turns</span>
+        </div>
+        <div className="legend-item">
+          <span className="legend-line legend-line-skill"></span>
+          <span>Avg Skill</span>
+        </div>
+        <div className="legend-item">
+          <span className="legend-line legend-line-luck"></span>
+          <span>Avg Luck</span>
         </div>
       </div>
     </div>

@@ -461,14 +461,11 @@ async function handleStartWordleBotScrape(message: any): Promise<void | { succes
       statusMessage: 'Failed to start scrape',
       error: errorMessage
     });
-    // TEMPORARILY DISABLED FOR DEBUGGING
-    console.log('[Background] Tab close on start error DISABLED for debugging - tab will remain open');
-    /*
+    // Close the scraper tab on error
     if (scraperTabId) {
       chrome.tabs.remove(scraperTabId).catch(() => {});
       scraperTabId = null;
     }
-    */
     throw error;
   }
 }
@@ -570,10 +567,7 @@ async function handleWordleBotScrapeComplete(message: any): Promise<{ success: b
     console.error('[Background] Failed to update scraper metadata after completion:', metadataError);
   }
   
-  // Close the scraper tab after a short delay
-  // TEMPORARILY DISABLED FOR DEBUGGING
-  console.log('[Background] Tab close DISABLED for debugging - tab will remain open');
-  /*
+  // Close the scraper tab after a short delay to allow user to see completion
   if (scraperTabId) {
     setTimeout(() => {
       if (scraperTabId) {
@@ -582,7 +576,6 @@ async function handleWordleBotScrapeComplete(message: any): Promise<{ success: b
       }
     }, 2000);
   }
-  */
   
   await updateScrapeStatus({
     phase: 'complete',
@@ -643,15 +636,11 @@ async function handleWordleBotScrapeError(message: any): Promise<{ success: bool
     console.error('[Background] Failed to update scraper metadata after error:', metadataError);
   }
   
-  // Close the scraper tab
-  // TEMPORARILY DISABLED FOR DEBUGGING
-  console.log('[Background] Tab close on error DISABLED for debugging - tab will remain open');
-  /*
+  // Close the scraper tab on error
   if (scraperTabId) {
     chrome.tabs.remove(scraperTabId).catch(() => {});
     scraperTabId = null;
   }
-  */
   
   await updateScrapeStatus({
     phase: 'error',

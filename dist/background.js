@@ -509,7 +509,11 @@ async function handleStartWordleBotScrape(message) {
       statusMessage: "Failed to start scrape",
       error: errorMessage
     });
-    console.log("[Background] Tab close on start error DISABLED for debugging - tab will remain open");
+    if (scraperTabId) {
+      chrome.tabs.remove(scraperTabId).catch(() => {
+      });
+      scraperTabId = null;
+    }
     throw error;
   }
 }
@@ -590,7 +594,15 @@ async function handleWordleBotScrapeComplete(message) {
   } catch (metadataError) {
     console.error("[Background] Failed to update scraper metadata after completion:", metadataError);
   }
-  console.log("[Background] Tab close DISABLED for debugging - tab will remain open");
+  if (scraperTabId) {
+    setTimeout(() => {
+      if (scraperTabId) {
+        chrome.tabs.remove(scraperTabId).catch(() => {
+        });
+        scraperTabId = null;
+      }
+    }, 2e3);
+  }
   await updateScrapeStatus({
     phase: "complete",
     gamesFound: message.totalGames ?? currentScrapeStatus.gamesFound,
@@ -639,7 +651,11 @@ async function handleWordleBotScrapeError(message) {
   } catch (metadataError) {
     console.error("[Background] Failed to update scraper metadata after error:", metadataError);
   }
-  console.log("[Background] Tab close on error DISABLED for debugging - tab will remain open");
+  if (scraperTabId) {
+    chrome.tabs.remove(scraperTabId).catch(() => {
+    });
+    scraperTabId = null;
+  }
   await updateScrapeStatus({
     phase: "error",
     statusMessage: message.error ? `Scrape failed: ${message.error}` : "Scrape failed",

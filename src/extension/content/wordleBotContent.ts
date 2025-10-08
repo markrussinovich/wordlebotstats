@@ -195,7 +195,7 @@ class WordleBotScraper {
     }
 
     // Wait for page content to load
-  await this.delay(900);
+  await this.delay(300);
 
     // Send scanning message on first iteration
     if (iteration === 0) {
@@ -209,7 +209,7 @@ class WordleBotScraper {
     if (games.length === 0 && iteration === 0) {
       // No games on first iteration - might need more time
       console.log('[WordleBotScraper] No games found on first attempt, retrying...');
-  await this.delay(1200);
+  await this.delay(500);
       return this.scrapeWithRetry(stopAtDate, maxIterations, iteration, allGames);
     }
 
@@ -258,7 +258,7 @@ class WordleBotScraper {
     if (loadedMore) {
       // Wait for new content, then scrape again
       console.log(`[WordleBotScraper] Iteration ${iteration}: Continuing to next iteration`);
-      await this.delay(900);
+      await this.delay(300);
       return this.scrapeWithRetry(stopAtDate, maxIterations, iteration + 1, allGames);
     } else {
       // No more games to load
@@ -303,8 +303,8 @@ class WordleBotScraper {
           break;
         }
         
-        // Wait 1 second before retrying
-  await this.delay(600);
+        // Wait before retrying
+  await this.delay(300);
       }
       
       if (compareButton) {
@@ -340,7 +340,7 @@ class WordleBotScraper {
             bubbles: true
           });
           document.dispatchEvent(rightArrowEvent);
-          await this.delay(450);
+          await this.delay(200);
         }
         
         // Check if we reached game history
@@ -356,7 +356,7 @@ class WordleBotScraper {
         if (arrowButtons.length > 0) {
           for (let i = 0; i < 2; i++) {
             (arrowButtons[0] as HTMLElement).click();
-            await this.delay(450);
+            await this.delay(200);
           }
           
           const cardsAfterArrow = await this.waitForSelector(this.GAME_CARD_SELECTOR, 1200);
@@ -1155,7 +1155,7 @@ class WordleBotScraper {
 
     (button as HTMLElement).click();
 
-    await this.delay(150);
+    await this.delay(50);
 
     const afterCount = await this.waitForCardIncrease(beforeCount, 6000, 250);
     const newCards = afterCount - beforeCount;
@@ -1171,7 +1171,7 @@ class WordleBotScraper {
 
     if (stillHasButton && this.loadMoreNoGrowthAttempts < 3) {
       console.log('[WordleBotScraper] No new cards detected yet; polling again while button remains visible.');
-      await this.delay(400);
+      await this.delay(200);
       return true;
     }
 
@@ -1204,7 +1204,7 @@ class WordleBotScraper {
       if (document.querySelector(selector)) {
         return true;
       }
-      await this.delay(200);
+      await this.delay(100);
     }
     return !!document.querySelector(selector);
   }

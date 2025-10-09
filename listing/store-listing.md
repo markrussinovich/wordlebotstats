@@ -4,17 +4,17 @@
 Wordle Stat Explorer
 
 ## Summary (≤132 characters)
-Import your Wordle games and instantly compare win rate, streaks, and WordleBot insights in one clean dashboard.
+Import your Wordle games and view win rate, streaks, guesses, and WordleBot skill/luck scores in one clean dashboard.
 
 ## Description
-Turn your daily Wordle habit into actionable insight. Wordle Stat Explorer automatically imports your game history (including WordleBot grades when available) and presents it in an elegant dashboard so you can spot trends, celebrate streaks, and understand where you can improve. Whether you want to know how you stack up to the national average or simply track your progress week to week, this extension keeps every stat within reach.
+Turn your daily Wordle habit into actionable insight. Wordle Stat Explorer automatically imports your game history (including WordleBot skill and luck scores) and presents it in an elegant dashboard so you can spot trends, celebrate streaks, and track your progress over time. View detailed performance metrics and analyze your solving patterns week to week.
 
 ### Key features
 
 - **One-click import**: Automatically grabs your latest games from WordleBot without leaving the puzzle page.
 - **Comprehensive stats**: View win rate, average guesses, current or longest streak, and total games at a glance.
-- **Performance comparisons**: Benchmark against WordleBot and the national average to identify strengths and gaps.
-- **Timeline and trend charts**: Visualize streaks and guess counts over time to spot hot streaks or rough patches.
+- **WordleBot insights**: See skill and luck scores for each game to understand your solving performance.
+- **Timeline and trend charts**: Visualize streaks, guess counts, and score trends over time to spot patterns.
 - **Privacy-respecting storage**: All imported history stays on your device in Chrome storage; nothing is uploaded to external servers.
 
 ### Why users love it

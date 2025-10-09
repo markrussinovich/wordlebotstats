@@ -7,7 +7,7 @@ Wordle Stat Explorer is a Chrome/Edge Manifest V3 extension that scrapes your NY
 - Automatic Wordle Bot data import (auto, incremental, and full refresh modes)
 - Local-only storage with fast de-duplication and board-image cleanup
 - Popup quick stats: win rate, average guesses (2 decimals), streaks, and game counts by time frame
-- React-powered dashboard with timelines, trend analysis, comparisons, and data management tools
+- React-powered dashboard with timelines, trend analysis, WordleBot skill/luck scores, and data management tools
 - Manual import/export utilities plus diagnostic logging for troubleshooting
 
 ## 📸 Screenshot

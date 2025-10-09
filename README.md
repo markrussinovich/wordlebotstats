@@ -72,15 +72,21 @@ npm install
 Bundles the popup, dashboard, background worker, and content scripts into `dist/`.
 
 ```cmd
-node .\scripts\quick-build-extension.js
+node scripts\quick-build-extension.js
+```
+
+Or use the npm script:
+
+```cmd
+npm run build:quick
 ```
 
 ### Run Tests
 
-Runs the Jest unit test suite (React component tests and utility coverage). If using PowerShell, invoke through `cmd` to bypass execution policy restrictions.
+Runs the Jest unit test suite (React component tests and utility coverage).
 
 ```cmd
-cmd /c "npm test"
+npm test
 ```
 
 ### Launch the Dashboard in Dev Mode (optional)

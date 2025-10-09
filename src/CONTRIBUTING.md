@@ -2,13 +2,22 @@
 
 Thanks for your interest in improving the Wordle Bot Stats extension!
 
+## Prerequisites
+
+Before you begin, ensure you have the following installed:
+- **Node.js** (v18 or later recommended)
+- **npm** (comes with Node.js)
+- **Chrome** or **Edge** browser (for testing the extension)
+
 ## Project Overview
 The extension scrapes the NYTimes Wordle Bot results page, imports structured game data, and computes statistics shown in a popup & dashboard. It is built with:
 - Manifest V3 service worker (background)
 - Content script scraper (`wordleBotContent.ts`)
-- React + TypeScript popup UI
+- React 18+ with TypeScript
 - Local persistence via `chrome.storage.local`
 - Vite build pipeline
+- Jest for unit tests
+- Playwright for end-to-end tests
 
 ## Directory Layout
 ```
@@ -27,15 +36,50 @@ public/              # Static assets (icons, manifest, etc.)
 ```
 
 ## Build & Test Workflow
+
+### Installing Dependencies
+
+First, install all required dependencies (both runtime and development):
+
+```bash
+npm install
+```
+
+This will install:
+- **Runtime dependencies**: React, Zustand, Recharts, date-fns, etc.
+- **Development dependencies**: TypeScript, Vite, Jest, Playwright, ESLint, Prettier, and build tools
+
+> **Windows PowerShell Note**: If you encounter execution policy errors, use `cmd.exe` instead:
+> ```cmd
+> cmd /c "npm install"
+> ```
+
+### Build Commands
+
 | Action | Command |
 |--------|---------|
-| Install deps | `npm install` |
-| Quick dev build (extension) | `node quick-build-extension.js` |
-| Standard build | `npm run build` |
-| Lint | `npm run lint` |
-| Tests | `npm test` |
+| Install dependencies | `npm install` |
+| Build extension | `npm run build:quick` |
+| Build (alternative) | `node scripts/quick-build-extension.js` |
+| Development mode (dashboard) | `npm run dev` |
 
-> Note: On Windows PowerShell you may need to allow script execution or use `cmd.exe` for `npm` scripts.
+### Testing Commands
+
+| Action | Command |
+|--------|---------|
+| Run unit tests | `npm test` |
+| Run tests in watch mode | `npm run test:watch` |
+| Run E2E tests | `npm run test:e2e` |
+| Format code | `npm run format` |
+
+### Loading the Extension
+
+After building:
+1. Open Chrome/Edge and navigate to `chrome://extensions` or `edge://extensions`
+2. Enable **Developer mode** (toggle in top-right)
+3. Click **Load unpacked**
+4. Select the `dist/` folder from this project
+5. The extension should now appear in your toolbar
 
 ## Debug Logging
 Use the centralized logger (`src/extension/utils/logger.ts`). Avoid raw `console.*` for noisy flows.
@@ -76,9 +120,10 @@ Changes affecting message shapes must:
 ## Submitting Changes
 1. Create a feature branch: `feat/<short-description>`
 2. Make focused commits (imperative mood: "Add scraper batch timing")
-3. Run lint & tests
-4. Update README or CONTRIBUTING if behavior or workflows change
-5. Open a PR with a clear summary & before/after notes
+3. Run tests: `npm test`
+4. Build and test the extension: `npm run build:quick`
+5. Update README or CONTRIBUTING if behavior or workflows change
+6. Open a PR with a clear summary & before/after notes
 
 ## Quick Checklist
 - [ ] Feature documented (README or inline comments)

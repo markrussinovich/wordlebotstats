@@ -1,83 +1,116 @@
-# Wordle Bot Stats Extension
+# Wordle Stat Explorer
 
-A Chrome (MV3) extension that automatically scrapes your NYTimes Wordle Bot game history, imports the results locally, and presents rich statistics via a popup and dashboard UI.
+Wordle Stat Explorer is a Chrome/Edge Manifest V3 extension that scrapes your NYTimes Wordle Bot history, stores the results locally, and surfaces rich insights through a lightweight popup and a full analytics dashboard.
 
-## Key Features
-- Automatic Wordle Bot scrape (auto / full / incremental modes)
-- Local game storage (chrome.storage.local)
-- Fast bulk import with de-duplication & data richness merge
-- Streak, win rate, average guesses, and time‑frame filtered stats
-- Accessible React popup (keyboard & screen reader friendly)
-- Debug-friendly logging (opt-in)
+## ✨ Capabilities
 
-## Recent Performance Improvements
-| Area | Before | After |
-|------|--------|-------|
-| Bulk import (94 games) | ~120s (multiple full rewrites) | < 1s (single optimized write, images stripped) |
-| Re-scrape iteration cost | Re-processed all cards | Cached already parsed cards |
-| Inter-iteration delay | 900ms | 300ms |
-| Navigation delays | 450–1200ms | 200–500ms |
+- Automatic Wordle Bot data import (auto, incremental, and full refresh modes)
+- Local-only storage with fast de-duplication and board-image cleanup
+- Popup quick stats: win rate, average guesses (2 decimals), streaks, and game counts by time frame
+- React-powered dashboard with timelines, trend analysis, comparisons, and data management tools
+- Manual import/export utilities plus diagnostic logging for troubleshooting
 
-## Repository Structure (Simplified)
+## 📸 Screenshot
+
+> _Replace this placeholder with an actual screenshot of the dashboard or popup._
+
+![Wordle Stat Explorer dashboard placeholder](docs/images/screenshot-placeholder.png "Replace with an actual screenshot")
+
+## 🏗 Architecture Overview
+
+- **Background Service Worker (`src/extension/background`)** – orchestrates storage, message routing, scraper state, and dashboard tab management.
+- **Content Scripts (`src/extension/content`)** – interact with the NYTimes Wordle and Wordle Bot pages to capture results safely.
+- **Popup (`src/extension/popup`)** – a vanilla HTML/JS UI that displays quick stats and links into the dashboard.
+- **Dashboard (`src/dashboard`)** – React + Vite single-page app that visualizes historical performance, fed by Zustand stores.
+- **Shared Domain Layer (`src/models`, `src/types`, `src/utils`)** – normalized game data models, TypeScript contracts, and helper utilities (e.g., streak calculations).
+- **State Stores (`src/stores`)** – Zustand slices for games, benchmarks, and preferences shared across popup and dashboard contexts.
+
+### Data Flow
+
+1. Content scripts scrape or import Wordle game results and send them to the background service worker.
+2. The background persists data to `chrome.storage` and exposes it through message handlers.
+3. The popup requests aggregated stats for quick display, while the dashboard pulls full datasets and benchmarks via shared stores.
+4. User actions (refresh, import/export, settings) propagate back through the worker, keeping everything in sync.
+
+## 📂 Repository Structure
+
+```text
+.
+├── config/                 # Shared tooling config (Jest, Vite, TS)
+├── docs/                   # Project documentation
+├── public/                 # Icons and public assets bundled into dist
+├── scripts/                # Developer utilities (build, benchmarks, etc.)
+├── src/
+│   ├── components/
+│   │   ├── charts/         # Reusable visualization components
+│   │   └── ui/             # Shared UI primitives (Card, Button, etc.)
+│   ├── dashboard/          # React dashboard app (pages, hooks, styling)
+│   ├── extension/
+│   │   ├── background/     # MV3 service worker and storage helpers
+│   │   ├── content/        # Wordle / Wordle Bot content scripts
+│   │   ├── popup/          # Popup HTML + JS entry point
+│   │   └── utils/          # Extension-specific utilities (logger)
+│   ├── models/             # Domain models for stats & benchmarks
+│   ├── stores/             # Zustand stores (games, benchmarks, prefs)
+│   ├── types/              # Shared TypeScript contracts
+│   └── utils/              # Cross-cutting helpers (streak calc, etc.)
+├── tests/                  # Unit and integration tests (Jest + Playwright)
+├── package.json
+└── README.md
 ```
-src/
-  extension/
-    background/        # Service worker & storage logic
-    content/           # Wordle Bot scraper content script
-    popup/             # React popup UI
-    utils/logger.ts    # Centralized debug logger
-  ...
-public/                # Icons & static assets
-scripts/               # Dev/benchmark scripts
+
+## 🧪 Development Workflow
+
+### Install Dependencies
+
+```cmd
+npm install
 ```
 
-## Debug Logging
-Enable verbose timestamped logs:
+### Build the Extension
 
-Build-time (recommended):
-```
-VITE_DEBUG_LOGS=true npm run build
-```
-Runtime (from DevTools console):
-```js
-WORDLE_ENABLE_DEBUG_LOGS();  // turn on
-WORDLE_DISABLE_DEBUG_LOGS(); // turn off
+Bundles the popup, dashboard, background worker, and content scripts into `dist/`.
+
+```cmd
+node .\scripts\quick-build-extension.js
 ```
 
-The logger is centralized in `src/extension/utils/logger.ts`. All prior ad‑hoc console overrides were removed.
+### Run Tests
 
-## Quick Build & Reload (Development)
-Use the provided script to bundle quickly for iterative testing:
+Runs the Jest unit test suite (React component tests and utility coverage). If using PowerShell, invoke through `cmd` to bypass execution policy restrictions.
+
+```cmd
+cmd /c "npm test"
 ```
-node quick-build-extension.js
+
+### Launch the Dashboard in Dev Mode (optional)
+
+If you need to work on the dashboard in isolation, use Vite’s dev server:
+
+```cmd
+npm run dev -- --host
 ```
-Then reload the unpacked extension in `chrome://extensions`.
 
-## Scripts of Interest
+### Load the Extension in Chrome/Edge
 
-- `scripts/quick-build-extension.js` – fast rebuild for MV3 contexts  
-- `scripts/performance-benchmark.ts` – optional performance probes
+1. Build using the command above (ensures fresh assets in `dist/`).
+2. Navigate to `chrome://extensions` (or `edge://extensions`).
+3. Enable **Developer mode**.
+4. Click **Load unpacked** and select the project’s `dist/` folder.
+5. Click the extension toolbar icon to open the popup or visit the dashboard tab directly if already open.
 
-## Environment Flags
+## ⚙️ Configuration & Environment
 
-| Flag | Purpose | Default |
-|------|---------|---------|
-| `VITE_DEBUG_LOGS` | Enables debug logging | false |
+- **Logging:** Enable verbose logging by toggling helpers exposed in the background console (`WORDLE_ENABLE_DEBUG_LOGS()` / `WORDLE_DISABLE_DEBUG_LOGS()`).
+- **Storage:** All data stays local via `chrome.storage.local`; benchmarks and settings live in Zustand stores for instant access.
+- **Benchmarks:** Default national and WordleBot benchmarks ship with the extension and can be refreshed from the dashboard.
 
-## Contributing
-See `src/CONTRIBUTING.md` for project structure, coding standards, and contribution workflow.
+## 📘 Additional Resources
 
-## Roadmap / Ideas
-- IndexedDB migration for larger histories
-- Cloud sync (opt-in)
-- Extended analytics (letter frequency, opening efficacy)
+- `docs/` – supplementary guides (manual testing, performance notes, etc.)
+- `src/CONTRIBUTING.md` – coding standards and contribution workflow
+- `REPOSITORY-STRUCTURE.md` – deep dive into directory responsibilities
 
-## Troubleshooting
-| Symptom | Resolution |
-|---------|------------|
-| Popup stuck at "Importing" | Ensure Wordle Bot page fully loads; open DevTools for logs |
-| No games imported | Verify you’re logged into NYTimes and Wordle Bot history is accessible |
-| Long delays on last page | Network latency from NYT; scraper now minimizes internal waits |
+---
 
-## License
-MIT (add LICENSE file if not present).
+Enjoy tracking your Wordle journey! Contributions, bug reports, and feature suggestions are always welcome.

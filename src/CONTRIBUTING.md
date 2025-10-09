@@ -60,6 +60,7 @@ This will install:
 |--------|---------|
 | Install dependencies | `npm install` |
 | Build extension | `npm run build:quick` |
+| Convert icons only | `npm run build:icons` |
 | Build (alternative) | `node scripts/quick-build-extension.js` |
 | Development mode (dashboard) | `npm run dev` |
 

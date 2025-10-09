@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import { copyFileSync, existsSync, mkdirSync, cpSync, createWriteStream, readFileSync, unlinkSync } from 'fs';
 import { execSync } from 'child_process';
 import archiver from 'archiver';
+import convertIcons from './convert-icons.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -55,6 +56,9 @@ async function buildExtension() {
   console.log('Building complete extension...\n');
   
   try {
+    // Convert SVG icons to PNG before building
+    await convertIcons();
+    
     // Ensure dist directory exists
     const distDir = resolve(rootDir, 'dist');
     if (!existsSync(distDir)) {

@@ -97,7 +97,7 @@ document.addEventListener('DOMContentLoaded', function() {
         </div>
         
         <div class="stat-card">
-          <div class="stat-value">${statistics.averageGuesses.toFixed(1)}</div>
+          <div class="stat-value">${statistics.averageGuesses.toFixed(2)}</div>
           <div class="stat-label">Avg Guesses</div>
         </div>
         

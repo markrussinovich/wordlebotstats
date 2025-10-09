@@ -1,10 +1,7 @@
 var WordleContent = (() => {
   var __defProp = Object.defineProperty;
   var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
-  var __publicField = (obj, key, value) => {
-    __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
-    return value;
-  };
+  var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
 
   // src/extension/content/wordleContent.ts
   var WordleIntegration = class {
@@ -15,8 +12,7 @@ var WordleContent = (() => {
       this.init();
     }
     async init() {
-      if (this.isInitialized)
-        return;
+      if (this.isInitialized) return;
       console.log("[WordleContent] Initializing Wordle integration...");
       if (document.readyState === "loading") {
         document.addEventListener("DOMContentLoaded", () => this.setupIntegration());
@@ -88,19 +84,16 @@ var WordleContent = (() => {
       try {
         const completionModal = document.querySelector('[data-testid="toast"]') || document.querySelector(".Toast-module_toast") || document.querySelector(".game-modal");
         const gameBoard = this.getGameBoard();
-        if (!gameBoard)
-          return null;
+        if (!gameBoard) return null;
         const rows = gameBoard.querySelectorAll('[data-testid^="row"]') || gameBoard.querySelectorAll(".Row-module_row") || gameBoard.querySelectorAll('div[role="grid"] > div');
-        if (rows.length === 0)
-          return null;
+        if (rows.length === 0) return null;
         let guesses = 0;
         let isComplete = false;
         let isWon = false;
         let lastRowState = "";
         Array.from(rows).forEach((row, index) => {
           const tiles = row.querySelectorAll('[data-testid^="tile"]') || row.querySelectorAll(".Tile-module_tile") || row.querySelectorAll("div[data-state]");
-          if (tiles.length === 0)
-            return;
+          if (tiles.length === 0) return;
           const rowHasContent = Array.from(tiles).some((tile) => {
             const letter = tile.textContent?.trim();
             return letter && letter.length > 0;
@@ -139,8 +132,7 @@ var WordleContent = (() => {
             }
           }
         }
-        if (!isComplete)
-          return null;
+        if (!isComplete) return null;
         return {
           isComplete,
           isWon,

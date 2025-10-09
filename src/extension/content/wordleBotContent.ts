@@ -172,7 +172,12 @@ class WordleBotScraper {
       const navigated = await this.navigateToGameHistory();
       if (!navigated) {
         console.error('[WordleBotScraper] Failed to navigate to game history');
-        this.sendError('Could not navigate to game history. Please ensure you are logged in.', 'PARSE_ERROR', true);
+        const loginRequired = this.isLoginRequired();
+        const errorMessage = loginRequired
+          ? 'Please sign in to your NYTimes account to import Wordle Bot history.'
+          : 'Could not navigate to game history. Please ensure you are logged in and Wordle Bot is available.';
+        const errorCode = loginRequired ? 'AUTH_REQUIRED' : 'PARSE_ERROR';
+        this.sendError(errorMessage, errorCode, true);
         return;
       }
     }
@@ -364,6 +369,32 @@ class WordleBotScraper {
       console.error('[WordleBotScraper] Error navigating to game history:', error);
       return false;
     }
+  }
+
+  private isLoginRequired(): boolean {
+    try {
+      const loginSelectors = [
+        'button[data-testid="login-button"]',
+        'button[data-testid="sign-in-button"]',
+        'a[data-testid="login-button"]',
+        'a[href*="login"]',
+        '[data-testid="gdpr-consent-banner"] button[data-testid="login-button"]'
+      ];
+
+      for (const selector of loginSelectors) {
+        if (document.querySelector(selector)) {
+          return true;
+        }
+      }
+
+      const bodyText = document.body?.innerText?.toLowerCase() || '';
+      if (bodyText.includes('log in to view') || bodyText.includes('sign in to see your wordle') || bodyText.includes('sign in to continue')) {
+        return true;
+      }
+    } catch (error) {
+      console.error('[WordleBotScraper] Error detecting login state:', error);
+    }
+    return false;
   }
 
   private extractVisibleGames(): RawGameData[] {

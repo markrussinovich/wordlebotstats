@@ -19,6 +19,7 @@ document.addEventListener('DOMContentLoaded', function() {
     active: false,
     message: ''
   };
+  let activeNotification = null;
   
   // Render popup
   function render() {
@@ -62,34 +63,38 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   
   function renderContent() {
+    const notifications = renderNotification();
+
     if (scraperStatus.active) {
       return `
-        <div class="stats-grid">
-          <div class="loading">${scraperStatus.message}</div>
-        </div>
+        ${notifications}
+        ${renderLoadingState(scraperStatus.message || 'Working...')}
       `;
     }
-    
+
     if (isLoading) {
       return `
-        <div class="stats-grid">
-          <div class="loading">Loading stats...</div>
-        </div>
+        ${notifications}
+        ${renderLoadingState('Loading stats...')}
       `;
     }
-    
+
     if (!statistics) {
       return `
-        <div class="stats-grid">
-          <div class="no-data">No Wordle data found.</div>
+        ${notifications}
+        <div class="empty-state">
+          <div class="empty-icon">📄</div>
+          <div class="empty-title">No Wordle data yet</div>
+          <div class="empty-message">Play a game or import your history to see stats here.</div>
         </div>
       `;
     }
-    
+
     const streakLabel = selectedTimeFrame === '7d' ? 'Current Streak' : 'Longest Streak';
     const streakValue = selectedTimeFrame === '7d' ? statistics.currentStreak : statistics.maxStreak;
     
     return `
+      ${notifications}
       <div class="stats-grid">
         <div class="stat-card">
           <div class="stat-value">${statistics.winRate.toFixed(1)}%</div>
@@ -154,6 +159,14 @@ document.addEventListener('DOMContentLoaded', function() {
         }
       });
     }
+
+    const dismissBtn = document.querySelector('[data-dismiss-notification]');
+    if (dismissBtn) {
+      dismissBtn.addEventListener('click', () => {
+        activeNotification = null;
+        render();
+      });
+    }
   }
   
   async function loadStatistics() {
@@ -199,11 +212,11 @@ document.addEventListener('DOMContentLoaded', function() {
       // Use custom status message if provided, otherwise generate one
       if (message.status && !message.status.match(/^(scanning|loading|processing)$/)) {
         // Custom message (like "Opening WordleBot page...")
-        scraperStatus.message = `🔄 ${message.status}`;
+        scraperStatus.message = message.status;
       } else if (message.gamesFound > 0) {
-        scraperStatus.message = `📥 Found ${message.gamesFound} games...`;
+        scraperStatus.message = `Found ${message.gamesFound} games...`;
       } else {
-        scraperStatus.message = '🔍 Starting...';
+        scraperStatus.message = 'Starting...';
       }
       render();
     } else if (message.type === 'WORDLE_BOT_SCRAPE_COMPLETE') {
@@ -217,6 +230,25 @@ document.addEventListener('DOMContentLoaded', function() {
       scraperStatus.active = false;
       scraperStatus.message = '';
       console.error('[Popup] Scrape error:', message.error);
+      if (message.code === 'AUTH_REQUIRED') {
+        activeNotification = {
+          id: 'nyt-login-required',
+          type: 'error',
+          title: 'Sign in required',
+          message: message.error || 'Please sign in to your NYTimes account and try again.',
+          icon: '🔒'
+        };
+        render();
+      } else if (message.error) {
+        activeNotification = {
+          id: 'scrape-error',
+          type: 'error',
+          title: 'Import failed',
+          message: message.error,
+          icon: '⚠️'
+        };
+        render();
+      }
     }
   });
   
@@ -225,8 +257,9 @@ document.addEventListener('DOMContentLoaded', function() {
     try {
       console.log('[Popup] Triggering auto-import from WordleBot');
       
+      activeNotification = null;
       scraperStatus.active = true;
-      scraperStatus.message = '🔄 Checking for new games...';
+  scraperStatus.message = 'Checking for new games...';
       render();
       
       const response = await chrome.runtime.sendMessage({
@@ -258,8 +291,9 @@ document.addEventListener('DOMContentLoaded', function() {
     try {
       console.log('[Popup] Triggering incremental scrape for new games');
       
+      activeNotification = null;
       scraperStatus.active = true;
-      scraperStatus.message = '🔄 Checking for new games...';
+  scraperStatus.message = 'Checking for new games...';
       render();
       
       // For incremental mode, don't pass stopAtDate - let the background script
@@ -313,4 +347,34 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Trigger auto-import only if needed (no data)
   checkAndTriggerAutoImport();
+
+  function renderNotification() {
+    if (!activeNotification) {
+      return '';
+    }
+
+    const icon = activeNotification.icon || 'ℹ️';
+    const title = activeNotification.title || 'Notice';
+    const message = activeNotification.message || '';
+
+    return `
+      <div class="notification ${activeNotification.type}">
+        <div class="notification-icon">${icon}</div>
+        <div class="notification-body">
+          <div class="notification-title">${title}</div>
+          <div class="notification-message">${message}</div>
+        </div>
+        <button class="notification-dismiss" data-dismiss-notification aria-label="Dismiss notification">✕</button>
+      </div>
+    `;
+  }
+
+  function renderLoadingState(message) {
+    return `
+      <div class="loading-state">
+        <div class="loading-spinner"></div>
+        <div class="loading-message">${message}</div>
+      </div>
+    `;
+  }
 });

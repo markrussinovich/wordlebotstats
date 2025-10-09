@@ -5,7 +5,7 @@ var __publicField = (obj, key, value) => {
   return value;
 };
 
-// ../src/extension/utils/logger.ts
+// src/extension/utils/logger.ts
 var g = globalThis;
 function resolveEnvFlag() {
   try {
@@ -60,7 +60,7 @@ var logger = {
 };
 var logger_default = logger;
 
-// ../src/extension/background/extensionStorage.ts
+// src/extension/background/extensionStorage.ts
 var log = logger_default.log;
 var errorLog = logger_default.error;
 var _ExtensionStorage = class _ExtensionStorage {
@@ -235,7 +235,7 @@ var _ExtensionStorage = class _ExtensionStorage {
 __publicField(_ExtensionStorage, "instance");
 var ExtensionStorage = _ExtensionStorage;
 
-// ../src/extension/background/background.ts
+// src/extension/background/background.ts
 var log2 = logger_default.log;
 var warn = logger_default.warn;
 var errorLog2 = logger_default.error;

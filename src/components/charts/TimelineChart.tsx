@@ -156,6 +156,9 @@ const normalizeGuessPattern = (rawPattern: LegacyGuessRow[] | GuessResult[][] | 
 
 const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) => {
   const [selectedRange, setSelectedRange] = useState<{ start: number; end: number } | null>(null);
+  
+  // Detect dark mode
+  const isDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
 
   const chartContainerStyle = useMemo(
     () =>
@@ -535,12 +538,16 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) =
 
       <ResponsiveContainer width="100%" height={400}>
         <ComposedChart data={chartData} margin={CHART_MARGINS}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+          <CartesianGrid 
+            strokeDasharray="3 3" 
+            stroke={isDarkMode ? "#4a4a4a" : "#e5e7eb"} 
+            strokeOpacity={isDarkMode ? 0.5 : 1}
+          />
           
           <XAxis
             dataKey="date"
             tickFormatter={formatXAxis}
-            stroke="#6b7280"
+            stroke={isDarkMode ? "#9ca3af" : "#6b7280"}
             style={{ fontSize: '12px' }}
           />
           
@@ -548,7 +555,7 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) =
             yAxisId="turns"
             domain={[0, 8]}
             ticks={[1, 2, 3, 4, 5, 6, 7]}
-            stroke="#6b7280"
+            stroke={isDarkMode ? "#9ca3af" : "#6b7280"}
             style={{ fontSize: '12px' }}
             label={{ value: 'Turns', angle: -90, position: 'insideLeft' }}
           />
@@ -557,19 +564,19 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) =
             orientation="right"
             domain={[0, 100]}
             ticks={[0,20,40,60,80,100]}
-            stroke="#64748b"
+            stroke={isDarkMode ? "#9ca3af" : "#64748b"}
             style={{ fontSize: '12px' }}
             label={{ value: 'Score', angle: 90, position: 'insideRight' }}
           />
 
           <Tooltip content={<CustomTooltip />} />
 
-          {/* Running averages */}
+          {/* Running averages - more vibrant in dark mode */}
           <Line
             type="monotone"
             dataKey="runningAverage"
-            stroke="#c9b458"
-            strokeWidth={3}
+            stroke={isDarkMode ? "#f0ad4e" : "#c9b458"}
+            strokeWidth={isDarkMode ? 3.5 : 3}
             dot={false}
             name="Avg Turns"
             yAxisId="turns"
@@ -578,9 +585,9 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) =
           <Line
             type="monotone"
             dataKey="runningSkillAvg"
-            stroke="rgba(29,78,216,0.55)"
-            strokeWidth={2}
-            strokeOpacity={0.75}
+            stroke={isDarkMode ? "rgba(59,130,246,0.85)" : "rgba(29,78,216,0.55)"}
+            strokeWidth={isDarkMode ? 2.5 : 2}
+            strokeOpacity={1}
             dot={false}
             name="Avg Skill"
             yAxisId="score"
@@ -589,9 +596,9 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) =
           <Line
             type="monotone"
             dataKey="runningLuckAvg"
-            stroke="rgba(147,51,234,0.55)"
-            strokeWidth={2}
-            strokeOpacity={0.75}
+            stroke={isDarkMode ? "rgba(168,85,247,0.85)" : "rgba(147,51,234,0.55)"}
+            strokeWidth={isDarkMode ? 2.5 : 2}
+            strokeOpacity={1}
             dot={false}
             name="Avg Luck"
             yAxisId="score"

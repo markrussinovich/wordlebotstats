@@ -47,13 +47,12 @@ export default defineConfig({
           return 'assets/[name].[ext]';
         },
         chunkFileNames: 'chunks/[name]-[hash].js',
-        dir: '../dist',
       },
       
       external: ['chrome'],
     },
     
-    outDir: '../dist',
+    outDir: resolve(__dirname, '../dist'),
     sourcemap: false,
     minify: 'terser',
     

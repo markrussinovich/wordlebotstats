@@ -302,6 +302,9 @@ body {
 .tooltip-board {
   margin: 8px 0;
   text-align: center;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .tooltip-board img {
@@ -331,7 +334,7 @@ body {
 }
 
 .tooltip-grid {
-  display: inline-flex;
+  display: flex;
   flex-direction: column;
   gap: 4px;
   margin: 4px auto 12px auto;
@@ -532,6 +535,27 @@ body {
     color: #cccccc;
   }
 
+  /* Colored stats in dark mode */
+  .stat-wins {
+    color: #5cb85c;
+  }
+
+  .stat-losses {
+    color: #d9534f;
+  }
+
+  .stat-streak {
+    color: #f0ad4e;
+  }
+
+  .game-won {
+    color: #5cb85c;
+  }
+
+  .game-lost {
+    color: #d9534f;
+  }
+
   .chart-section {
     background: #252526;
     border-color: #3e3e42;
@@ -577,6 +601,23 @@ body {
 
   .legend-item {
     color: #858585;
+  }
+
+  /* More vibrant chart elements in dark mode */
+  .recharts-cartesian-grid-horizontal line,
+  .recharts-cartesian-grid-vertical line {
+    stroke: #4a4a4a !important;
+    stroke-opacity: 0.5;
+  }
+
+  .recharts-xaxis .recharts-cartesian-axis-line,
+  .recharts-yaxis .recharts-cartesian-axis-line {
+    stroke: #6b7280 !important;
+  }
+
+  .recharts-xaxis .recharts-cartesian-axis-tick-value,
+  .recharts-yaxis .recharts-cartesian-axis-tick-value {
+    fill: #9ca3af !important;
   }
 
   .dashboard-empty h2 {

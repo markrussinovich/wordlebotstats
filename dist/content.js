@@ -6,7 +6,7 @@ var WordleContent = (() => {
     return value;
   };
 
-  // ../src/extension/content/wordleContent.ts
+  // src/extension/content/wordleContent.ts
   var WordleIntegration = class {
     constructor() {
       __publicField(this, "observer", null);

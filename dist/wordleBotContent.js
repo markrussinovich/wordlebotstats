@@ -6,7 +6,7 @@ var WordleBotContent = (() => {
     return value;
   };
 
-  // ../src/extension/utils/logger.ts
+  // src/extension/utils/logger.ts
   var import_meta = {};
   var g = globalThis;
   function resolveEnvFlag() {
@@ -62,7 +62,7 @@ var WordleBotContent = (() => {
   };
   var logger_default = logger;
 
-  // ../src/extension/content/wordleBotContent.ts
+  // src/extension/content/wordleBotContent.ts
   var log = logger_default.log;
   var errorLog = logger_default.error;
   var WordleBotScraper = class {

@@ -54,11 +54,12 @@ node quick-build-extension.js
 Then reload the unpacked extension in `chrome://extensions`.
 
 ## Scripts of Interest
-- `quick-build-extension.js` – fast rebuild for MV3 contexts
-- `build-content-scripts.js` – targeted content build
-- `performance-benchmark.ts` – optional performance probes
+
+- `scripts/quick-build-extension.js` – fast rebuild for MV3 contexts  
+- `scripts/performance-benchmark.ts` – optional performance probes
 
 ## Environment Flags
+
 | Flag | Purpose | Default |
 |------|---------|---------|
 | `VITE_DEBUG_LOGS` | Enables debug logging | false |

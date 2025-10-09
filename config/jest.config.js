@@ -8,7 +8,14 @@ export default {
     '**/*.(test|spec).(ts|tsx|js)',
   ],
   transform: {
-    '^.+\\.(ts|tsx)$': 'ts-jest',
+    '^.+\\.(ts|tsx)$': ['ts-jest', {
+      tsconfig: '<rootDir>/config/tsconfig.json',
+    }],
+  },
+  globals: {
+    'ts-jest': {
+      tsconfig: '<rootDir>/config/tsconfig.json',
+    },
   },
   collectCoverageFrom: [
     'src/**/*.(ts|tsx)',

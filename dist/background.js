@@ -228,6 +228,7 @@ var warn = logger_default.warn;
 var errorLog2 = logger_default.error;
 var storageService;
 var SCRAPE_STATUS_STORAGE_KEY = "wordleBotScrapeStatus";
+var dashboardTabId = null;
 var currentScrapeStatus = {
   phase: "idle",
   gamesFound: 0,
@@ -356,6 +357,8 @@ async function handleExtensionMessage(message, _sender) {
       return handleGetQuickStats(message);
     case "GET_DASHBOARD_DATA" /* GET_DASHBOARD_DATA */:
       return handleGetDashboardData(message);
+    case "OPEN_DASHBOARD_TAB" /* OPEN_DASHBOARD_TAB */:
+      return handleOpenDashboardTab(message);
     case "SYNC_DATA" /* SYNC_DATA */:
       return handleSyncData();
     case "EXPORT_DATA" /* EXPORT_DATA */:
@@ -843,4 +846,54 @@ function compareVersions(version1, version2) {
 }
 async function migrateToV1() {
   console.log("[Background] Migrating to version 1.0.0");
+}
+chrome.tabs.onRemoved.addListener((tabId) => {
+  if (tabId === dashboardTabId) {
+    dashboardTabId = null;
+  }
+});
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (tabId === dashboardTabId && tab.url && !tab.url.includes("dashboard.html")) {
+    dashboardTabId = null;
+  }
+  if (changeInfo.status === "complete" && tab.url && tab.url.includes("dashboard.html")) {
+    dashboardTabId = tabId;
+  }
+});
+async function handleOpenDashboardTab(_message) {
+  const dashboardUrl = chrome.runtime.getURL("dashboard.html");
+  const dashboardPattern = `chrome-extension://${chrome.runtime.id}/dashboard.html*`;
+  if (dashboardTabId !== null) {
+    try {
+      const existingTab = await chrome.tabs.get(dashboardTabId);
+      if (existingTab?.url?.startsWith(dashboardUrl) && existingTab.id !== void 0) {
+        if (existingTab.windowId !== void 0) {
+          await chrome.windows.update(existingTab.windowId, { focused: true });
+        }
+        await chrome.tabs.update(existingTab.id, { active: true });
+        await chrome.tabs.reload(existingTab.id);
+        return { success: true, reused: true, tabId: existingTab.id };
+      }
+    } catch (err) {
+      dashboardTabId = null;
+    }
+  }
+  try {
+    const matchingTabs = await chrome.tabs.query({ url: [dashboardPattern] });
+    const tabToUse = matchingTabs.find((tab) => tab.id !== void 0);
+    if (tabToUse && tabToUse.id !== void 0) {
+      dashboardTabId = tabToUse.id;
+      if (tabToUse.windowId !== void 0) {
+        await chrome.windows.update(tabToUse.windowId, { focused: true });
+      }
+      await chrome.tabs.update(tabToUse.id, { active: true });
+      await chrome.tabs.reload(tabToUse.id);
+      return { success: true, reused: true, tabId: tabToUse.id };
+    }
+  } catch (queryError) {
+    errorLog2("[Background] Failed to query dashboard tabs:", queryError);
+  }
+  const createdTab = await chrome.tabs.create({ url: dashboardUrl });
+  dashboardTabId = createdTab.id ?? null;
+  return { success: true, reused: false, tabId: createdTab.id ?? void 0 };
 }

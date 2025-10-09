@@ -30,6 +30,7 @@ export enum MessageType {
   IMPORT_RESPONSE = 'IMPORT_RESPONSE',
   QUICK_STATS_RESPONSE = 'QUICK_STATS_RESPONSE',
   ERROR = 'ERROR',
+  OPEN_DASHBOARD_TAB = 'OPEN_DASHBOARD_TAB',
   
   // WordleBot scraper messages
   START_WORDLE_BOT_SCRAPE = 'START_WORDLE_BOT_SCRAPE',
@@ -80,6 +81,17 @@ export interface QuickStatsResponse {
   };
   error?: string;
   timeFrame?: TimeFrame;
+}
+
+export interface OpenDashboardTabMessage {
+  type: MessageType.OPEN_DASHBOARD_TAB;
+}
+
+export interface OpenDashboardTabResponse {
+  success: boolean;
+  reused: boolean;
+  tabId?: number;
+  error?: string;
 }
 
 // Background ↔ Dashboard Messages

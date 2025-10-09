@@ -10,7 +10,9 @@ import {
   MessageType,
   WordleBotScrapeStatusSnapshot,
   WordleBotScrapeStatusResponse,
-  WordleBotScrapePhase 
+  WordleBotScrapePhase,
+  OpenDashboardTabMessage,
+  OpenDashboardTabResponse
 } from '@/types/messagingTypes';
 import { GameResult } from '@/types/gameTypes';
 import { ExtensionStorage } from './extensionStorage';
@@ -21,6 +23,8 @@ const log = logger.log; const warn = logger.warn; const errorLog = logger.error;
 let storageService: ExtensionStorage;
 
 const SCRAPE_STATUS_STORAGE_KEY = 'wordleBotScrapeStatus';
+
+let dashboardTabId: number | null = null;
 
 let currentScrapeStatus: WordleBotScrapeStatusSnapshot = {
   phase: 'idle',
@@ -193,6 +197,8 @@ async function handleExtensionMessage(
       
     case MessageType.GET_DASHBOARD_DATA:
       return handleGetDashboardData(message as GetDashboardDataMessage);
+    case MessageType.OPEN_DASHBOARD_TAB:
+      return handleOpenDashboardTab(message as OpenDashboardTabMessage);
       
     case MessageType.SYNC_DATA:
       return handleSyncData();
@@ -814,4 +820,64 @@ function compareVersions(version1: string, version2: string): number {
 async function migrateToV1(): Promise<void> {
   // Implement migration logic for version 1.0.0
   console.log('[Background] Migrating to version 1.0.0');
+}
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  if (tabId === dashboardTabId) {
+    dashboardTabId = null;
+  }
+});
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (tabId === dashboardTabId && tab.url && !tab.url.includes('dashboard.html')) {
+    dashboardTabId = null;
+  }
+  if (changeInfo.status === 'complete' && tab.url && tab.url.includes('dashboard.html')) {
+    dashboardTabId = tabId;
+  }
+});
+
+async function handleOpenDashboardTab(_message: OpenDashboardTabMessage): Promise<OpenDashboardTabResponse> {
+  const dashboardUrl = chrome.runtime.getURL('dashboard.html');
+  const dashboardPattern = `chrome-extension://${chrome.runtime.id}/dashboard.html*`;
+
+  // Try cached tab first
+  if (dashboardTabId !== null) {
+    try {
+      const existingTab = await chrome.tabs.get(dashboardTabId);
+      if (existingTab?.url?.startsWith(dashboardUrl) && existingTab.id !== undefined) {
+        if (existingTab.windowId !== undefined) {
+          await chrome.windows.update(existingTab.windowId, { focused: true });
+        }
+        await chrome.tabs.update(existingTab.id, { active: true });
+        await chrome.tabs.reload(existingTab.id);
+        return { success: true, reused: true, tabId: existingTab.id };
+      }
+    } catch (err) {
+      dashboardTabId = null;
+    }
+  }
+
+  // Query for any dashboard tabs currently open
+  try {
+    const matchingTabs = await chrome.tabs.query({ url: [dashboardPattern] });
+    const tabToUse = matchingTabs.find((tab) => tab.id !== undefined);
+
+    if (tabToUse && tabToUse.id !== undefined) {
+      dashboardTabId = tabToUse.id;
+      if (tabToUse.windowId !== undefined) {
+        await chrome.windows.update(tabToUse.windowId, { focused: true });
+      }
+      await chrome.tabs.update(tabToUse.id, { active: true });
+      await chrome.tabs.reload(tabToUse.id);
+      return { success: true, reused: true, tabId: tabToUse.id };
+    }
+  } catch (queryError) {
+    errorLog('[Background] Failed to query dashboard tabs:', queryError);
+  }
+
+  // Create new dashboard tab as fallback
+  const createdTab = await chrome.tabs.create({ url: dashboardUrl });
+  dashboardTabId = createdTab.id ?? null;
+  return { success: true, reused: false, tabId: createdTab.id ?? undefined };
 }

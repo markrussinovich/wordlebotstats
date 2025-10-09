@@ -131,29 +131,16 @@ document.addEventListener('DOMContentLoaded', function() {
           return;
         }
 
-        const dashboardUrl = chrome.runtime.getURL('dashboard.html');
-  chrome.tabs.query({ url: [`${dashboardUrl}*`] }, (tabs) => {
-          if (chrome.runtime.lastError) {
-            console.error('[Popup] Error querying dashboard tabs:', chrome.runtime.lastError);
-            chrome.tabs.create({ url: dashboardUrl });
-            window.close();
-            return;
-          }
+        dashboardBtn.disabled = true;
 
-          if (tabs && tabs.length > 0) {
-            const existingTab = tabs[0];
-            if (existingTab.id !== undefined) {
-              chrome.tabs.reload(existingTab.id);
-              chrome.tabs.update(existingTab.id, { active: true });
-            }
-            if (existingTab.windowId !== undefined) {
-              chrome.windows.update(existingTab.windowId, { focused: true });
-            }
-            window.close();
-          } else {
-            chrome.tabs.create({ url: dashboardUrl });
-            window.close();
-          }
+        chrome.runtime.sendMessage({
+          type: 'OPEN_DASHBOARD_TAB'
+        }).catch((err) => {
+          console.error('[Popup] Failed to reuse dashboard tab, opening new one:', err);
+          const fallbackUrl = chrome.runtime.getURL('dashboard.html');
+          chrome.tabs.create({ url: fallbackUrl });
+        }).finally(() => {
+          window.close();
         });
       });
     }

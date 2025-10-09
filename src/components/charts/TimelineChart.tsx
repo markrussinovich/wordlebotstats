@@ -303,7 +303,42 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) =
     if (!selectedRange || selectedRange.start === selectedRange.end) {
       return chartData;
     }
-    return chartData.slice(selectedRange.start, selectedRange.end + 1);
+    
+    // Get the sliced data
+    const slicedData = chartData.slice(selectedRange.start, selectedRange.end + 1);
+    
+    // Recalculate running averages for ONLY the visible range
+    let sumTurns = 0;
+    let countTurns = 0;
+    let sumSkill = 0;
+    let countSkill = 0;
+    let sumLuck = 0;
+    let countLuck = 0;
+    
+    return slicedData.map((point) => {
+      // Turns (won games only with >0 turns)
+      if (point.won === true && point.turns > 0) {
+        sumTurns += point.turns;
+        countTurns += 1;
+      }
+      const runningAverage = countTurns > 0 ? sumTurns / countTurns : undefined;
+
+      // Skill score
+      if (typeof point.skillScore === 'number') {
+        sumSkill += point.skillScore;
+        countSkill += 1;
+      }
+      const runningSkillAvg = countSkill > 0 ? sumSkill / countSkill : undefined;
+
+      // Luck score
+      if (typeof point.luckScore === 'number') {
+        sumLuck += point.luckScore;
+        countLuck += 1;
+      }
+      const runningLuckAvg = countLuck > 0 ? sumLuck / countLuck : undefined;
+
+      return { ...point, runningAverage, runningSkillAvg, runningLuckAvg };
+    });
   }, [chartData, selectedRange]);
 
   const averageTurns = useMemo(() => {
@@ -312,6 +347,22 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) =
     
     const sum = wonGames.reduce((acc, game) => acc + (game.turns || 0), 0);
     return sum / wonGames.length;
+  }, [visibleData]);
+
+  const averageSkill = useMemo(() => {
+    const gamesWithSkill = visibleData.filter(d => typeof d.skillScore === 'number');
+    if (gamesWithSkill.length === 0) return 0;
+    
+    const sum = gamesWithSkill.reduce((acc, game) => acc + (game.skillScore || 0), 0);
+    return sum / gamesWithSkill.length;
+  }, [visibleData]);
+
+  const averageLuck = useMemo(() => {
+    const gamesWithLuck = visibleData.filter(d => typeof d.luckScore === 'number');
+    if (gamesWithLuck.length === 0) return 0;
+    
+    const sum = gamesWithLuck.reduce((acc, game) => acc + (game.luckScore || 0), 0);
+    return sum / gamesWithLuck.length;
   }, [visibleData]);
 
   const playedGames = useMemo(
@@ -429,6 +480,7 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) =
         resultClass = 'won';
       }
       
+      // Always show result for failed games, hide for won games with board
       const shouldRenderResult = !(hasBoard && resultClass === 'won');
 
       return (
@@ -525,6 +577,18 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) =
             <span className="chart-stat-value">
             {averageTurns > 0 ? averageTurns.toFixed(2) : '—'}
             </span>
+        </div>
+        <div className="chart-stat">
+          <span className="chart-stat-label">Avg Skill</span>
+          <span className="chart-stat-value">
+            {averageSkill > 0 ? averageSkill.toFixed(1) : '—'}
+          </span>
+        </div>
+        <div className="chart-stat">
+          <span className="chart-stat-label">Avg Luck</span>
+          <span className="chart-stat-value">
+            {averageLuck > 0 ? averageLuck.toFixed(1) : '—'}
+          </span>
         </div>
         <div className="chart-stat">
           <span className="chart-stat-label">Win Rate</span>

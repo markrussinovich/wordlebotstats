@@ -2,8 +2,9 @@
 import esbuild from 'esbuild';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { copyFileSync, existsSync, mkdirSync, cpSync } from 'fs';
+import { copyFileSync, existsSync, mkdirSync, cpSync, createWriteStream, readFileSync, unlinkSync } from 'fs';
 import { execSync } from 'child_process';
+import archiver from 'archiver';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -136,11 +137,62 @@ async function buildExtension() {
     console.log('  - Dashboard');
     console.log('  - Manifest and icons');
     console.log('\nYou can now load the extension from the dist/ directory.');
+    await packageForStore(distDir);
     
   } catch (error) {
     console.error('❌ Build failed:', error);
     process.exit(1);
   }
+}
+
+async function packageForStore(distDir) {
+  console.log('\nPackaging extension for Chrome Web Store...');
+
+  const listingDir = resolve(rootDir, 'listing');
+  const latestBuildDir = resolve(listingDir, 'latest-build');
+
+  if (!existsSync(listingDir)) {
+    mkdirSync(listingDir, { recursive: true });
+  }
+
+  if (!existsSync(latestBuildDir)) {
+    mkdirSync(latestBuildDir, { recursive: true });
+  }
+
+  let version = 'unversioned';
+  const manifestPath = resolve(distDir, 'manifest.json');
+
+  try {
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'));
+    version = manifest.version || version;
+  } catch (error) {
+    console.warn('⚠ Unable to read manifest version, defaulting to "unversioned".', error.message);
+  }
+
+  const zipName = `wordle-stat-explorer-${version}.zip`;
+  const zipPath = resolve(latestBuildDir, zipName);
+
+  if (existsSync(zipPath)) {
+    unlinkSync(zipPath);
+  }
+
+  await new Promise((resolvePromise, rejectPromise) => {
+    const output = createWriteStream(zipPath);
+    const archive = archiver('zip', { zlib: { level: 9 } });
+
+    output.on('close', () => {
+      console.log(`✓ Packaged extension zip (${archive.pointer()} bytes) at ${zipPath}`);
+      resolvePromise();
+    });
+
+    archive.on('error', (error) => {
+      rejectPromise(error);
+    });
+
+    archive.pipe(output);
+    archive.directory(distDir, false);
+    archive.finalize();
+  });
 }
 
 buildExtension();

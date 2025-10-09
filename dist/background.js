@@ -1,6 +1,9 @@
 var __defProp = Object.defineProperty;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
-var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
+var __publicField = (obj, key, value) => {
+  __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
+  return value;
+};
 
 // src/extension/utils/logger.ts
 var g = globalThis;
@@ -8,14 +11,16 @@ function resolveEnvFlag() {
   try {
     if (typeof import.meta !== "undefined" && import.meta?.env) {
       const val = import.meta.env.VITE_DEBUG_LOGS;
-      if (val != null) return val === "true" || val === true;
+      if (val != null)
+        return val === "true" || val === true;
     }
   } catch {
   }
   try {
     if (typeof process !== "undefined" && process?.env) {
       const v = process.env.VITE_DEBUG_LOGS;
-      if (v != null) return v === "true";
+      if (v != null)
+        return v === "true";
     }
   } catch {
   }
@@ -43,7 +48,8 @@ function prefix() {
 }
 function build(method) {
   return (...args) => {
-    if (enabled) console[method](prefix(), ...args);
+    if (enabled)
+      console[method](prefix(), ...args);
   };
 }
 var logger = {
@@ -155,18 +161,25 @@ var _ExtensionStorage = class _ExtensionStorage {
   getDataRichnessScore(game) {
     let score = 0;
     score += 1;
-    if (game.skillScore !== void 0) score += 2;
-    if (game.luckScore !== void 0) score += 2;
-    if (game.analysisUrl) score += 1;
-    if (game.solution) score += 1;
-    if (game.guessPattern && game.guessPattern.length > 0) score += 2;
-    if (game.duration || game.timeToComplete) score += 1;
+    if (game.skillScore !== void 0)
+      score += 2;
+    if (game.luckScore !== void 0)
+      score += 2;
+    if (game.analysisUrl)
+      score += 1;
+    if (game.solution)
+      score += 1;
+    if (game.guessPattern && game.guessPattern.length > 0)
+      score += 2;
+    if (game.duration || game.timeToComplete)
+      score += 1;
     return score;
   }
   async getNewestGame() {
     try {
       const games = await this.getAllGames();
-      if (games.length === 0) return null;
+      if (games.length === 0)
+        return null;
       return games.reduce((newest, game) => {
         return new Date(game.date) > new Date(newest.date) ? game : newest;
       });
@@ -725,7 +738,8 @@ async function updateExtensionBadge(games) {
   }
 }
 function filterGamesByTimeFrame(games, timeFrame) {
-  if (timeFrame === "all") return games;
+  if (timeFrame === "all")
+    return games;
   const now = /* @__PURE__ */ new Date();
   const cutoffDate = /* @__PURE__ */ new Date();
   switch (timeFrame) {
@@ -743,7 +757,8 @@ function filterGamesByTimeFrame(games, timeFrame) {
   }
   console.log(`[BACKGROUND DEBUG] filterGamesByTimeFrame: Cutoff date for ${timeFrame}: ${cutoffDate.toISOString()}`);
   const filtered = games.filter((game) => {
-    if (!game.date) return false;
+    if (!game.date)
+      return false;
     const gameDate = new Date(game.date);
     return gameDate >= cutoffDate;
   });
@@ -763,9 +778,12 @@ function calculateStatistics(games, allGames) {
     };
   }
   const getAttemptCount = (game) => {
-    if (typeof game.attempts === "number") return game.attempts;
-    if (typeof game.guesses === "number") return game.guesses;
-    if (typeof game.steps === "number") return game.steps;
+    if (typeof game.attempts === "number")
+      return game.attempts;
+    if (typeof game.guesses === "number")
+      return game.guesses;
+    if (typeof game.steps === "number")
+      return game.steps;
     return 0;
   };
   const playedGames = games.filter((game) => getAttemptCount(game) > 0);
@@ -839,8 +857,10 @@ function compareVersions(version1, version2) {
   for (let i = 0; i < Math.max(v1parts.length, v2parts.length); i++) {
     const v1part = v1parts[i] || 0;
     const v2part = v2parts[i] || 0;
-    if (v1part < v2part) return -1;
-    if (v1part > v2part) return 1;
+    if (v1part < v2part)
+      return -1;
+    if (v1part > v2part)
+      return 1;
   }
   return 0;
 }

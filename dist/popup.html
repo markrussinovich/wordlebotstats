@@ -6,7 +6,7 @@
   <title>Wordle Stat Explorer</title>
   <style>
     body {
-      width: 320px;
+      width: 380px;
       margin: 0;
       padding: 0;
       font-family: 'Helvetica Neue', Arial, sans-serif;
@@ -170,7 +170,7 @@
       align-items: center;
       justify-content: center;
       gap: 16px;
-      padding: 48px 16px 56px;
+       padding: 130px 16px 130px;
       text-align: center;
     }
 
@@ -248,6 +248,88 @@
 
     .cta-button:hover {
       background: #e0e0e0;
+    }
+
+    .last-game-section {
+      margin-bottom: 16px;
+      margin-left: 24px;
+      margin-right: 24px;
+      padding: 12px;
+      background: #f8f9fa;
+      border-radius: 8px;
+      border: 1px solid #e9ecef;
+    }
+
+    .last-game-header {
+      font-size: 12px;
+      font-weight: 600;
+      color: #aaa;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      text-align: center;
+    }
+
+    .last-game-details {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .last-game-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+    }
+
+    .last-game-label {
+      color: #666;
+      font-weight: 500;
+    }
+
+    .last-game-value {
+      color: #333;
+      font-weight: 600;
+    }
+
+    .last-game-value.won {
+      color: #6aaa64;
+    }
+
+    .last-game-value.lost {
+      color: #d73027;
+    }
+
+    .last-game-scores {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .last-game-score {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 6px;
+      background: white;
+      border-radius: 4px;
+      border: 1px solid #e9ecef;
+    }
+
+    .last-game-score-label {
+      font-size: 10px;
+      color: #666;
+      margin-bottom: 2px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .last-game-score-value {
+      font-size: 16px;
+      font-weight: 700;
+      color: #6aaa64;
     }
 
     .stats-grid {
@@ -338,6 +420,40 @@
 
       .error {
         color: #f48771;
+      }
+
+      .last-game-section {
+        background: #252526;
+        border-color: #3e3e42;
+      }
+
+      .last-game-header {
+        color: #aaa;
+      }
+
+      .last-game-label {
+        color: #858585;
+      }
+
+      .last-game-value {
+        color: #cccccc;
+      }
+
+      .last-game-value.won {
+        color: #6aaa64;
+      }
+
+      .last-game-value.lost {
+        color: #f48771;
+      }
+
+      .last-game-score {
+        background: #1e1e1e;
+        border-color: #3e3e42;
+      }
+
+      .last-game-score-label {
+        color: #858585;
       }
 
       .stat-card {

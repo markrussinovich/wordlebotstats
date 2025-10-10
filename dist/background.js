@@ -428,9 +428,18 @@ async function handleGetQuickStats(message) {
     }
     const statistics = calculateStatistics(filteredGames, games);
     console.log(`[BACKGROUND DEBUG] GET_QUICK_STATS: Calculated statistics:`, statistics);
+    let lastGame = null;
+    if (games.length > 0) {
+      const sortedGames = [...games].sort(
+        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+      );
+      lastGame = sortedGames[0];
+      console.log(`[BACKGROUND DEBUG] GET_QUICK_STATS: Last game:`, lastGame);
+    }
     return {
       success: true,
       statistics,
+      lastGame,
       timeFrame: message.timeFrame
     };
   } catch (error) {

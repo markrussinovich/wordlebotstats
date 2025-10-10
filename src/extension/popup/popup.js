@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', function() {
   let selectedTimeFrame = '7d';
   let isLoading = false;
   let statistics = null;
+  let lastGame = null;
   let scraperStatus = {
     active: false,
     message: ''
@@ -95,6 +96,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     return `
       ${notifications}
+      ${renderLastGame()}
       <div class="stats-grid">
         <div class="stat-card">
           <div class="stat-value">${statistics.winRate.toFixed(1)}%</div>
@@ -171,8 +173,9 @@ document.addEventListener('DOMContentLoaded', function() {
   
   async function loadStatistics() {
     try {
-      isLoading = true;
-      render();
+      // Don't show loading state for quick time frame switches
+      // isLoading = true;
+      // render();
       
       console.log('[Popup] Loading statistics for:', selectedTimeFrame);
       
@@ -188,16 +191,21 @@ document.addEventListener('DOMContentLoaded', function() {
       
       if (response && response.success) {
         statistics = response.statistics;
+        lastGame = response.lastGame || null;
         console.log('[Popup] ✅ Statistics loaded successfully:', statistics);
+        console.log('[Popup] ✅ Last game:', lastGame);
       } else {
         console.error('[Popup] Failed to load statistics:', response);
         statistics = null;
+        lastGame = null;
       }
     } catch (error) {
       console.error('[Popup] Error loading statistics:', error);
       statistics = null;
+      lastGame = null;
     } finally {
-      isLoading = false;
+      // Don't clear loading state here since we don't set it for quick switches
+      // isLoading = false;
       render();
     }
   }
@@ -374,6 +382,58 @@ document.addEventListener('DOMContentLoaded', function() {
       <div class="loading-state">
         <div class="loading-spinner"></div>
         <div class="loading-message">${message}</div>
+      </div>
+    `;
+  }
+
+  function renderLastGame() {
+    if (!lastGame) {
+      return '';
+    }
+
+    const date = new Date(lastGame.date);
+    const formattedDate = date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric', 
+      year: 'numeric' 
+    });
+    
+    const attempts = lastGame.attempts || lastGame.guesses || 0;
+    const turnsClass = lastGame.won ? 'won' : 'lost';
+    const turnsText = lastGame.won ? attempts.toString() : 'Failed';
+    const word = lastGame.solution || '—';
+    
+    const hasWordleBotScores = lastGame.skillScore !== undefined && lastGame.luckScore !== undefined;
+    
+    return `
+      <div class="last-game-section">
+        <div class="last-game-header">Last Game</div>
+        <div class="last-game-details">
+          <div class="last-game-row">
+            <span class="last-game-label">Date</span>
+            <span class="last-game-value">${formattedDate}</span>
+          </div>
+          <div class="last-game-row">
+            <span class="last-game-label">Word</span>
+            <span class="last-game-value">${word.toUpperCase()}</span>
+          </div>
+          <div class="last-game-row">
+            <span class="last-game-label">Turns</span>
+            <span class="last-game-value ${turnsClass}">${turnsText}</span>
+          </div>
+          ${hasWordleBotScores ? `
+            <div class="last-game-scores">
+              <div class="last-game-score">
+                <div class="last-game-score-label">Skill</div>
+                <div class="last-game-score-value">${lastGame.skillScore}</div>
+              </div>
+              <div class="last-game-score">
+                <div class="last-game-score-label">Luck</div>
+                <div class="last-game-score-value">${lastGame.luckScore}</div>
+              </div>
+            </div>
+          ` : ''}
+        </div>
       </div>
     `;
   }

@@ -17,6 +17,7 @@ import { isGameWon } from '@/utils/streakCalculation';
 interface TimelineChartProps {
   games: GameResult[];
   onRangeChange?: (startDate: Date, endDate: Date) => void;
+  turnDistribution?: React.ReactNode;
 }
 
 type LegacyGuessCell =
@@ -154,7 +155,7 @@ const normalizeGuessPattern = (rawPattern: LegacyGuessRow[] | GuessResult[][] | 
     .filter((row): row is GuessResult[] => Array.isArray(row) && row.length > 0);
 };
 
-const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) => {
+const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, turnDistribution }) => {
   const [selectedRange, setSelectedRange] = useState<{ start: number; end: number } | null>(null);
   
   // Detect dark mode
@@ -599,6 +600,13 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange }) =
           </span>
         </div>
       </div>
+
+      {/* Turn Distribution */}
+      {turnDistribution && (
+        <div className="turn-distribution-wrapper">
+          {turnDistribution}
+        </div>
+      )}
 
       <ResponsiveContainer width="100%" height={400}>
         <ComposedChart data={chartData} margin={CHART_MARGINS}>

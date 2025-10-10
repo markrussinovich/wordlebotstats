@@ -79,6 +79,7 @@ export interface QuickStatsResponse {
     winCount: number;
     guessDistribution?: number[];
   };
+  lastGame?: any; // Most recent game with all details
   error?: string;
   timeFrame?: TimeFrame;
 }

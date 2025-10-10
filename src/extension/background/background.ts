@@ -278,9 +278,20 @@ async function handleGetQuickStats(message: GetQuickStatsMessage): Promise<Quick
     const statistics = calculateStatistics(filteredGames, games);
     console.log(`[BACKGROUND DEBUG] GET_QUICK_STATS: Calculated statistics:`, statistics);
     
+    // Get the most recent game
+    let lastGame = null;
+    if (games.length > 0) {
+      const sortedGames = [...games].sort((a: any, b: any) => 
+        new Date(b.date).getTime() - new Date(a.date).getTime()
+      );
+      lastGame = sortedGames[0];
+      console.log(`[BACKGROUND DEBUG] GET_QUICK_STATS: Last game:`, lastGame);
+    }
+    
     return {
       success: true,
       statistics,
+      lastGame,
       timeFrame: message.timeFrame
     };
   } catch (error) {

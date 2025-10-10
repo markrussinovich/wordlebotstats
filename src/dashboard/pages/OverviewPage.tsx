@@ -1,12 +1,14 @@
 // Dashboard overview page with comprehensive statistics display
 import React, { useState, useEffect } from 'react';
 import TimelineChart from '@/components/charts/TimelineChart';
+import TurnDistributionBar from '@/components/charts/TurnDistributionBar';
 import { useGameDataStore } from '@/stores/gameData';
 import { calculateStreakStats } from '@/utils/streakCalculation';
 
 const OverviewPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [rangeStreaks, setRangeStreaks] = useState<{ current: number; max: number } | null>(null);
+  const [filteredGames, setFilteredGames] = useState<any[]>([]);
 
   // Store hooks
   const { 
@@ -41,17 +43,28 @@ const OverviewPage: React.FC = () => {
     const streaks = calculateStreakStats(games, startDate, endDate);
     setRangeStreaks({ current: streaks.currentStreak, max: streaks.maxStreak });
     
+    // Filter games by selected date range
+    const filtered = games.filter(game => {
+      const gameDate = new Date(game.date);
+      return gameDate >= startDate && gameDate <= endDate;
+    });
+    setFilteredGames(filtered);
+    
     console.log('[OverviewPage] Range selected:', {
       start: startDate.toISOString(),
       end: endDate.toISOString(),
       currentStreak: streaks.currentStreak,
-      maxStreak: streaks.maxStreak
+      maxStreak: streaks.maxStreak,
+      filteredGames: filtered.length
     });
   };
 
   // Debug: Log first few games to see the data structure
   useEffect(() => {
     if (games.length > 0) {
+      // Initialize filtered games with all games
+      setFilteredGames(games);
+      
       console.log('[OverviewPage] Sample games:', games.slice(0, 5));
       console.log('[OverviewPage] Statistics:', statistics);
       
@@ -67,11 +80,6 @@ const OverviewPage: React.FC = () => {
       console.log('[OverviewPage] Played games:', wins + losses);
     }
   }, [games, statistics]);
-
-  // Get most recent game by date
-  const mostRecentGame = games.length > 0 
-    ? [...games].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]
-    : null;
 
   if (isLoading || gamesLoading) {
     return (
@@ -141,33 +149,20 @@ const OverviewPage: React.FC = () => {
             </div>
           </div>
         </div>
-        
-        <div className="stat-item stat-item-wide">
-          <div className="stat-label">Most Recent Game</div>
-          <div className="stat-value-small">
-            {mostRecentGame ? (
-              <>
-                {new Date(mostRecentGame.date).toLocaleDateString()} • {' '}
-                {mostRecentGame.won ? (
-                  <span className="game-won">{mostRecentGame.attempts || mostRecentGame.guesses} turns</span>
-                ) : (
-                  <span className="game-lost">Lost</span>
-                )}
-              </>
-            ) : (
-              'No games yet'
-            )}
-          </div>
-        </div>
       </div>
 
       {/* Timeline Chart */}
       <div className="chart-section">
         <h2 className="section-title">Performance Timeline</h2>
         <p className="section-subtitle">
-          Click and drag to select a date range and zoom in. Streaks update based on selected range.
+          Click and drag to select a date range and zoom in. Streaks and turn distribution update based on selected range.
         </p>
-        <TimelineChart games={games} onRangeChange={handleRangeChange} />
+        
+        <TimelineChart 
+          games={games} 
+          onRangeChange={handleRangeChange}
+          turnDistribution={<TurnDistributionBar games={filteredGames.length > 0 ? filteredGames : games} />}
+        />
       </div>
     </div>
   );

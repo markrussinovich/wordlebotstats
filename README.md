@@ -72,12 +72,6 @@ npm install
 Bundles the popup, dashboard, background worker, and content scripts into `dist/`.
 
 ```cmd
-node scripts\quick-build-extension.js
-```
-
-Or use the npm script:
-
-```cmd
 npm run build:quick
 ```
 
@@ -88,15 +82,6 @@ Runs the Jest unit test suite (React component tests and utility coverage).
 ```cmd
 npm test
 ```
-
-### Launch the Dashboard in Dev Mode (optional)
-
-If you need to work on the dashboard in isolation, use Vite’s dev server:
-
-```cmd
-npm run dev -- --host
-```
-
 ### Load the Extension in Chrome/Edge
 
 1. Build using the command above (ensures fresh assets in `dist/`).
@@ -110,6 +95,39 @@ npm run dev -- --host
 - **Logging:** Enable verbose logging by toggling helpers exposed in the background console (`WORDLE_ENABLE_DEBUG_LOGS()` / `WORDLE_DISABLE_DEBUG_LOGS()`).
 - **Storage:** All data stays local via `chrome.storage.local`; benchmarks and settings live in Zustand stores for instant access.
 - **Benchmarks:** Default national and WordleBot benchmarks ship with the extension and can be refreshed from the dashboard.
+
+## 🔒 Privacy
+
+**Wordle Stat Explorer respects your privacy and operates with complete transparency.**
+
+Wordle Stat Explorer collects only the data necessary to provide statistics about your Wordle games:
+
+- **Wordle game results**: Puzzle numbers, dates, guess counts, board states, and win/loss status
+- **WordleBot metrics**: Skill and luck scores when available from the NYTimes WordleBot page
+- **User preferences**: Display settings, dashboard filters, and time range selections
+
+All data is stored **locally on your device** using Chrome's `chrome.storage.local` API:
+
+- ✅ No data is ever transmitted to external servers
+- ✅ No analytics, tracking pixels, or telemetry
+- ✅ No user accounts, authentication, or cloud sync
+- ✅ All data remains under your control
+
+The extension requests only the minimal permissions needed:
+
+- **Storage**: To save your game history and preferences locally
+- **Host permissions for `*.nytimes.com`**: To read your Wordle game data from the NYTimes website when you visit the Wordle Bot page
+- **Scripting**: To inject content scripts that extract game data from the NYTimes pages
+
+### Updates to This Policy
+
+Any changes to this privacy policy will be reflected in this document and noted in the extension's changelog.
+
+### Contact
+
+Questions or concerns about privacy? Open an issue on GitHub: <https://github.com/markrussinovich/wordlebotstats/issues>
+
+---
 
 ## 📘 Additional Resources
 

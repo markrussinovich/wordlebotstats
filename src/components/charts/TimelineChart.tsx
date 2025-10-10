@@ -49,7 +49,7 @@ interface ChartDataPoint {
   luckScore?: number;
 }
 
-const CHART_MARGINS = { top: 20, right: 30, left: 20, bottom: 20 } as const;
+const CHART_MARGINS = { top: 20, right: 5, left: 5, bottom: 20 } as const;
 
 const normalizeGuessStatus = (rawStatus: string | undefined): GuessResult['status'] => {
   if (!rawStatus) {

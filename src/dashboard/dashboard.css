@@ -520,7 +520,7 @@ body {
 .legend-line {
   width: 24px;
   height: 2px;
-  border-top: 2px dashed #c9b458;
+  border-top: 2px solid #c9b458;
 }
 
 .legend-line-avg {

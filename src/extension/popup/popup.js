@@ -24,6 +24,12 @@ document.addEventListener('DOMContentLoaded', function() {
   };
   let activeNotification = null;
   
+  // Storage keys for persistence
+  const STORAGE_KEYS = {
+    CURRENT_GAME_INDEX: 'popup_current_game_index',
+    LAST_GAMES_COUNT: 'popup_last_games_count'
+  };
+  
   // Render popup
   function render() {
     const timeFrames = ['7d', '30d', '90d', 'all'];
@@ -161,7 +167,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (refreshBtn) {
       refreshBtn.addEventListener('click', () => {
         if (!refreshBtn.disabled) {
-          currentGameIndex = 0; // Reset to most recent game
+          // Mark that we're doing a refresh - game index will be reset if new games found
           render();
           triggerIncrementalScrape();
         }
@@ -173,18 +179,20 @@ document.addEventListener('DOMContentLoaded', function() {
     const nextBtn = document.getElementById('next-game-btn');
     
     if (prevBtn) {
-      prevBtn.addEventListener('click', () => {
+      prevBtn.addEventListener('click', async () => {
         if (currentGameIndex < allGames.length - 1) {
           currentGameIndex++;
+          await saveCurrentGameIndex();
           render();
         }
       });
     }
     
     if (nextBtn) {
-      nextBtn.addEventListener('click', () => {
+      nextBtn.addEventListener('click', async () => {
         if (currentGameIndex > 0) {
           currentGameIndex--;
+          await saveCurrentGameIndex();
           render();
         }
       });
@@ -232,11 +240,22 @@ document.addEventListener('DOMContentLoaded', function() {
       }
       
       if (gamesResponse && gamesResponse.success && gamesResponse.games) {
+        const previousGamesCount = allGames.length;
         allGames = [...gamesResponse.games].sort((a, b) => 
           new Date(b.date).getTime() - new Date(a.date).getTime()
         );
-        currentGameIndex = 0; // Reset to most recent game
-        console.log('[Popup] ✅ All games loaded:', allGames.length);
+        
+        // Only reset game index if this is the initial load or if we're not preserving state
+        if (previousGamesCount === 0) {
+          await loadCurrentGameIndex();
+        }
+        
+        // Ensure current index is valid
+        if (currentGameIndex >= allGames.length) {
+          currentGameIndex = Math.max(0, allGames.length - 1);
+        }
+        
+        console.log('[Popup] ✅ All games loaded:', allGames.length, 'Current index:', currentGameIndex);
       } else {
         console.error('[Popup] Failed to load games:', gamesResponse);
         allGames = [];
@@ -253,7 +272,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   
   // Listen for scraper progress messages
-  chrome.runtime.onMessage.addListener((message) => {
+  chrome.runtime.onMessage.addListener(async (message) => {
     console.log('[Popup] Received message:', message);
     
     if (message.type === 'WORDLE_BOT_SCRAPE_PROGRESS') {
@@ -274,6 +293,14 @@ document.addEventListener('DOMContentLoaded', function() {
       scraperStatus.message = '';
       
       console.log(`[Popup] Scrape complete - ${message.newGames} new games, ${message.totalGames} total checked`);
+      
+      // Reset to most recent game if new games were found
+      if (message.newGames > 0) {
+        currentGameIndex = 0;
+        await saveCurrentGameIndex();
+        console.log('[Popup] Reset to newest game due to new games found');
+      }
+      
       // Always reload stats to show current data
       loadStatistics();
     } else if (message.type === 'WORDLE_BOT_SCRAPE_ERROR') {
@@ -581,6 +608,40 @@ document.addEventListener('DOMContentLoaded', function() {
       return 'present';
     }
     return 'absent';
+  }
+  
+  // Save current game index to storage
+  async function saveCurrentGameIndex() {
+    try {
+      await chrome.storage.local.set({
+        [STORAGE_KEYS.CURRENT_GAME_INDEX]: currentGameIndex,
+        [STORAGE_KEYS.LAST_GAMES_COUNT]: allGames.length
+      });
+    } catch (error) {
+      console.warn('[Popup] Failed to save current game index:', error);
+    }
+  }
+  
+  // Load current game index from storage
+  async function loadCurrentGameIndex() {
+    try {
+      const result = await chrome.storage.local.get([
+        STORAGE_KEYS.CURRENT_GAME_INDEX,
+        STORAGE_KEYS.LAST_GAMES_COUNT
+      ]);
+      
+      const savedIndex = result[STORAGE_KEYS.CURRENT_GAME_INDEX];
+      const savedGamesCount = result[STORAGE_KEYS.LAST_GAMES_COUNT];
+      
+      // Only restore if we have the same number of games (no new games found)
+      if (typeof savedIndex === 'number' && savedGamesCount === allGames.length && 
+          savedIndex >= 0 && savedIndex < allGames.length) {
+        currentGameIndex = savedIndex;
+        console.log('[Popup] Restored game index:', currentGameIndex);
+      }
+    } catch (error) {
+      console.warn('[Popup] Failed to load current game index:', error);
+    }
   }
 
   function renderLastGame() {

@@ -16,6 +16,8 @@ document.addEventListener('DOMContentLoaded', function() {
   let isLoading = false;
   let statistics = null;
   let lastGame = null;
+  let allGames = [];
+  let currentGameIndex = 0;
   let scraperStatus = {
     active: false,
     message: ''
@@ -35,6 +37,11 @@ document.addEventListener('DOMContentLoaded', function() {
               ↻ Refresh
             </button>
           </div>
+        </header>
+        
+        <main class="popup-main">
+          ${renderGameViewer()}
+          
           <div class="time-frame-picker">
             ${timeFrames.map(tf => `
               <button 
@@ -45,15 +52,13 @@ document.addEventListener('DOMContentLoaded', function() {
               </button>
             `).join('')}
           </div>
-        </header>
-        
-        <main class="popup-main">
+          
           ${renderContent()}
         </main>
         
         <footer class="popup-footer">
           <button class="dashboard-link" id="dashboard-btn" ${(isLoading || scraperStatus.active) ? 'disabled' : ''}>
-            Open Dashboard
+            Dashboard
           </button>
         </footer>
       </div>
@@ -96,7 +101,6 @@ document.addEventListener('DOMContentLoaded', function() {
     
     return `
       ${notifications}
-      ${renderLastGame()}
       <div class="stats-grid">
         <div class="stat-card">
           <div class="stat-value">${statistics.winRate.toFixed(1)}%</div>
@@ -157,7 +161,31 @@ document.addEventListener('DOMContentLoaded', function() {
     if (refreshBtn) {
       refreshBtn.addEventListener('click', () => {
         if (!refreshBtn.disabled) {
+          currentGameIndex = 0; // Reset to most recent game
+          render();
           triggerIncrementalScrape();
+        }
+      });
+    }
+
+    // Game navigation buttons
+    const prevBtn = document.getElementById('prev-game-btn');
+    const nextBtn = document.getElementById('next-game-btn');
+    
+    if (prevBtn) {
+      prevBtn.addEventListener('click', () => {
+        if (currentGameIndex < allGames.length - 1) {
+          currentGameIndex++;
+          render();
+        }
+      });
+    }
+    
+    if (nextBtn) {
+      nextBtn.addEventListener('click', () => {
+        if (currentGameIndex > 0) {
+          currentGameIndex--;
+          render();
         }
       });
     }
@@ -179,25 +207,39 @@ document.addEventListener('DOMContentLoaded', function() {
       
       console.log('[Popup] Loading statistics for:', selectedTimeFrame);
       
-      const response = await chrome.runtime.sendMessage({
-        type: 'GET_QUICK_STATS',
-        timeFrame: selectedTimeFrame
-      });
+      const [statsResponse, gamesResponse] = await Promise.all([
+        chrome.runtime.sendMessage({
+          type: 'GET_QUICK_STATS',
+          timeFrame: selectedTimeFrame
+        }),
+        chrome.runtime.sendMessage({
+          type: 'GET_DASHBOARD_DATA'
+        })
+      ]);
       
-      console.log('[Popup] Statistics response:', response);
-      console.log('[Popup] Game count for timeframe:', response?.statistics?.gameCount);
-      console.log('[Popup] Win rate:', response?.statistics?.winRate);
-      console.log('[Popup] Average guesses:', response?.statistics?.averageGuesses);
+      console.log('[Popup] Statistics response:', statsResponse);
+      console.log('[Popup] Games response:', gamesResponse);
       
-      if (response && response.success) {
-        statistics = response.statistics;
-        lastGame = response.lastGame || null;
+      if (statsResponse && statsResponse.success) {
+        statistics = statsResponse.statistics;
+        lastGame = statsResponse.lastGame || null;
         console.log('[Popup] ✅ Statistics loaded successfully:', statistics);
         console.log('[Popup] ✅ Last game:', lastGame);
       } else {
-        console.error('[Popup] Failed to load statistics:', response);
+        console.error('[Popup] Failed to load statistics:', statsResponse);
         statistics = null;
         lastGame = null;
+      }
+      
+      if (gamesResponse && gamesResponse.success && gamesResponse.games) {
+        allGames = [...gamesResponse.games].sort((a, b) => 
+          new Date(b.date).getTime() - new Date(a.date).getTime()
+        );
+        currentGameIndex = 0; // Reset to most recent game
+        console.log('[Popup] ✅ All games loaded:', allGames.length);
+      } else {
+        console.error('[Popup] Failed to load games:', gamesResponse);
+        allGames = [];
       }
     } catch (error) {
       console.error('[Popup] Error loading statistics:', error);
@@ -384,6 +426,160 @@ document.addEventListener('DOMContentLoaded', function() {
         <div class="loading-message">${message}</div>
       </div>
     `;
+  }
+
+  function renderGameViewer() {
+    if (!allGames || allGames.length === 0) {
+      return `
+        <div class="game-viewer">
+          <div class="game-viewer-content">
+            <div class="no-games-message">No games available</div>
+          </div>
+        </div>
+      `;
+    }
+
+    const currentGame = allGames[currentGameIndex] || null;
+    if (!currentGame) {
+      return `
+        <div class="game-viewer">
+          <div class="game-viewer-content">
+            <div class="no-games-message">No game selected</div>
+          </div>
+        </div>
+      `;
+    }
+
+    const date = new Date(currentGame.date + 'T12:00:00.000Z');
+    const formattedDate = date.toLocaleDateString('en-US', { 
+      weekday: 'short',
+      month: 'short', 
+      day: 'numeric', 
+      year: 'numeric',
+      timeZone: 'UTC'
+    });
+
+    const attempts = currentGame.attempts || currentGame.guesses || 0;
+    const resultText = currentGame.won ? 'Won' : 'Lost';
+    const resultClass = currentGame.won ? 'won' : 'lost';
+    const word = currentGame.solution || '\u2014';
+
+    // Create game board grid
+    const gameBoard = renderGameBoard(currentGame);
+
+    const hasScores = currentGame.skillScore !== undefined && currentGame.luckScore !== undefined;
+
+    return `
+      <div class="game-viewer">
+        <div class="game-info">
+          <div class="game-date">${formattedDate}</div>
+        </div>
+        
+        <div class="game-viewer-content">
+          <div class="game-word">${word.toUpperCase()}</div>
+          
+          <div class="game-board-container">
+            <div class="board-and-scores">
+              <button class="nav-btn nav-btn-large" id="prev-game-btn" ${currentGameIndex >= allGames.length - 1 ? 'disabled' : ''}>
+                ‹
+              </button>
+              
+              <div class="game-viewer-content">${gameBoard}</div>
+              
+              ${hasScores ? `
+                <div class="score-right-stacked">
+                  <button class="nav-btn nav-btn-large" id="next-game-btn" ${currentGameIndex <= 0 ? 'disabled' : ''}>
+                    ›
+                  </button>
+                  <div style="margin-top: 16px;">
+                    <div class="score-item">
+                      <span class="score-label">Luck</span>
+                      <span class="score-value">${currentGame.luckScore}</span>
+                    </div>
+                    <div class="score-item" style="margin-top: 8px;">
+                      <span class="score-label">Skill</span>
+                      <span class="score-value">${currentGame.skillScore}</span>
+                    </div>
+                  </div>
+                </div>
+              ` : `
+                <button class="nav-btn nav-btn-large" id="next-game-btn" ${currentGameIndex <= 0 ? 'disabled' : ''}>
+                  ›
+                </button>
+              `}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderGameBoard(game) {
+    let pattern = [];
+    
+    // Try to use guessPattern first
+    if (game.guessPattern) {
+      pattern = game.guessPattern;
+    } else if (game.guesses) {
+      // Convert legacy guesses format
+      pattern = game.guesses.map(row => {
+        if (typeof row === 'string') {
+          return Array.from(row).map(letter => ({ letter, status: 'absent' }));
+        }
+        return row.map(cell => {
+          if (typeof cell === 'string') {
+            return { letter: cell, status: 'absent' };
+          }
+          return {
+            letter: cell.letter || cell.value || '',
+            status: normalizeGuessStatus(cell.status || cell.state || cell.result)
+          };
+        });
+      });
+    }
+
+    // Always ensure we have exactly 6 rows
+    const fullPattern = [];
+    for (let i = 0; i < 6; i++) {
+      if (i < pattern.length && pattern[i]) {
+        fullPattern.push(pattern[i]);
+      } else {
+        // Add empty row
+        fullPattern.push(Array(5).fill({ letter: '', status: 'empty' }));
+      }
+    }
+
+    return `
+      <div class="game-board">
+        ${fullPattern.map((row, rowIndex) => `
+          <div class="board-row">
+            ${row.map((cell, cellIndex) => `
+              <div class="board-cell board-cell-${cell.status}">
+                ${(cell.letter || '').toUpperCase()}
+              </div>
+            `).join('')}
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  function normalizeGuessStatus(rawStatus) {
+    if (!rawStatus) return 'absent';
+    const lower = rawStatus.toLowerCase();
+    if (lower.includes('correct') || lower.includes('right') || lower.includes('exact')) {
+      return 'correct';
+    }
+    if (lower.includes('present') || lower.includes('misplaced') || lower.includes('close')) {
+      return 'present';
+    }
+    if (rawStatus === '🟩' || rawStatus === '🟢' || rawStatus === '✅') {
+      return 'correct';
+    }
+    if (rawStatus === '🟨' || rawStatus === '🟡') {
+      return 'present';
+    }
+    return 'absent';
   }
 
   function renderLastGame() {

@@ -7,19 +7,24 @@
   <style>
     body {
       width: 380px;
+      height: fit-content;
+      max-height: 520px;
       margin: 0;
       padding: 0;
       font-family: 'Helvetica Neue', Arial, sans-serif;
       background-color: #ffffff;
+      overflow: hidden;
     }
 
     .popup-container {
       display: flex;
       flex-direction: column;
+      height: fit-content;
+      max-height: 520px;
     }
 
     .popup-header {
-      padding: 16px;
+      padding: 12px 16px;
       background: linear-gradient(135deg, #6aaa64 0%, #538d4e 100%);
       color: white;
     }
@@ -64,6 +69,10 @@
     .time-frame-picker {
       display: flex;
       gap: 4px;
+      margin: 2px 16px 2px 16px;
+      background: #6aaa64;
+      padding: 3px;
+      border-radius: 6px;
     }
 
     .time-frame-btn {
@@ -91,10 +100,201 @@
 
     .popup-main {
       flex: 1;
-      padding: 16px;
+      padding: 0;
       display: flex;
       flex-direction: column;
       justify-content: flex-start;
+    }
+
+    /* Game Viewer */
+    .game-viewer {
+      background: #f8f9fa;
+      border-bottom: 1px solid #e9ecef;
+      padding: 4px 16px;
+    }
+
+    .game-board-container {
+      display: flex;
+      justify-content: center;
+      margin: 6px 0 0px 0;
+    }
+
+    .board-and-scores {
+      display: grid;
+      grid-template-columns: 45px 1fr 45px;
+      align-items: start;
+      width: 100%;
+      gap: 12px;
+    }
+
+    .nav-btn {
+      width: 32px;
+      height: 32px;
+      border: 1px solid #d3d6da;
+      background: white;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: bold;
+      color: #333;
+      transition: all 0.2s;
+    }
+
+    .nav-btn-large {
+      width: 30px;
+      height: 30px;
+      font-size: 18px;
+      margin-top: 20px;
+      justify-self: center;
+      align-self: start;
+    }
+
+    .nav-btn:not(:disabled) {
+      background: #6aaa64;
+      border-color: #6aaa64;
+      color: white;
+    }
+
+    .nav-btn:hover:not(:disabled) {
+      background: #5a9954;
+      border-color: #5a9954;
+    }
+
+    .nav-btn:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+      background: #f0f0f0;
+      border-color: #d3d6da;
+      color: #333;
+    }
+
+    .game-info {
+      text-align: center;
+      margin-bottom: 2px;
+    }
+
+    .score-right-stacked {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 8px;
+      width: 45px;
+      justify-self: center;
+    }
+
+    .score-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+    }
+
+    .score-item .score-label {
+      font-size: 9px;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .score-item .score-value {
+      font-size: 14px;
+      font-weight: 700;
+      color: #6aaa64;
+    }
+
+    .game-date {
+      font-size: 14px;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 2px;
+    }
+
+    .game-result {
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .game-result.won {
+      color: #6aaa64;
+    }
+
+    .game-result.lost {
+      color: #d73027;
+    }
+
+    .game-viewer-content {
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .game-word {
+      font-size: 18px;
+      font-weight: 700;
+      color: #6aaa64;
+      margin-bottom: 4px;
+      letter-spacing: 2px;
+    }
+
+    .game-board {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      width: fit-content;
+      justify-self: center;
+    }
+
+    .board-row {
+      display: flex;
+      gap: 4px;
+    }
+
+    .board-cell {
+      width: 28px;
+      height: 28px;
+      border: 1px solid #d3d6da;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 700;
+      color: white;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+    }
+
+    .board-cell-correct {
+      background: #6aaa64;
+      border-color: #6aaa64;
+    }
+
+    .board-cell-present {
+      background: #c9b458;
+      border-color: #c9b458;
+    }
+
+    .board-cell-absent {
+      background: #787c7e;
+      border-color: #787c7e;
+    }
+
+    .board-cell-empty {
+      background: #f0f0f0;
+      border-color: #e0e0e0;
+      color: transparent;
+    }
+
+    .no-games-message,
+    .no-board {
+      color: #666;
+      font-size: 14px;
+      padding: 20px;
     }
 
     .loading, .error, .no-data {
@@ -170,7 +370,7 @@
       align-items: center;
       justify-content: center;
       gap: 16px;
-       padding: 130px 16px 130px;
+       padding: 98px 16px 98px;
       text-align: center;
     }
 
@@ -335,7 +535,8 @@
     .stats-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 12px;
+      gap: 8px;
+      padding: 2px 16px 4px 16px;
     }
 
     .stat-card {
@@ -367,7 +568,7 @@
     }
 
     .popup-footer {
-      padding: 12px 16px 8px;
+      padding: 6px 16px 6px;
       border-top: 1px solid rgba(255,255,255,0.2);
       background: linear-gradient(135deg, #6aaa64 0%, #538d4e 100%);
     }
@@ -486,6 +687,55 @@
 
       .cta-button:hover {
         background: #4b5563;
+      }
+
+      /* Game Viewer Dark Mode */
+      .game-viewer {
+        background: #252526;
+        border-bottom-color: #3e3e42;
+      }
+
+      .nav-btn:not(:disabled) {
+        background: #6aaa64;
+        border-color: #6aaa64;
+        color: white;
+      }
+
+      .nav-btn:hover:not(:disabled) {
+        background: #5a9954;
+        border-color: #5a9954;
+      }
+
+      .nav-btn:disabled {
+        background: #2a2a2a;
+        border-color: #3e3e42;
+        color: #666;
+      }
+
+      .board-cell-empty {
+        background: #2a2a2a;
+        border-color: #3e3e42;
+      }
+
+      .score-item .score-label {
+        color: #858585;
+      }
+
+      .game-date {
+        color: #cccccc;
+      }
+
+      .board-cell {
+        border-color: #3e3e42;
+      }
+
+      .score-label {
+        color: #858585;
+      }
+
+      .no-games-message,
+      .no-board {
+        color: #858585;
       }
     }
   </style>

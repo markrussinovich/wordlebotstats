@@ -82,6 +82,7 @@ Runs the Jest unit test suite (React component tests and utility coverage).
 ```cmd
 npm test
 ```
+
 ### Load the Extension in Chrome/Edge
 
 1. Build using the command above (ensures fresh assets in `dist/`).

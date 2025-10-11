@@ -1,12 +1,15 @@
 # Chrome Web Store Listing – Wordle Stat Explorer
 
 ## Title
+
 Wordle Stat Explorer
 
 ## Summary (≤132 characters)
+
 Import your Wordle games and view win rate, streaks, guesses, and WordleBot skill/luck scores in one clean dashboard.
 
 ## Description
+
 Turn your daily Wordle habit into actionable insight. Wordle Stat Explorer automatically imports your game history (including WordleBot skill and luck scores) and presents it in an elegant dashboard so you can spot trends, celebrate streaks, and track your progress over time. View detailed performance metrics and analyze your solving patterns week to week.
 
 ### Key features

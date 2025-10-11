@@ -59,9 +59,16 @@ const OverviewPage: React.FC = () => {
     });
   };
 
-  // Debug: Log first few games to see the data structure
+  // Initialize streak data for all games on mount
   useEffect(() => {
     if (games.length > 0) {
+      // Calculate initial streaks for all games - need to provide date range
+      const sortedGames = [...games].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      const startDate = new Date(sortedGames[0].date);
+      const endDate = new Date(sortedGames[sortedGames.length - 1].date);
+      const allStreaks = calculateStreakStats(games, startDate, endDate);
+      setRangeStreaks({ current: allStreaks.currentStreak, max: allStreaks.maxStreak });
+      
       // Initialize filtered games with all games
       setFilteredGames(games);
       
@@ -162,6 +169,7 @@ const OverviewPage: React.FC = () => {
           games={games} 
           onRangeChange={handleRangeChange}
           turnDistribution={<TurnDistributionBar games={filteredGames.length > 0 ? filteredGames : games} />}
+          streakData={rangeStreaks}
         />
       </div>
     </div>

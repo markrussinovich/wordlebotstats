@@ -18,6 +18,7 @@ interface TimelineChartProps {
   games: GameResult[];
   onRangeChange?: (startDate: Date, endDate: Date) => void;
   turnDistribution?: React.ReactNode;
+  streakData?: { current: number; max: number } | null;
 }
 
 type LegacyGuessCell =
@@ -155,7 +156,7 @@ const normalizeGuessPattern = (rawPattern: LegacyGuessRow[] | GuessResult[][] | 
     .filter((row): row is GuessResult[] => Array.isArray(row) && row.length > 0);
 };
 
-const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, turnDistribution }) => {
+const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, turnDistribution, streakData }) => {
   const [selectedRange, setSelectedRange] = useState<{ start: number; end: number } | null>(null);
   
   // Detect dark mode
@@ -175,7 +176,9 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
     if (games.length === 0) return [];
     
     const data: ChartDataPoint[] = games.map((game) => {
-      const dateObj = new Date(game.date);
+      // Parse date safely to avoid timezone shifts
+      const dateParts = game.date.split('-');
+      const dateObj = new Date(parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2]));
       const actualAttempts = game.attempts || game.guesses || 0;
       
       // Use shared utility functions to determine game status
@@ -230,10 +233,10 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
         gameDateMap.set(game.date, game);
       });
       
-      // Iterate through all dates in the range
+      // Iterate through all dates in the range  
       const currentDate = new Date(startDate);
       while (currentDate <= endDate) {
-        const dateString = currentDate.toISOString().split('T')[0];
+        const dateString = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
         
         if (dateString && gameDateMap.has(dateString)) {
           // Use existing game data
@@ -245,7 +248,7 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
           // Add a "no game" point
           filledData.push({
             date: dateString,
-            dateObj: new Date(currentDate),
+            dateObj: new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate()),
             turns: 0,
             won: null,
             gameNumber: undefined,
@@ -374,7 +377,8 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
 
   // Format date for X-axis
   const formatXAxis = (dateString: string) => {
-    const date = new Date(dateString);
+    const dateParts = dateString.split('-');
+    const date = new Date(parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2]));
     
     if (visibleData.length > 100) {
       // Show month/year for large ranges
@@ -574,10 +578,22 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
           <span className="chart-stat-value">{playedGamesCount}</span>
         </div>
         <div className="chart-stat">
+          <span className="chart-stat-label">Win Rate</span>
+          <span className="chart-stat-value">
+            {playedGames.length > 0
+              ? ((visibleData.filter(d => d.won === true).length / playedGames.length) * 100).toFixed(1) + '%'
+              : '—'}
+          </span>
+        </div>
+        <div className="chart-stat">
             <span className="chart-stat-label">Average Turns</span>
             <span className="chart-stat-value">
             {averageTurns > 0 ? averageTurns.toFixed(2) : '—'}
             </span>
+        </div>
+        <div className="chart-stat">
+          <span className="chart-stat-label">Longest Streak</span>
+          <span className="chart-stat-value">{streakData?.max ?? '—'}</span>
         </div>
         <div className="chart-stat">
           <span className="chart-stat-label">Avg Skill</span>
@@ -589,14 +605,6 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
           <span className="chart-stat-label">Avg Luck</span>
           <span className="chart-stat-value">
             {averageLuck > 0 ? averageLuck.toFixed(1) : '—'}
-          </span>
-        </div>
-        <div className="chart-stat">
-          <span className="chart-stat-label">Win Rate</span>
-          <span className="chart-stat-value">
-            {playedGames.length > 0
-              ? ((visibleData.filter(d => d.won === true).length / playedGames.length) * 100).toFixed(1) + '%'
-              : '—'}
           </span>
         </div>
       </div>

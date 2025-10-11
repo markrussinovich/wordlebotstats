@@ -450,13 +450,14 @@ document.addEventListener('DOMContentLoaded', function() {
       `;
     }
 
-    const date = new Date(currentGame.date + 'T12:00:00.000Z');
+    // Parse date safely to avoid timezone shifts
+    const dateParts = currentGame.date.split('-');
+    const date = new Date(parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2]));
     const formattedDate = date.toLocaleDateString('en-US', { 
       weekday: 'short',
       month: 'short', 
       day: 'numeric', 
-      year: 'numeric',
-      timeZone: 'UTC'
+      year: 'numeric'
     });
 
     const attempts = currentGame.attempts || currentGame.guesses || 0;

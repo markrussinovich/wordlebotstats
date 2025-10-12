@@ -4,11 +4,10 @@ Wordle Stat Explorer is a Chrome/Edge Manifest V3 extension that scrapes your NY
 
 ## ✨ Capabilities
 
-- Automatic Wordle Bot data import (auto, incremental, and full refresh modes)
+- Automatic Wordle data import (auto, incremental, and full refresh modes)
 - Local-only storage with fast de-duplication and board-image cleanup
-- Popup quick stats: win rate, average guesses (2 decimals), streaks, and game counts by time frame
-- React-powered dashboard with timelines, trend analysis, WordleBot skill/luck scores, and data management tools
-- Manual import/export utilities plus diagnostic logging for troubleshooting
+- Popup quick stats: win rate, average guesses, streaks, and game counts by time frame
+- React-powered dashboard with timelines, trend analysis, WordleBot skill/luck scores
 
 ## 📸 Screenshot
 
@@ -119,23 +118,6 @@ The extension requests only the minimal permissions needed:
 - **Storage**: To save your game history and preferences locally
 - **Host permissions for `*.nytimes.com`**: To read your Wordle game data from the NYTimes website when you visit the Wordle Bot page
 - **Scripting**: To inject content scripts that extract game data from the NYTimes pages
-
-### Updates to This Policy
-
-Any changes to this privacy policy will be reflected in this document and noted in the extension's changelog.
-
-### Contact
-
-Questions or concerns about privacy? Open an issue on GitHub: <https://github.com/markrussinovich/wordlebotstats/issues>
-
----
-
-## 📘 Additional Resources
-
-- `docs/` – supplementary guides (manual testing, performance notes, etc.)
-- `src/CONTRIBUTING.md` – coding standards and contribution workflow
-- `REPOSITORY-STRUCTURE.md` – deep dive into directory responsibilities
-
 ---
 
 Enjoy tracking your Wordle journey! Contributions, bug reports, and feature suggestions are always welcome.

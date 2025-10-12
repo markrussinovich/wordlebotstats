@@ -100,24 +100,8 @@ npm test
 
 **Wordle Stat Explorer respects your privacy and operates with complete transparency.**
 
-Wordle Stat Explorer collects only the data necessary to provide statistics about your Wordle games:
+All data is stored locally on your device with no external data transmission. For complete details about our privacy practices, data collection, and your rights, please see our [Privacy Policy](PRIVACY.md).
 
-- **Wordle game results**: Puzzle numbers, dates, guess counts, board states, and win/loss status
-- **WordleBot metrics**: Skill and luck scores when available from the NYTimes WordleBot page
-- **User preferences**: Display settings, dashboard filters, and time range selections
-
-All data is stored **locally on your device** using Chrome's `chrome.storage.local` API:
-
-- ✅ No data is ever transmitted to external servers
-- ✅ No analytics, tracking pixels, or telemetry
-- ✅ No user accounts, authentication, or cloud sync
-- ✅ All data remains under your control
-
-The extension requests only the minimal permissions needed:
-
-- **Storage**: To save your game history and preferences locally
-- **Host permissions for `*.nytimes.com`**: To read your Wordle game data from the NYTimes website when you visit the Wordle Bot page
-- **Scripting**: To inject content scripts that extract game data from the NYTimes pages
 ---
 
 Enjoy tracking your Wordle journey! Contributions, bug reports, and feature suggestions are always welcome.

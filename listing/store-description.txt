@@ -1,0 +1,85 @@
+Transform your daily Wordle habit into meaningful insights with comprehensive statistics and beautiful visualizations.
+
+WHAT IS WORDLE STAT EXPLORER?
+
+Wordle Stat Explorer is a Chrome extension that automatically tracks your Wordle game history and presents it through an elegant dashboard. Whether you're curious about your improvement over time, want to see how you compare to other players, or simply love data about your favorite word game, this extension gives you the complete picture of your Wordle journey.
+
+KEY FEATURES
+
+COMPREHENSIVE STATISTICS
+• Win Rate & Streaks: Track your current streak, longest streak, and overall win percentage
+• Average Guesses: See how efficiently you solve puzzles over time
+• Guess Distribution: Visualize how often you solve in 1, 2, 3, 4, 5, or 6 guesses
+• Time Period Analysis: View stats for the last 7 days, 30 days, 90 days, or all time
+
+WORDLEBOT INTEGRATION
+• Skill & Luck Scores: Automatically captures your WordleBot ratings when available
+• Performance Comparison: See how your results compare to WordleBot's analysis
+• Historical Tracking: Watch your skill improve over months of play
+
+BEAUTIFUL VISUALIZATIONS
+• Timeline Charts: See your performance trends with interactive graphs
+• Running Averages: Track your improvement with skill and luck averages over time
+• Game Board History: Review the actual letter grids from your past games
+• Performance Insights: Discover patterns in your solving approach
+
+EFFORTLESS SETUP
+• One-Click Import: Automatically captures your game history from the NYTimes WordleBot page
+• Instant Stats: View quick statistics right from the extension popup
+• Smart Updates: Checks for new games and updates your stats automatically
+• No Manual Entry: Never type in results manually - everything is captured automatically
+
+PERFECT FOR
+
+• Wordle Enthusiasts who want to track their improvement and celebrate milestones
+• Competitive Players interested in comparing their performance to benchmarks
+• Data Lovers who enjoy seeing patterns and trends in their gameplay
+• Streak Trackers who want to monitor and maintain their winning streaks
+• Casual Players curious about their overall Wordle performance
+
+PRIVACY & SECURITY
+
+Your privacy is our top priority:
+• 100% Local Storage: All your data stays on your device - nothing is sent to external servers
+• No Sign-ups Required: No accounts, passwords, or personal information needed
+• Complete Control: You own your data and can delete it anytime
+• Open Source: Full source code available for transparency
+
+HOW IT WORKS
+
+1. Install the extension from the Chrome Web Store
+2. Visit the NYTimes WordleBot page after playing Wordle
+3. Watch as your game history is automatically imported
+4. Explore your statistics in the beautiful dashboard
+5. Track your progress over time with detailed analytics
+
+WHAT YOU'LL SEE
+
+POPUP QUICK STATS
+• Current win rate and average guesses
+• Today's game result with skill/luck scores
+• Current and longest streak information
+• Easy access to the full dashboard
+
+FULL DASHBOARD
+• Interactive timeline showing all your games
+• Trend analysis with running averages
+• Detailed game viewer with board reconstruction
+• Performance comparison charts
+• Comprehensive statistics breakdown
+
+BENEFITS
+
+• Motivation: See your improvement over time and celebrate achievements
+• Insights: Understand your solving patterns and identify areas to improve
+• Competition: Compare your performance to national averages and WordleBot
+• Memory: Revisit challenging words and remember great solving moments
+• Progress: Track your Wordle journey with beautiful, meaningful data
+
+REQUIREMENTS
+
+• Chrome or Edge browser
+• Active NYTimes Games subscription (for WordleBot features)
+• Occasional visits to the WordleBot page to sync new games
+
+Start tracking your Wordle journey today and discover insights you never knew existed about your word-solving skills!

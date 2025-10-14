@@ -31,7 +31,8 @@ The extension requests only the minimal permissions needed to function:
 
 - **Storage**: To save your game history and preferences locally on your device
 - **Host permissions for `*.nytimes.com`**: To read your Wordle game data from the NYTimes website when you visit the Wordle Bot page
-- **Scripting**: To inject content scripts that extract game data from the NYTimes pages you visit
+- **activeTab**: To access the currently active tab so the popup can display the right stats context
+- **tabs**: To detect when a Wordle or WordleBot page is open and coordinate background syncing
 
 ## Data Sharing
 

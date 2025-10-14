@@ -13,7 +13,7 @@ Wordle Stat Explorer is a Chrome/Edge Manifest V3 extension that scrapes your NY
 
 > _Replace this placeholder with an actual screenshot of the dashboard or popup._
 
-![Wordle Stat Explorer dashboard placeholder](docs/images/screenshot-placeholder.png "Replace with an actual screenshot")
+![Wordle Stat Explorer dashboard placeholder](listing/assets/resized/popanddashboard.png "Replace with an actual screenshot")
 
 ## 🏗 Architecture Overview
 

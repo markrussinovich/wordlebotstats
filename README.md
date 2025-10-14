@@ -1,6 +1,6 @@
 # Wordle Stat Explorer
 
-Wordle Stat Explorer is a Chrome/Edge Manifest V3 extension that scrapes your NYTimes Wordle Bot history, stores the results locally, and surfaces rich insights through a lightweight popup and a full analytics dashboard.
+Wordle Stat Explorer is a Chrome/Edge Manifest V3 extension that scrapes your NYTimes Wordle Bot history, stores the results locally, and surfaces rich insights through a lightweight popup and a full analytics dashboard. See the loading instructions in the developer section if you want to just install the extension. The current version is in the dist folder so no need to rebuild.
 
 ## ✨ Capabilities
 
@@ -10,10 +10,7 @@ Wordle Stat Explorer is a Chrome/Edge Manifest V3 extension that scrapes your NY
 - React-powered dashboard with timelines, trend analysis, WordleBot skill/luck scores
 
 ## 📸 Screenshot
-
-> _Replace this placeholder with an actual screenshot of the dashboard or popup._
-
-![Wordle Stat Explorer dashboard placeholder](docs/images/screenshot-placeholder.png "Replace with an actual screenshot")
+![Wordle Stat Explorer dashboard](https://github.com/markrussinovich/wordlebotstats/blob/001-wordle-stat-explorer/listing/assets/popupanddashboard.png)
 
 ## 🏗 Architecture Overview
 

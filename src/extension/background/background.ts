@@ -274,6 +274,32 @@ async function handleGetQuickStats(message: GetQuickStatsMessage): Promise<Quick
     console.log(`[BACKGROUND DEBUG] GET_QUICK_STATS: Filtered games count: ${filteredGames.length}`);
     if (filteredGames.length > 0) {
       console.log(`[BACKGROUND DEBUG] GET_QUICK_STATS: Filtered game dates:`, filteredGames.map((g: any) => g.date));
+      console.log(
+        `[BACKGROUND DEBUG] GET_QUICK_STATS: Filtered game details:`,
+        filteredGames.map((g: any) => {
+          const turns = (() => {
+            if (typeof g.attempts === 'number' && !Number.isNaN(g.attempts)) {
+              return g.attempts;
+            }
+            if (typeof g.guesses === 'number' && !Number.isNaN(g.guesses)) {
+              return g.guesses;
+            }
+            if (typeof g.steps === 'number' && !Number.isNaN(g.steps)) {
+              return g.steps;
+            }
+            if (Array.isArray(g.guessPattern)) {
+              return g.guessPattern.length;
+            }
+            return 0;
+          })();
+
+          return {
+            date: g.date,
+            turns,
+            won: g.won === true
+          };
+        })
+      );
     }
     const statistics = calculateStatistics(filteredGames, games);
     console.log(`[BACKGROUND DEBUG] GET_QUICK_STATS: Calculated statistics:`, statistics);

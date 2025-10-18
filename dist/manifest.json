@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "Wordle Stat Explorer",
-  "version": "1.0.0",
+  "name": "Wordle Stats Explorer",
+  "version": "1.0.1",
   "description": "Track your Wordle stats with detailed analytics—view win rate, streaks, and WordleBot scores across any time frame.",
   
   "permissions": [

@@ -543,6 +543,8 @@ class WordleBotScraper {
       game.analysisUrl = (link as HTMLAnchorElement).href;
     }
 
+    this.inferGameOutcome(game);
+
     return game;
   }
 
@@ -1354,6 +1356,55 @@ class WordleBotScraper {
       wordLength: 5,
       maxGuesses: 6
     };
+  }
+
+  private inferGameOutcome(game: RawGameData): void {
+    if (!game.solution || !game.guessPattern || game.guessPattern.length === 0) {
+      return;
+    }
+
+    const normalizedSolution = game.solution.toUpperCase();
+    const rowsWithLetters = game.guessPattern
+      .map(row => row.map(cell => (cell.letter || '').toUpperCase()))
+      .map((letters, index) => ({
+        letters,
+        statuses: game.guessPattern![index]!.map(cell => cell.status),
+        hasLetters: letters.some(letter => letter !== '')
+      }))
+      .filter(row => row.hasLetters);
+
+    if (rowsWithLetters.length === 0) {
+      return;
+    }
+
+    const finalRow = rowsWithLetters[rowsWithLetters.length - 1];
+    const finalWord = finalRow.letters.join('');
+
+    const allCorrect = finalRow.statuses.every(status => status === 'correct');
+    if (!allCorrect) {
+      return;
+    }
+
+    if (!finalWord || finalWord.length !== normalizedSolution.length) {
+      return;
+    }
+
+    if (finalWord !== normalizedSolution) {
+      return;
+    }
+
+    const turns = rowsWithLetters.length;
+    if (turns === 0 || turns > 6) {
+      return;
+    }
+
+    const existingSteps = typeof game.steps === 'number' ? game.steps : 0;
+    if (game.won === true && existingSteps === turns) {
+      return;
+    }
+
+    game.won = true;
+    game.steps = turns;
   }
 
   private sendProgress(

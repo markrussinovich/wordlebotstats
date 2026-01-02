@@ -1,5 +1,5 @@
 // Interactive timeline chart showing game performance with zoomable date range
-import React, { useState, useMemo, CSSProperties } from 'react';
+import React, { useState, useMemo, useRef, useCallback, useEffect, CSSProperties } from 'react';
 import {
   ComposedChart,
   Scatter,
@@ -157,7 +157,36 @@ const normalizeGuessPattern = (rawPattern: LegacyGuessRow[] | GuessResult[][] | 
 };
 
 const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, turnDistribution, streakData }) => {
+  // Track the "live" range during dragging (updates continuously)
   const [selectedRange, setSelectedRange] = useState<{ start: number; end: number } | null>(null);
+  
+  // Track the "committed" range that only updates when dragging stops
+  // This prevents chart data from changing during drag, which would interrupt the brush
+  const [committedRange, setCommittedRange] = useState<{ start: number; end: number } | null>(null);
+  
+  // Track if we're currently dragging
+  const isDraggingRef = useRef(false);
+  // Store the pending range to commit when dragging ends
+  const pendingRangeRef = useRef<{ start: number; end: number } | null>(null);
+  
+  // Listen for global mouseup to detect when dragging ends
+  useEffect(() => {
+    const handleMouseUp = () => {
+      if (isDraggingRef.current && pendingRangeRef.current) {
+        // Commit the pending range now that dragging has stopped
+        setCommittedRange(pendingRangeRef.current);
+        isDraggingRef.current = false;
+      }
+    };
+    
+    document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('touchend', handleMouseUp);
+    
+    return () => {
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('touchend', handleMouseUp);
+    };
+  }, []);
   
   // Detect dark mode
   const isDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -302,14 +331,14 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
     return dataWithRunningAvg;
   }, [games]);
 
-  // Get visible data based on selected range
+  // Get visible data based on committed range (only updates after dragging stops)
   const visibleData = useMemo(() => {
-    if (!selectedRange || selectedRange.start === selectedRange.end) {
+    if (!committedRange || committedRange.start === committedRange.end) {
       return chartData;
     }
     
     // Get the sliced data
-    const slicedData = chartData.slice(selectedRange.start, selectedRange.end + 1);
+    const slicedData = chartData.slice(committedRange.start, committedRange.end + 1);
     
     // Recalculate running averages for ONLY the visible range
     let sumTurns = 0;
@@ -343,7 +372,53 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
 
       return { ...point, runningAverage, runningSkillAvg, runningLuckAvg };
     });
-  }, [chartData, selectedRange]);
+  }, [chartData, committedRange]);
+
+  // Create chart data with zoomed running averages
+  // This maintains the full dataset for Brush navigation,
+  // but updates running average lines to reflect only the committed range
+  const chartDataWithZoomedAverages = useMemo(() => {
+    if (!committedRange || committedRange.start === committedRange.end) {
+      // No zoom - use original chartData with cumulative running averages
+      return chartData;
+    }
+    
+    // Build a map of dates to their zoomed running averages
+    const zoomedAveragesMap = new Map<string, { 
+      runningAverage?: number; 
+      runningSkillAvg?: number; 
+      runningLuckAvg?: number; 
+    }>();
+    
+    visibleData.forEach(point => {
+      zoomedAveragesMap.set(point.date, {
+        runningAverage: point.runningAverage,
+        runningSkillAvg: point.runningSkillAvg,
+        runningLuckAvg: point.runningLuckAvg
+      });
+    });
+    
+    // Return full chartData but with running averages only for visible range
+    // Points outside the range will have undefined averages (won't show on chart)
+    return chartData.map(point => {
+      const zoomedAvg = zoomedAveragesMap.get(point.date);
+      if (zoomedAvg) {
+        return {
+          ...point,
+          runningAverage: zoomedAvg.runningAverage,
+          runningSkillAvg: zoomedAvg.runningSkillAvg,
+          runningLuckAvg: zoomedAvg.runningLuckAvg
+        };
+      }
+      // Outside visible range - clear running averages
+      return {
+        ...point,
+        runningAverage: undefined,
+        runningSkillAvg: undefined,
+        runningLuckAvg: undefined
+      };
+    });
+  }, [chartData, committedRange, visibleData]);
 
   const averageTurns = useMemo(() => {
     const wonGames = visibleData.filter(d => d.won === true);
@@ -547,11 +622,16 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
     );
   };
 
-  const handleBrushChange = (range: any) => {
+  const handleBrushChange = useCallback((range: any) => {
     if (range && range.startIndex !== undefined && range.endIndex !== undefined) {
-      setSelectedRange({ start: range.startIndex, end: range.endIndex });
+      const newRange = { start: range.startIndex, end: range.endIndex };
+      setSelectedRange(newRange);
       
-      // Notify parent component of range change for streak recalculation
+      // Mark that we're dragging and store the pending range
+      isDraggingRef.current = true;
+      pendingRangeRef.current = newRange;
+      
+      // Also notify parent of range change for stats display
       if (onRangeChange && chartData.length > 0) {
         const startDate = chartData[range.startIndex]?.dateObj;
         const endDate = chartData[range.endIndex]?.dateObj;
@@ -560,7 +640,7 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
         }
       }
     }
-  };
+  }, [chartData, onRangeChange]);
 
   if (chartData.length === 0) {
     return (
@@ -617,7 +697,7 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
       )}
 
       <ResponsiveContainer width="100%" height={400}>
-        <ComposedChart data={chartData} margin={CHART_MARGINS}>
+        <ComposedChart data={chartDataWithZoomedAverages} margin={CHART_MARGINS}>
           <CartesianGrid 
             strokeDasharray="3 3" 
             stroke={isDarkMode ? "#4a4a4a" : "#e5e7eb"} 
@@ -651,7 +731,7 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
 
           <Tooltip content={<CustomTooltip />} />
 
-          {/* Running averages - more vibrant in dark mode */}
+          {/* Running averages - recalculated for zoomed range via chartDataWithZoomedAverages */}
           <Line
             type="monotone"
             dataKey="runningAverage"
@@ -701,6 +781,8 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
             stroke="#6aaa64"
             tickFormatter={formatXAxis}
             onChange={handleBrushChange}
+            startIndex={selectedRange?.start}
+            endIndex={selectedRange?.end}
           />
         </ComposedChart>
       </ResponsiveContainer>
@@ -732,6 +814,96 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
 };
 
 export default TimelineChart;
+
+// Interface for chart data points (exported for tests)
+export interface TestChartDataPoint {
+  date: string;
+  turns: number;
+  won: boolean | null;
+  skillScore?: number;
+  luckScore?: number;
+  runningAverage?: number;
+  runningSkillAvg?: number;
+  runningLuckAvg?: number;
+}
+
+// Calculate running averages for a set of data points
+// Exported for unit testing
+export const calculateRunningAverages = <T extends TestChartDataPoint>(
+  data: T[]
+): T[] => {
+  let sumTurns = 0;
+  let countTurns = 0;
+  let sumSkill = 0;
+  let countSkill = 0;
+  let sumLuck = 0;
+  let countLuck = 0;
+
+  return data.map((point) => {
+    // Turns (won games only with >0 turns)
+    if (point.won === true && point.turns > 0) {
+      sumTurns += point.turns;
+      countTurns += 1;
+    }
+    const runningAverage = countTurns > 0 ? sumTurns / countTurns : undefined;
+
+    // Skill score
+    if (typeof point.skillScore === 'number') {
+      sumSkill += point.skillScore;
+      countSkill += 1;
+    }
+    const runningSkillAvg = countSkill > 0 ? sumSkill / countSkill : undefined;
+
+    // Luck score
+    if (typeof point.luckScore === 'number') {
+      sumLuck += point.luckScore;
+      countLuck += 1;
+    }
+    const runningLuckAvg = countLuck > 0 ? sumLuck / countLuck : undefined;
+
+    return { ...point, runningAverage, runningSkillAvg, runningLuckAvg };
+  });
+};
+
+// Merge zoomed running averages into full dataset
+// Points outside the visible range will have undefined averages
+export const mergeZoomedAverages = <T extends TestChartDataPoint>(
+  fullData: T[],
+  visibleData: T[]
+): T[] => {
+  const zoomedAveragesMap = new Map<string, { 
+    runningAverage?: number; 
+    runningSkillAvg?: number; 
+    runningLuckAvg?: number; 
+  }>();
+  
+  visibleData.forEach(point => {
+    zoomedAveragesMap.set(point.date, {
+      runningAverage: point.runningAverage,
+      runningSkillAvg: point.runningSkillAvg,
+      runningLuckAvg: point.runningLuckAvg
+    });
+  });
+  
+  return fullData.map(point => {
+    const zoomedAvg = zoomedAveragesMap.get(point.date);
+    if (zoomedAvg) {
+      return {
+        ...point,
+        runningAverage: zoomedAvg.runningAverage,
+        runningSkillAvg: zoomedAvg.runningSkillAvg,
+        runningLuckAvg: zoomedAvg.runningLuckAvg
+      };
+    }
+    // Outside visible range - clear running averages
+    return {
+      ...point,
+      runningAverage: undefined,
+      runningSkillAvg: undefined,
+      runningLuckAvg: undefined
+    };
+  });
+};
 
 // Exported for unit tests
 export const __timelineChartTestUtils = {

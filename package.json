@@ -1,6 +1,6 @@
 {
   "name": "wordle-stat-explorer",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "A clean, responsive Edge extension that turns your Wordle history into insights—track win rate, streaks, and WordleBot scores over any time frame.",
   "type": "module",
   "scripts": {

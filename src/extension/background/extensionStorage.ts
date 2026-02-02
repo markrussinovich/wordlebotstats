@@ -55,16 +55,12 @@ export class ExtensionStorage {
     duplicates: number;
     errors: number;
   }> {
-  log(`[ExtensionStorage] =====> bulkImportGames called with ${newGames.length} games`);
     let imported = 0;
     let duplicates = 0;
     let errors = 0;
 
     try {
-  log(`[ExtensionStorage] =====> Reading existing games...`);
-      const startRead = performance.now();
       const existingGames = await this.getAllGames();
-  log(`[ExtensionStorage] =====> Read ${existingGames.length} existing games in ${(performance.now() - startRead).toFixed(0)}ms`);
       
       const gameMap = new Map<string, GameResult>();
       
@@ -73,7 +69,6 @@ export class ExtensionStorage {
         gameMap.set(game.date, game);
       });
       
-  log(`[ExtensionStorage] =====> Processing ${newGames.length} new games...`);
       // Process new games
       for (const game of newGames) {
         try {
@@ -81,7 +76,9 @@ export class ExtensionStorage {
           
           if (existing) {
             // Check if new game has more data
-            const shouldReplace = this.shouldReplaceExisting(existing, game);
+            const existingScore = this.getDataRichnessScore(existing);
+            const newScore = this.getDataRichnessScore(game);
+            const shouldReplace = newScore > existingScore;
             
             if (shouldReplace) {
               gameMap.set(game.date, game);
@@ -100,28 +97,22 @@ export class ExtensionStorage {
       }
       
       // Save all games
-  log(`[ExtensionStorage] =====> Writing ${gameMap.size} total games to storage...`);
-      const startWrite = performance.now();
       const allGames = Array.from(gameMap.values());
       
       // OPTIMIZATION: Remove board images before storage to speed up writes
       // Board images are large base64 strings that slow down chrome.storage.local.set
-  log(`[ExtensionStorage] =====> Stripping board images from ${allGames.length} games...`);
       const lightweightGames = allGames.map(g => ({
         ...g,
         boardImageUrl: undefined  // Strip large base64 data URLs
       }));
       
-  log(`[ExtensionStorage] =====> Calling chrome.storage.local.set...`);
       await chrome.storage.local.set({ games: lightweightGames });
-  log(`[ExtensionStorage] =====> Write completed in ${(performance.now() - startWrite).toFixed(0)}ms`);
       
     } catch (error) {
       console.error('[ExtensionStorage] Bulk import failed:', error);
       throw error;
     }
 
-  log(`[ExtensionStorage] =====> bulkImportGames complete: imported=${imported}, duplicates=${duplicates}, errors=${errors}`);
     return { imported, duplicates, errors };
   }
 
@@ -157,6 +148,20 @@ export class ExtensionStorage {
       });
     } catch (error) {
       console.error('[ExtensionStorage] Failed to get newest game:', error);
+      return null;
+    }
+  }
+
+  async getOldestGame(): Promise<GameResult | null> {
+    try {
+      const games = await this.getAllGames();
+      if (games.length === 0) return null;
+      
+      return games.reduce((oldest, game) => {
+        return new Date(game.date) < new Date(oldest.date) ? game : oldest;
+      });
+    } catch (error) {
+      console.error('[ExtensionStorage] Failed to get oldest game:', error);
       return null;
     }
   }

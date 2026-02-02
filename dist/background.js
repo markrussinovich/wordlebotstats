@@ -100,25 +100,22 @@ var _ExtensionStorage = class _ExtensionStorage {
     }
   }
   async bulkImportGames(newGames) {
-    log(`[ExtensionStorage] =====> bulkImportGames called with ${newGames.length} games`);
     let imported = 0;
     let duplicates = 0;
     let errors = 0;
     try {
-      log(`[ExtensionStorage] =====> Reading existing games...`);
-      const startRead = performance.now();
       const existingGames = await this.getAllGames();
-      log(`[ExtensionStorage] =====> Read ${existingGames.length} existing games in ${(performance.now() - startRead).toFixed(0)}ms`);
       const gameMap = /* @__PURE__ */ new Map();
       existingGames.forEach((game) => {
         gameMap.set(game.date, game);
       });
-      log(`[ExtensionStorage] =====> Processing ${newGames.length} new games...`);
       for (const game of newGames) {
         try {
           const existing = gameMap.get(game.date);
           if (existing) {
-            const shouldReplace = this.shouldReplaceExisting(existing, game);
+            const existingScore = this.getDataRichnessScore(existing);
+            const newScore = this.getDataRichnessScore(game);
+            const shouldReplace = newScore > existingScore;
             if (shouldReplace) {
               gameMap.set(game.date, game);
               imported++;
@@ -134,23 +131,17 @@ var _ExtensionStorage = class _ExtensionStorage {
           errors++;
         }
       }
-      log(`[ExtensionStorage] =====> Writing ${gameMap.size} total games to storage...`);
-      const startWrite = performance.now();
       const allGames = Array.from(gameMap.values());
-      log(`[ExtensionStorage] =====> Stripping board images from ${allGames.length} games...`);
       const lightweightGames = allGames.map((g2) => ({
         ...g2,
         boardImageUrl: void 0
         // Strip large base64 data URLs
       }));
-      log(`[ExtensionStorage] =====> Calling chrome.storage.local.set...`);
       await chrome.storage.local.set({ games: lightweightGames });
-      log(`[ExtensionStorage] =====> Write completed in ${(performance.now() - startWrite).toFixed(0)}ms`);
     } catch (error) {
       console.error("[ExtensionStorage] Bulk import failed:", error);
       throw error;
     }
-    log(`[ExtensionStorage] =====> bulkImportGames complete: imported=${imported}, duplicates=${duplicates}, errors=${errors}`);
     return { imported, duplicates, errors };
   }
   shouldReplaceExisting(existing, newGame) {
@@ -185,6 +176,19 @@ var _ExtensionStorage = class _ExtensionStorage {
       });
     } catch (error) {
       console.error("[ExtensionStorage] Failed to get newest game:", error);
+      return null;
+    }
+  }
+  async getOldestGame() {
+    try {
+      const games = await this.getAllGames();
+      if (games.length === 0)
+        return null;
+      return games.reduce((oldest, game) => {
+        return new Date(game.date) < new Date(oldest.date) ? game : oldest;
+      });
+    } catch (error) {
+      console.error("[ExtensionStorage] Failed to get oldest game:", error);
       return null;
     }
   }
@@ -313,15 +317,12 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 });
 chrome.runtime.onMessage.addListener(
   (message, sender, sendResponse) => {
-    log2("[BACKGROUND DEBUG] Received message:", message.type, message);
-    log2("[BACKGROUND DEBUG] Sender:", sender);
     handleExtensionMessage(message, sender).then((response) => {
-      log2("[BACKGROUND DEBUG] Sending response:", response);
       if (response) {
         sendResponse(response);
       }
     }).catch((error) => {
-      console.error("[BACKGROUND DEBUG] Message handling error:", error);
+      console.error("[Background] Message handling error:", error);
       sendResponse({
         success: false,
         error: error.message
@@ -416,50 +417,14 @@ async function handleGetQuickStats(message) {
   try {
     const result = await chrome.storage.local.get(["games"]);
     const games = result.games || [];
-    console.log(`[BACKGROUND DEBUG] GET_QUICK_STATS: Total games in storage: ${games.length}`);
-    console.log(`[BACKGROUND DEBUG] GET_QUICK_STATS: Timeframe requested: ${message.timeFrame}`);
-    if (games.length > 0) {
-      console.log(`[BACKGROUND DEBUG] GET_QUICK_STATS: Sample game dates:`, games.slice(0, 5).map((g2) => g2.date));
-    }
     const filteredGames = filterGamesByTimeFrame(games, message.timeFrame);
-    console.log(`[BACKGROUND DEBUG] GET_QUICK_STATS: Filtered games count: ${filteredGames.length}`);
-    if (filteredGames.length > 0) {
-      console.log(`[BACKGROUND DEBUG] GET_QUICK_STATS: Filtered game dates:`, filteredGames.map((g2) => g2.date));
-      console.log(
-        `[BACKGROUND DEBUG] GET_QUICK_STATS: Filtered game details:`,
-        filteredGames.map((g2) => {
-          const turns = (() => {
-            if (typeof g2.attempts === "number" && !Number.isNaN(g2.attempts)) {
-              return g2.attempts;
-            }
-            if (typeof g2.guesses === "number" && !Number.isNaN(g2.guesses)) {
-              return g2.guesses;
-            }
-            if (typeof g2.steps === "number" && !Number.isNaN(g2.steps)) {
-              return g2.steps;
-            }
-            if (Array.isArray(g2.guessPattern)) {
-              return g2.guessPattern.length;
-            }
-            return 0;
-          })();
-          return {
-            date: g2.date,
-            turns,
-            won: g2.won === true
-          };
-        })
-      );
-    }
     const statistics = calculateStatistics(filteredGames, games);
-    console.log(`[BACKGROUND DEBUG] GET_QUICK_STATS: Calculated statistics:`, statistics);
     let lastGame = null;
     if (games.length > 0) {
       const sortedGames = [...games].sort(
         (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
       );
       lastGame = sortedGames[0];
-      console.log(`[BACKGROUND DEBUG] GET_QUICK_STATS: Last game:`, lastGame);
     }
     return {
       success: true,
@@ -542,40 +507,31 @@ async function handleClearData() {
 var scraperTabId = null;
 async function handleStartWordleBotScrape(message) {
   try {
-    console.log(`[BACKGROUND DEBUG] Starting WordleBot scrape (mode: ${message.mode})`);
-    console.log("[BACKGROUND DEBUG] Storage service available:", !!storageService);
     if (!storageService) {
-      console.log("[BACKGROUND DEBUG] Initializing storage service...");
       storageService = ExtensionStorage.getInstance();
       await storageService.initialize();
     }
-    let stopAtDate = message.stopAtDate;
-    let newestStoredGame = null;
-    if ((message.mode === "incremental" || message.mode === "auto") && !stopAtDate) {
-      console.log("[BACKGROUND DEBUG] Getting newest game for incremental mode...");
-      newestStoredGame = await storageService.getNewestGame();
-      stopAtDate = newestStoredGame?.date;
-      console.log("[BACKGROUND DEBUG] Newest stored game:", newestStoredGame?.date, "Game#", newestStoredGame?.gameNumber);
-    } else if (stopAtDate) {
-      console.log("[BACKGROUND DEBUG] Using provided stopAtDate:", stopAtDate);
+    let stopAtDate;
+    if (message.mode === "incremental" || message.mode === "auto") {
+      const allGames = await storageService.getAllGames();
+      if (allGames.length > 0) {
+        const dates = allGames.map((g2) => g2.date).filter((d) => d).sort();
+        stopAtDate = dates[dates.length - 1];
+      }
     }
-    console.log("[BACKGROUND DEBUG] Storing scrape parameters in storage...");
     await chrome.storage.local.set({
       wordleBotScrapeParams: {
         mode: message.mode,
         stopAtDate,
-        maxIterations: message.maxIterations || 20,
+        maxIterations: message.maxIterations || 50,
         timestamp: Date.now()
       }
     });
-    console.log("[BACKGROUND DEBUG] Creating WordleBot tab...");
     const tab = await chrome.tabs.create({
       url: "https://www.nytimes.com/interactive/2022/upshot/wordle-bot.html",
       active: false
     });
     scraperTabId = tab.id || null;
-    console.log("[BACKGROUND DEBUG] Opened WordleBot tab:", scraperTabId);
-    console.log("[BACKGROUND DEBUG] Tab created, content script will auto-start scraping");
     await updateScrapeStatus({
       phase: "checking",
       gamesFound: 0,
@@ -789,14 +745,12 @@ function filterGamesByTimeFrame(games, timeFrame) {
     default:
       return games;
   }
-  console.log(`[BACKGROUND DEBUG] filterGamesByTimeFrame: Cutoff date for ${timeFrame}: ${cutoffDate.toISOString()}`);
   const filtered = games.filter((game) => {
     if (!game.date)
       return false;
     const gameDate = new Date(game.date);
     return gameDate >= cutoffDate;
   });
-  console.log(`[BACKGROUND DEBUG] filterGamesByTimeFrame: Filtered ${filtered.length} games from ${games.length} total (cutoff: ${cutoffDate.toISOString()})`);
   return filtered;
 }
 function calculateStatistics(games, allGames) {
@@ -873,8 +827,6 @@ function calculateStatistics(games, allGames) {
       tempStreak = 0;
     }
   }
-  console.log(`[BACKGROUND DEBUG] calculateStatistics: Using ${gamesToUseForStreaks.length} games for streaks, ${playedGames.length} played games for other stats`);
-  console.log(`[BACKGROUND DEBUG] calculateStatistics: currentStreak=${currentStreak}, maxStreak=${maxStreak}`);
   return {
     winRate,
     averageGuesses,

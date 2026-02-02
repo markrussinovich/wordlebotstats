@@ -91,6 +91,7 @@ var WordleBotContent = (() => {
           if (age < 3e4) {
             log("[WordleBotScraper] Auto-starting scraper...");
             const { mode, stopAtDate, maxIterations } = params.wordleBotScrapeParams;
+            console.log("[WordleBotScraper] Stop at date (newest in DB):", stopAtDate);
             setTimeout(() => {
               this.startScraping(mode, stopAtDate, maxIterations);
             }, 2e3);
@@ -144,6 +145,7 @@ var WordleBotContent = (() => {
       this.duplicatesSkipped = 0;
       this.loadMoreNoGrowthAttempts = 0;
       console.log(`[WordleBotScraper] Starting ${mode} scrape`);
+      console.log(`[WordleBotScraper] Will stop at date (newest in DB): ${stopAtDate || "none (full scrape)"}`);
       this.sendProgress(0, 0, "Opening WordleBot page...");
       try {
         await this.scrapeWithRetry(stopAtDate, maxIterations, 0, /* @__PURE__ */ new Map());
@@ -189,43 +191,37 @@ var WordleBotContent = (() => {
         return this.scrapeWithRetry(stopAtDate, maxIterations, iteration, allGames);
       }
       let newGamesThisIteration = 0;
-      let reachedStopDate = false;
+      let oldestDateThisPage;
       for (const game of games) {
         const key = game.gameNumber?.toString() || game.date || game.solution || "";
         if (key && !allGames.has(key)) {
           allGames.set(key, game);
           newGamesThisIteration++;
-        } else if (key && stopAtDate) {
-          console.log(`[WordleBotScraper] Found duplicate game (${game.date || game.gameNumber}), stopping incremental scrape`);
-          reachedStopDate = true;
-          break;
+          console.log(`[WordleBotScraper] Added game: ${game.date} (${game.solution || "no solution"})`);
+        } else if (key) {
+          console.log(`[WordleBotScraper] Duplicate in current scrape: ${game.date}`);
         }
-        if (stopAtDate && game.date && game.date < stopAtDate) {
-          console.log(`[WordleBotScraper] Reached date before stop date: ${game.date} < ${stopAtDate}`);
-          reachedStopDate = true;
-          break;
+        if (game.date && (!oldestDateThisPage || game.date < oldestDateThisPage)) {
+          oldestDateThisPage = game.date;
         }
       }
-      console.log(`[WordleBotScraper] Added ${newGamesThisIteration} new games (total: ${allGames.size})`);
+      console.log(`[WordleBotScraper] Added ${newGamesThisIteration} new games (total: ${allGames.size}), oldest on page: ${oldestDateThisPage}`);
       this.sendProgress(allGames.size, this.gamesProcessed, "loading");
+      const reachedStopDate = stopAtDate && oldestDateThisPage && oldestDateThisPage <= stopAtDate;
+      console.log(`[WordleBotScraper] Stop check: oldestDateThisPage=${oldestDateThisPage}, stopAtDate=${stopAtDate}, reached=${reachedStopDate}`);
       if (reachedStopDate) {
-        console.log("[WordleBotScraper] Reached stop date, completing scrape");
+        console.log(`[WordleBotScraper] \u2713 Reached stop date: ${oldestDateThisPage} <= ${stopAtDate}`);
+        console.log(`[WordleBotScraper] Scraped new games, now overlapping existing data. Completing with ${allGames.size} games`);
         await this.processAndSendGames(Array.from(allGames.values()));
         return;
       }
-      console.log(`[WordleBotScraper] Iteration ${iteration}: Attempting to load more games...`);
       const loadedMore = await this.loadMoreGames();
-      console.log(`[WordleBotScraper] Iteration ${iteration}: loadMoreGames returned ${loadedMore}`);
       if (loadedMore) {
-        console.log(`[WordleBotScraper] Iteration ${iteration}: Continuing to next iteration`);
         await this.delay(300);
         return this.scrapeWithRetry(stopAtDate, maxIterations, iteration + 1, allGames);
       } else {
-        console.log(`[WordleBotScraper] =====> Iteration ${iteration}: loadMoreGames returned FALSE`);
-        console.log(`[WordleBotScraper] =====> No more games to load, completing scrape with ${allGames.size} games`);
-        console.log(`[WordleBotScraper] =====> About to call processAndSendGames...`);
+        console.log(`[WordleBotScraper] No more games to load, completing with ${allGames.size} games`);
         await this.processAndSendGames(Array.from(allGames.values()));
-        console.log(`[WordleBotScraper] =====> processAndSendGames completed, scrapeWithRetry ending`);
       }
     }
     async navigateToGameHistory() {
@@ -942,23 +938,17 @@ var WordleBotContent = (() => {
       ctx.fill();
     }
     async loadMoreGames() {
-      console.log("[WordleBotScraper] =====> loadMoreGames() called, searching for button...");
       const button = this.findShowMoreButton();
       if (!button) {
-        console.log("[WordleBotScraper] =====> Load more button NOT FOUND - returning false");
         return false;
       }
-      console.log("[WordleBotScraper] =====> Button found, checking if visible/enabled...");
       const style = window.getComputedStyle(button);
       const isHidden = style.display === "none" || style.visibility === "hidden";
       const isDisabled = button.hasAttribute("disabled") || button.getAttribute("aria-disabled") === "true";
       if (isHidden || isDisabled) {
-        console.log("[WordleBotScraper] =====> Load more button unavailable (hidden or disabled) - returning false");
         return false;
       }
-      console.log("[WordleBotScraper] =====> Button is visible and enabled, clicking it...");
       const beforeCount = document.querySelectorAll(this.GAME_CARD_SELECTOR).length;
-      console.log(`[WordleBotScraper] Clicking load more button. Current cards: ${beforeCount}`);
       try {
         button.scrollIntoView({ behavior: "smooth", block: "center" });
       } catch (error) {
@@ -1013,23 +1003,36 @@ var WordleBotContent = (() => {
         this.SHOW_MORE_BUTTON_SELECTOR,
         ".show-more-button",
         ".show-more-container button",
-        'button[class*="show-more"]'
+        'button[class*="show-more"]',
+        '[class*="ShowMore"]',
+        '[data-testid*="show-more"]'
       ];
+      console.log("[WordleBotScraper] Searching for show more button with selectors:", selectors);
       for (const selector of selectors) {
         const element = document.querySelector(selector);
         if (element) {
+          console.log(`[WordleBotScraper] Found button with selector: ${selector}`);
           return element;
         }
       }
-      const candidates = Array.from(document.querySelectorAll('button, div[role="button"], a[role="button"]'));
+      const candidates = Array.from(document.querySelectorAll('button, div[role="button"], a[role="button"], [class*="button"], span[role="button"]'));
+      console.log(`[WordleBotScraper] Searching ${candidates.length} candidates by text content...`);
       for (const candidate of candidates) {
         const text = candidate.textContent?.toLowerCase().trim();
         if (!text)
           continue;
-        if (text.includes("show more") && text.includes("wordle")) {
+        if (text.includes("show more")) {
+          console.log(`[WordleBotScraper] Found button by text: "${text}"`);
           return candidate;
         }
       }
+      const allButtons = document.querySelectorAll("button");
+      console.log(`[WordleBotScraper] All buttons on page (${allButtons.length}):`);
+      allButtons.forEach((btn, i) => {
+        const text = btn.textContent?.trim().substring(0, 50) || "(no text)";
+        const classes = btn.className;
+        console.log(`  Button ${i}: "${text}" class="${classes}"`);
+      });
       return null;
     }
     async processAndSendGames(rawGames) {

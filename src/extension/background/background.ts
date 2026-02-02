@@ -116,18 +116,14 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 // Message routing between extension components
 chrome.runtime.onMessage.addListener(
   (message: any, sender, sendResponse) => {
-  log('[BACKGROUND DEBUG] Received message:', message.type, message);
-  log('[BACKGROUND DEBUG] Sender:', sender);
-    
     handleExtensionMessage(message, sender)
       .then(response => {
-  log('[BACKGROUND DEBUG] Sending response:', response);
         if (response) {
           sendResponse(response);
         }
       })
       .catch(error => {
-        console.error('[BACKGROUND DEBUG] Message handling error:', error);
+        console.error('[Background] Message handling error:', error);
         sendResponse({ 
           success: false, 
           error: error.message 
@@ -263,46 +259,10 @@ async function handleGetQuickStats(message: GetQuickStatsMessage): Promise<Quick
   try {
     const result = await chrome.storage.local.get(['games']);
     const games = result.games || [];
-    console.log(`[BACKGROUND DEBUG] GET_QUICK_STATS: Total games in storage: ${games.length}`);
-    console.log(`[BACKGROUND DEBUG] GET_QUICK_STATS: Timeframe requested: ${message.timeFrame}`);
-    if (games.length > 0) {
-      console.log(`[BACKGROUND DEBUG] GET_QUICK_STATS: Sample game dates:`, games.slice(0, 5).map((g: any) => g.date));
-    }
     
     // Calculate stats for the requested time frame
     const filteredGames = filterGamesByTimeFrame(games, message.timeFrame);
-    console.log(`[BACKGROUND DEBUG] GET_QUICK_STATS: Filtered games count: ${filteredGames.length}`);
-    if (filteredGames.length > 0) {
-      console.log(`[BACKGROUND DEBUG] GET_QUICK_STATS: Filtered game dates:`, filteredGames.map((g: any) => g.date));
-      console.log(
-        `[BACKGROUND DEBUG] GET_QUICK_STATS: Filtered game details:`,
-        filteredGames.map((g: any) => {
-          const turns = (() => {
-            if (typeof g.attempts === 'number' && !Number.isNaN(g.attempts)) {
-              return g.attempts;
-            }
-            if (typeof g.guesses === 'number' && !Number.isNaN(g.guesses)) {
-              return g.guesses;
-            }
-            if (typeof g.steps === 'number' && !Number.isNaN(g.steps)) {
-              return g.steps;
-            }
-            if (Array.isArray(g.guessPattern)) {
-              return g.guessPattern.length;
-            }
-            return 0;
-          })();
-
-          return {
-            date: g.date,
-            turns,
-            won: g.won === true
-          };
-        })
-      );
-    }
     const statistics = calculateStatistics(filteredGames, games);
-    console.log(`[BACKGROUND DEBUG] GET_QUICK_STATS: Calculated statistics:`, statistics);
     
     // Get the most recent game
     let lastGame = null;
@@ -311,7 +271,6 @@ async function handleGetQuickStats(message: GetQuickStatsMessage): Promise<Quick
         new Date(b.date).getTime() - new Date(a.date).getTime()
       );
       lastGame = sortedGames[0];
-      console.log(`[BACKGROUND DEBUG] GET_QUICK_STATS: Last game:`, lastGame);
     }
     
     return {
@@ -420,51 +379,42 @@ let scraperTabId: number | null = null;
 
 async function handleStartWordleBotScrape(message: any): Promise<void | { success: boolean; skipped?: boolean; reason?: string; tabId?: number; message?: string }> {
   try {
-    console.log(`[BACKGROUND DEBUG] Starting WordleBot scrape (mode: ${message.mode})`);
-    console.log('[BACKGROUND DEBUG] Storage service available:', !!storageService);
-    
     // Initialize storage service if not available
     if (!storageService) {
-      console.log('[BACKGROUND DEBUG] Initializing storage service...');
       storageService = ExtensionStorage.getInstance();
       await storageService.initialize();
     }
     
-    // Get newest game date from storage for incremental mode
-    let stopAtDate: string | undefined = message.stopAtDate;
-    let newestStoredGame: any = null;
-    if ((message.mode === 'incremental' || message.mode === 'auto') && !stopAtDate) {
-      console.log('[BACKGROUND DEBUG] Getting newest game for incremental mode...');
-      newestStoredGame = await storageService.getNewestGame();
-      stopAtDate = newestStoredGame?.date;
-      console.log('[BACKGROUND DEBUG] Newest stored game:', newestStoredGame?.date, 'Game#', newestStoredGame?.gameNumber);
-    } else if (stopAtDate) {
-      console.log('[BACKGROUND DEBUG] Using provided stopAtDate:', stopAtDate);
+    // For incremental mode, find the newest game we have and stop when we reach it
+    // This avoids deep scanning once all recent games are imported
+    let stopAtDate: string | undefined;
+    
+    if (message.mode === 'incremental' || message.mode === 'auto') {
+      const allGames = await storageService.getAllGames();
+      if (allGames.length > 0) {
+        // Find newest game date
+        const dates = allGames.map(g => g.date).filter(d => d).sort();
+        stopAtDate = dates[dates.length - 1]; // Newest date
+      }
     }
     
     // Store scrape parameters in storage for content script to pick up
-    console.log('[BACKGROUND DEBUG] Storing scrape parameters in storage...');
     await chrome.storage.local.set({
       wordleBotScrapeParams: {
         mode: message.mode,
         stopAtDate,
-        maxIterations: message.maxIterations || 20,
+        maxIterations: message.maxIterations || 50,
         timestamp: Date.now()
       }
     });
     
     // Open WordleBot page in background tab
-    console.log('[BACKGROUND DEBUG] Creating WordleBot tab...');
     const tab = await chrome.tabs.create({
       url: 'https://www.nytimes.com/interactive/2022/upshot/wordle-bot.html',
       active: false
     });
     
     scraperTabId = tab.id || null;
-    console.log('[BACKGROUND DEBUG] Opened WordleBot tab:', scraperTabId);
-    
-    // The content script will auto-start scraping when it loads
-    console.log('[BACKGROUND DEBUG] Tab created, content script will auto-start scraping');
 
     await updateScrapeStatus({
       phase: 'checking',
@@ -725,15 +675,12 @@ function filterGamesByTimeFrame(games: any[], timeFrame: string): any[] {
       return games;
   }
   
-  console.log(`[BACKGROUND DEBUG] filterGamesByTimeFrame: Cutoff date for ${timeFrame}: ${cutoffDate.toISOString()}`);
-  
   const filtered = games.filter((game: any) => {
     if (!game.date) return false;
     const gameDate = new Date(game.date);
     return gameDate >= cutoffDate;
   });
   
-  console.log(`[BACKGROUND DEBUG] filterGamesByTimeFrame: Filtered ${filtered.length} games from ${games.length} total (cutoff: ${cutoffDate.toISOString()})`);
   return filtered;
 }
 
@@ -824,9 +771,6 @@ function calculateStatistics(games: any[], allGames?: any[]): any {
       tempStreak = 0;
     }
   }
-  
-  console.log(`[BACKGROUND DEBUG] calculateStatistics: Using ${gamesToUseForStreaks.length} games for streaks, ${playedGames.length} played games for other stats`);
-  console.log(`[BACKGROUND DEBUG] calculateStatistics: currentStreak=${currentStreak}, maxStreak=${maxStreak}`);
   
   return {
     winRate,

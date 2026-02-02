@@ -373,13 +373,13 @@ document.addEventListener('DOMContentLoaded', function() {
   scraperStatus.message = 'Checking for new games...';
       render();
       
-      // For incremental mode, don't pass stopAtDate - let the background script
-      // handle duplicate detection. We just want to scrape the first page of games
-      // (the most recent ones) and the background will skip duplicates automatically.
+      // For incremental mode, we want to fill in all missing games.
+      // The scraper will stop when it reaches the oldest missing date.
+      // We need enough iterations to page through all missing games.
       const response = await chrome.runtime.sendMessage({
         type: 'START_WORDLE_BOT_SCRAPE',
         mode: 'incremental',
-        maxIterations: 1 // Only scrape the first page (most recent games)
+        maxIterations: 100 // Allow up to 100 pages to fill in all gaps
       });
       
       console.log('[Popup] Incremental scrape response:', response);

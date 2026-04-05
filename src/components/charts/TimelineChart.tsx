@@ -560,8 +560,8 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
         resultClass = 'won';
       }
       
-      // Always show result for failed games, hide for won games with board
-      const shouldRenderResult = !(hasBoard && resultClass === 'won');
+      // Hide result text for won games with board, and for lost games (red word is sufficient)
+      const shouldRenderResult = resultClass !== 'lost' && !(hasBoard && resultClass === 'won');
 
       return (
         <div className="chart-tooltip">
@@ -570,7 +570,7 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
             <div className="tooltip-game">Wordle #{data.gameNumber}</div>
           )}
           {data.solution && (
-            <div className="tooltip-word">{data.solution.toUpperCase()}</div>
+            <div className={`tooltip-word ${resultClass}`}>{data.solution.toUpperCase()}</div>
           )}
           {preview}
           {(typeof data.skillScore === 'number' || typeof data.luckScore === 'number') && (

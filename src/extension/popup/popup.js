@@ -165,11 +165,15 @@ document.addEventListener('DOMContentLoaded', function() {
     // Refresh button
     const refreshBtn = document.getElementById('refresh-btn');
     if (refreshBtn) {
-      refreshBtn.addEventListener('click', () => {
+      refreshBtn.addEventListener('click', async () => {
         if (!refreshBtn.disabled) {
           // Mark that we're doing a refresh - game index will be reset if new games found
           render();
-          triggerIncrementalScrape();
+          // Check for gaps on refresh; if found and not already filled today, do full scrape
+          const didGapFill = await checkAndFillGaps();
+          if (!didGapFill) {
+            triggerIncrementalScrape();
+          }
         }
       });
     }
@@ -330,18 +334,18 @@ document.addEventListener('DOMContentLoaded', function() {
   });
   
   // Auto-import on load
-  async function triggerAutoImport() {
+  async function triggerAutoImport(fillGaps = false) {
     try {
-      console.log('[Popup] Triggering auto-import from WordleBot');
+      console.log(`[Popup] Triggering auto-import from WordleBot (fillGaps: ${fillGaps})`);
       
       activeNotification = null;
       scraperStatus.active = true;
-  scraperStatus.message = 'Checking for new games...';
+  scraperStatus.message = fillGaps ? 'Filling gaps in game history...' : 'Checking for new games...';
       render();
       
       const response = await chrome.runtime.sendMessage({
         type: 'START_WORDLE_BOT_SCRAPE',
-        mode: 'auto',
+        mode: fillGaps ? 'full' : 'auto',
         maxIterations: 50
       });
       
@@ -398,21 +402,81 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
   
-  // Check if auto-import is needed
+  // Detect gaps in game date history
+  // Returns the largest gap in days between consecutive games, or 0 if no gaps
+  function detectLargestGap(games) {
+    if (games.length < 2) return { gapDays: 0 };
+    
+    // Sort dates ascending
+    const dates = games
+      .map(g => g.date)
+      .filter(d => d) // skip any missing dates
+      .sort();
+    
+    let largestGap = 0;
+    let gapStart = null;
+    let gapEnd = null;
+    
+    for (let i = 1; i < dates.length; i++) {
+      const prev = new Date(dates[i - 1] + 'T00:00:00');
+      const curr = new Date(dates[i] + 'T00:00:00');
+      const diffDays = Math.round((curr - prev) / (1000 * 60 * 60 * 24));
+      
+      if (diffDays > largestGap) {
+        largestGap = diffDays;
+        gapStart = dates[i - 1];
+        gapEnd = dates[i];
+      }
+    }
+    
+    return { gapDays: largestGap, gapStart, gapEnd };
+  }
+
+  // Check for gaps and fill them (called on refresh button click)
+  // Returns true if a gap-fill scrape was triggered, false otherwise
+  async function checkAndFillGaps() {
+    try {
+      const result = await chrome.storage.local.get(['games', 'lastGapFillDate']);
+      const games = result.games || [];
+      
+      if (games.length < 2) return false;
+      
+      // Only attempt gap-fill once per day
+      const today = new Date().toISOString().slice(0, 10);
+      if (result.lastGapFillDate === today) {
+        console.log('[Popup] Gap-fill already attempted today, skipping');
+        return false;
+      }
+      
+      const { gapDays, gapStart, gapEnd } = detectLargestGap(games);
+      console.log(`[Popup] Largest gap: ${gapDays} days (${gapStart} → ${gapEnd})`);
+      
+      if (gapDays >= 7) {
+        console.log(`[Popup] Significant gap detected (${gapDays} days), triggering full scrape to fill`);
+        // Remember we tried today so we don't re-trigger
+        await chrome.storage.local.set({ lastGapFillDate: today });
+        triggerAutoImport(true);
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('[Popup] Error checking for gaps:', error);
+      return false;
+    }
+  }
+
+  // Check if auto-import is needed (only when no data at all)
   async function checkAndTriggerAutoImport() {
     try {
-      // Check if we have any games in storage
       const result = await chrome.storage.local.get(['games']);
       const games = result.games || [];
       
       console.log(`[Popup] Found ${games.length} games in storage`);
       
-      // Only auto-import if no games exist
       if (games.length === 0) {
         console.log('[Popup] No games found, triggering auto-import');
         triggerAutoImport();
-      } else {
-        console.log('[Popup] Games exist, skipping auto-import');
       }
     } catch (error) {
       console.error('[Popup] Error checking for auto-import:', error);
@@ -491,6 +555,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const resultText = currentGame.won ? 'Won' : 'Lost';
     const resultClass = currentGame.won ? 'won' : 'lost';
     const word = currentGame.solution || '\u2014';
+    const wordClass = currentGame.won ? '' : ' lost';
 
     // Create game board grid
     const gameBoard = renderGameBoard(currentGame);
@@ -504,7 +569,7 @@ document.addEventListener('DOMContentLoaded', function() {
         </div>
         
         <div class="game-viewer-content">
-          <div class="game-word">${word.toUpperCase()}</div>
+          <div class="game-word${wordClass}">${word.toUpperCase()}</div>
           
           <div class="game-board-container">
             <div class="board-and-scores">

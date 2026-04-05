@@ -389,6 +389,10 @@ body {
   width: 100%;
 }
 
+.tooltip-word.lost {
+  color: #d73027;
+}
+
 .tooltip-board {
   margin: 8px 0;
   text-align: center;

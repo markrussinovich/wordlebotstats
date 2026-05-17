@@ -1,7 +1,7 @@
 // Benchmarks Zustand store for managing benchmark data and comparisons
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
-import { BenchmarkData, BenchmarkSource, TimeFrame } from '@/types/benchmarkTypes';
+import { BenchmarkData, BenchmarkSource } from '@/types/benchmarkTypes';
 import { StatisticsPeriod, ComparisonResult } from '@/types/gameTypes';
 import BenchmarkDataModel from '@/models/BenchmarkData';
 
@@ -298,7 +298,7 @@ async function fetchWordleBotBenchmark(): Promise<BenchmarkData> {
 }
 
 // Auto-update hook
-let autoUpdateInterval: number | null = null;
+let autoUpdateInterval: ReturnType<typeof setInterval> | null = null;
 
 export const startBenchmarkAutoUpdate = () => {
   const { autoUpdate, updateInterval } = useBenchmarksStore.getState();

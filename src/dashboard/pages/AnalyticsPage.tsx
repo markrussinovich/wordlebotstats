@@ -19,7 +19,7 @@ const AnalyticsPage: React.FC = () => {
   // Generate detailed trend data for the selected period
   const getTrendData = () => {
     const filteredGames = games.slice(-90); // Last 90 games for detailed analysis
-    return filteredGames.map((game, index) => ({
+    return filteredGames.map((game) => ({
       date: game.date,
       winRate: game.won ? 100 : 0,
       averageGuesses: game.won ? (game.guesses || 0) : 0,
@@ -56,6 +56,17 @@ const AnalyticsPage: React.FC = () => {
     { value: '90d', label: 'Last 90 Days' },
     { value: 'all', label: 'All Time' }
   ];
+
+  if (!statistics) {
+    return (
+      <div className="p-6 space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Advanced Analytics</h1>
+          <p className="text-gray-600 mt-1">No games are available for the selected period.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6">

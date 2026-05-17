@@ -237,7 +237,6 @@ var ExtensionStorage = _ExtensionStorage;
 
 // src/extension/background/background.ts
 var log2 = logger_default.log;
-var warn = logger_default.warn;
 var errorLog2 = logger_default.error;
 var storageService;
 var SCRAPE_STATUS_STORAGE_KEY = "wordleBotScrapeStatus";
@@ -317,9 +316,7 @@ chrome.runtime.onMessage.addListener(
     log2("[BACKGROUND DEBUG] Sender:", sender);
     handleExtensionMessage(message, sender).then((response) => {
       log2("[BACKGROUND DEBUG] Sending response:", response);
-      if (response) {
-        sendResponse(response);
-      }
+      sendResponse(response ?? null);
     }).catch((error) => {
       console.error("[BACKGROUND DEBUG] Message handling error:", error);
       sendResponse({
@@ -928,7 +925,7 @@ async function handleOpenDashboardTab(_message) {
         await chrome.tabs.reload(existingTab.id);
         return { success: true, reused: true, tabId: existingTab.id };
       }
-    } catch (err) {
+    } catch {
       dashboardTabId = null;
     }
   }

@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import TimelineChart, { 
   calculateRunningAverages, 
@@ -690,7 +690,6 @@ describe('TimelineChart', () => {
       const { container } = render(<TimelineChart games={gamesWithSkillLuck} />);
       
       // Average turns: (4+3+5)/3 = 4
-      const avgTurnsElement = container.querySelector('.chart-stat-value');
       expect(container).toBeInTheDocument();
       
       // The chart stats should include averages

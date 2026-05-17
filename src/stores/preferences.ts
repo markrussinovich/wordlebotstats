@@ -1,12 +1,36 @@
-// User preferences Zustand store for managing user settings and configuration
+// User preferences Zustand store for dashboard settings and extension integration
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { UserPreferences } from '@/types/gameTypes';
 import { TimeFrame, BenchmarkSource } from '@/types/benchmarkTypes';
+import { MessageType } from '@/types/messagingTypes';
 
-interface PreferencesState extends UserPreferences {
-  // Extend base preferences with additional UI state
+type ThemePreference = 'light' | 'dark' | 'system';
+
+type DashboardPreferences = Omit<UserPreferences, 'theme' | 'autoImport' | 'notifications'> & {
+  theme: ThemePreference;
+  showBenchmarks: boolean;
+  autoImport: {
+    enabled: boolean;
+  };
+  notifications: {
+    enabled?: boolean;
+    dailyReminder: boolean;
+    achievements: boolean;
+    weeklyDigest: boolean;
+    streakAlerts?: boolean;
+    reminderTime?: string;
+  };
+};
+
+type PreferencePatch = Partial<Omit<DashboardPreferences, 'autoImport' | 'notifications'>> & {
+  autoImport?: Partial<DashboardPreferences['autoImport']>;
+  notifications?: Partial<DashboardPreferences['notifications']>;
+};
+
+interface PreferencesState {
+  preferences: DashboardPreferences;
   isLoading: boolean;
   error: string | null;
   lastSyncTime: string | null;
@@ -14,47 +38,37 @@ interface PreferencesState extends UserPreferences {
 }
 
 interface PreferencesActions {
-  // Theme management
-  setTheme: (theme: 'light' | 'dark' | 'system') => void;
+  // Compatibility API used by dashboard pages
+  updatePreferences: (updates: PreferencePatch) => void;
+  exportData: () => Promise<void>;
+  importData: (data: unknown) => Promise<void>;
+  resetAllData: () => Promise<void>;
+
+  // Existing API used by hooks/components
+  setTheme: (theme: ThemePreference) => void;
   toggleTheme: () => void;
-  
-  // Time frame preferences
   setDefaultTimeFrame: (timeFrame: TimeFrame) => void;
-  
-  // Benchmark preferences
   setBenchmarkSources: (sources: BenchmarkSource[]) => void;
   toggleBenchmarkSource: (source: BenchmarkSource) => void;
   setShowBenchmarks: (show: boolean) => void;
-  
-  // Notification preferences
   setNotificationsEnabled: (enabled: boolean) => void;
   setStreakNotifications: (enabled: boolean) => void;
   setDailyReminders: (enabled: boolean) => void;
   setReminderTime: (time: string) => void;
-  
-  // Import/Export preferences
   setAutoImport: (enabled: boolean) => void;
-  setAutoExport: (enabled: boolean) => void;
-  setExportFrequency: (frequency: 'daily' | 'weekly' | 'monthly') => void;
-  
-  // Privacy preferences
-  setDataSharing: (enabled: boolean) => void;
-  setAnalytics: (enabled: boolean) => void;
-  
-  // Display preferences
-  setCompactMode: (enabled: boolean) => void;
-  setShowTrends: (enabled: boolean) => void;
-  setShowComparisons: (enabled: boolean) => void;
-  setChartType: (type: 'bar' | 'line' | 'pie') => void;
-  
-  // Data management
+  setAutoExport: (_enabled: boolean) => void;
+  setExportFrequency: (_frequency: 'daily' | 'weekly' | 'monthly') => void;
+  setDataSharing: (_enabled: boolean) => void;
+  setAnalytics: (_enabled: boolean) => void;
+  setCompactMode: (_enabled: boolean) => void;
+  setShowTrends: (_enabled: boolean) => void;
+  setShowComparisons: (_enabled: boolean) => void;
+  setChartType: (_type: 'bar' | 'line' | 'pie') => void;
   resetToDefaults: () => void;
   saveChanges: () => Promise<void>;
   loadPreferences: () => Promise<void>;
   exportPreferences: () => string;
   importPreferences: (data: string) => void;
-  
-  // State management
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   markAsChanged: () => void;
@@ -63,11 +77,10 @@ interface PreferencesActions {
 
 type PreferencesStore = PreferencesState & PreferencesActions;
 
-// Default preferences
-const DEFAULT_PREFERENCES: UserPreferences = {
+const DEFAULT_PREFERENCES: DashboardPreferences = {
   theme: 'system',
   defaultTimeFrame: '30d',
-  benchmarkSources: ['national', 'wordlebot'],
+  benchmarkSource: 'national',
   showBenchmarks: true,
   notifications: {
     enabled: false,
@@ -77,177 +90,240 @@ const DEFAULT_PREFERENCES: UserPreferences = {
     streakAlerts: true,
     reminderTime: '09:00'
   },
-  privacy: {
-    dataSharing: false,
-    analytics: true
-  },
-  display: {
-    compactMode: false,
-    showTrends: true,
-    showComparisons: true,
-    chartType: 'bar'
-  },
-  import: {
-    autoImport: true,
-    sources: ['wordle-nyt']
-  },
-  export: {
-    autoExport: false,
-    frequency: 'weekly',
-    format: 'json'
+  autoImport: {
+    enabled: true
   }
 };
+
+function applyThemeToDocument(theme: ThemePreference) {
+  if (typeof document === 'undefined') return;
+
+  const root = document.documentElement;
+
+  if (theme === 'system') {
+    const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    root.setAttribute('data-theme', systemPrefersDark ? 'dark' : 'light');
+    return;
+  }
+
+  root.setAttribute('data-theme', theme);
+}
+
+function triggerJsonDownload(filename: string, content: string) {
+  if (typeof document === 'undefined') return;
+
+  const blob = new Blob([content], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 
 export const usePreferencesStore = create<PreferencesStore>()(
   persist(
     immer((set, get) => ({
-      // Initial state (spread defaults and add store-specific state)
-      ...DEFAULT_PREFERENCES,
+      preferences: { ...DEFAULT_PREFERENCES },
       isLoading: false,
       error: null,
       lastSyncTime: null,
       hasUnsavedChanges: false,
 
-      // Theme management
-      setTheme: (theme) => set(state => {
-        state.theme = theme;
+      updatePreferences: (updates) => set((state) => {
+        state.preferences = {
+          ...state.preferences,
+          ...updates,
+          notifications: {
+            ...state.preferences.notifications,
+            ...updates.notifications
+          },
+          autoImport: {
+            ...state.preferences.autoImport,
+            ...updates.autoImport
+          }
+        };
+
+        if (updates.theme) {
+          state.preferences.theme = updates.theme;
+          applyThemeToDocument(state.preferences.theme);
+        }
+
         state.hasUnsavedChanges = true;
-        
-        // Apply theme immediately to document
-        applyThemeToDocument(theme);
       }),
 
+      exportData: async () => {
+        try {
+          if (typeof chrome !== 'undefined' && chrome.runtime) {
+            const response = await chrome.runtime.sendMessage({ type: MessageType.EXPORT_DATA });
+            if (response?.data && response?.filename) {
+              triggerJsonDownload(response.filename, response.data);
+              return;
+            }
+          }
+
+          const fallback = get().exportPreferences();
+          triggerJsonDownload('wordle-preferences.json', fallback);
+        } catch (error) {
+          console.error('[PreferencesStore] Failed to export data:', error);
+          throw error;
+        }
+      },
+
+      importData: async (data) => {
+        try {
+          const parsed = typeof data === 'string' ? JSON.parse(data) : (data as Record<string, unknown>);
+          const payload = parsed || {};
+
+          if (payload.preferences && typeof payload.preferences === 'object') {
+            get().updatePreferences(payload.preferences as PreferencePatch);
+          }
+
+          if (Array.isArray(payload.games) && typeof chrome !== 'undefined' && chrome.runtime) {
+            await chrome.runtime.sendMessage({
+              type: 'BULK_IMPORT_GAMES',
+              games: payload.games
+            });
+          }
+
+          get().markAsSaved();
+        } catch (error) {
+          set((state) => {
+            state.error = error instanceof Error ? error.message : 'Failed to import data';
+          });
+          throw error;
+        }
+      },
+
+      resetAllData: async () => {
+        try {
+          if (typeof chrome !== 'undefined' && chrome.runtime) {
+            await chrome.runtime.sendMessage({ type: MessageType.CLEAR_DATA });
+          }
+        } catch (error) {
+          console.warn('[PreferencesStore] Failed to clear extension data, resetting preferences locally:', error);
+        }
+
+        get().resetToDefaults();
+      },
+
+      setTheme: (theme) => {
+        get().updatePreferences({ theme });
+      },
+
       toggleTheme: () => {
-        const currentTheme = get().theme;
-        const nextTheme = currentTheme === 'light' ? 'dark' : 'light';
+        const currentTheme = get().preferences.theme;
+        const nextTheme: ThemePreference = currentTheme === 'light' ? 'dark' : 'light';
         get().setTheme(nextTheme);
       },
 
-      // Time frame preferences
-      setDefaultTimeFrame: (timeFrame) => set(state => {
-        state.defaultTimeFrame = timeFrame;
-        state.hasUnsavedChanges = true;
-      }),
+      setDefaultTimeFrame: (timeFrame) => {
+        get().updatePreferences({ defaultTimeFrame: timeFrame });
+      },
 
-      // Benchmark preferences
-      setBenchmarkSources: (sources) => set(state => {
-        state.benchmarkSource = sources;
-        state.hasUnsavedChanges = true;
-      }),
+      setBenchmarkSources: (sources) => {
+        const primarySource = sources[0] || 'national';
+        get().updatePreferences({ benchmarkSource: primarySource });
+      },
 
-      toggleBenchmarkSource: (source) => set(state => {
-        const current = state.benchmarkSource;
-        if (current.includes(source)) {
-          state.benchmarkSource = current.filter((s: any) => s !== source);
-        } else {
-          state.benchmarkSource = [...current, source];
-        }
-        state.hasUnsavedChanges = true;
-      }),
+      toggleBenchmarkSource: (source) => {
+        get().updatePreferences({ benchmarkSource: source });
+      },
 
-      setShowBenchmarks: (show) => set(state => {
-        state.setShowBenchmarks = show;
-        state.hasUnsavedChanges = true;
-      }),
+      setShowBenchmarks: (show) => {
+        get().updatePreferences({ showBenchmarks: show });
+      },
 
-      // Notification preferences
-      setNotificationsEnabled: (enabled) => set(state => {
-        state.notifications!.enabled = enabled;
-        state.hasUnsavedChanges = true;
-      }),
+      setNotificationsEnabled: (enabled) => {
+        get().updatePreferences({ notifications: { enabled } });
+      },
 
-      setStreakNotifications: (enabled) => set(state => {
-        state.notifications!.streakAlerts = enabled;
-        state.hasUnsavedChanges = true;
-      }),
+      setStreakNotifications: (enabled) => {
+        get().updatePreferences({ notifications: { streakAlerts: enabled } });
+      },
 
-      setDailyReminders: (enabled) => set(state => {
-        state.notifications!.dailyReminder = enabled;
-        state.hasUnsavedChanges = true;
-      }),
+      setDailyReminders: (enabled) => {
+        get().updatePreferences({ notifications: { dailyReminder: enabled } });
+      },
 
-      setReminderTime: (time) => set(state => {
-        state.notifications!.reminderTime = time;
-        state.hasUnsavedChanges = true;
-      }),
+      setReminderTime: (time) => {
+        get().updatePreferences({ notifications: { reminderTime: time } });
+      },
 
-      // Import/Export preferences
-      setAutoImport: (enabled) => set(state => {
-        // state.import.autoImport = enabled;
-        state.hasUnsavedChanges = true;
-      }),
+      setAutoImport: (enabled) => {
+        get().updatePreferences({ autoImport: { enabled } });
+      },
 
-      setAutoExport: (enabled) => set(state => {
-        // state.export.autoExport = enabled;
-        state.hasUnsavedChanges = true;
-      }),
+      setAutoExport: (_enabled) => {
+        set((state) => {
+          state.hasUnsavedChanges = true;
+        });
+      },
 
-      setExportFrequency: (frequency) => set(state => {
-        // state.export.frequency = frequency;
-        state.hasUnsavedChanges = true;
-      }),
+      setExportFrequency: (_frequency) => {
+        set((state) => {
+          state.hasUnsavedChanges = true;
+        });
+      },
 
-      // Privacy preferences
-      setDataSharing: (enabled) => set(state => {
-        // state.privacy.dataSharing = enabled;
-        state.hasUnsavedChanges = true;
-      }),
+      setDataSharing: (_enabled) => {
+        set((state) => {
+          state.hasUnsavedChanges = true;
+        });
+      },
 
-      setAnalytics: (enabled) => set(state => {
-        // state.privacy.analytics = enabled;
-        state.hasUnsavedChanges = true;
-      }),
+      setAnalytics: (_enabled) => {
+        set((state) => {
+          state.hasUnsavedChanges = true;
+        });
+      },
 
-      // Display preferences
-      setCompactMode: (enabled) => set(state => {
-        // state.display.compactMode = enabled;
-        state.hasUnsavedChanges = true;
-      }),
+      setCompactMode: (_enabled) => {
+        set((state) => {
+          state.hasUnsavedChanges = true;
+        });
+      },
 
-      setShowTrends: (enabled) => set(state => {
-        // state.display.showTrends = enabled;
-        state.hasUnsavedChanges = true;
-      }),
+      setShowTrends: (_enabled) => {
+        set((state) => {
+          state.hasUnsavedChanges = true;
+        });
+      },
 
-      setShowComparisons: (enabled) => set(state => {
-        // state.display.showComparisons = enabled;
-        state.hasUnsavedChanges = true;
-      }),
+      setShowComparisons: (_enabled) => {
+        set((state) => {
+          state.hasUnsavedChanges = true;
+        });
+      },
 
-      setChartType: (type) => set(state => {
-        state.display.chartType = type;
-        state.hasUnsavedChanges = true;
-      }),
+      setChartType: (_type) => {
+        set((state) => {
+          state.hasUnsavedChanges = true;
+        });
+      },
 
-      // Data management
-      resetToDefaults: () => set(state => {
-        Object.assign(state, DEFAULT_PREFERENCES);
+      resetToDefaults: () => set((state) => {
+        state.preferences = { ...DEFAULT_PREFERENCES };
         state.hasUnsavedChanges = true;
-        
-        // Apply default theme
         applyThemeToDocument(DEFAULT_PREFERENCES.theme);
       }),
 
       saveChanges: async () => {
-        set(state => {
+        set((state) => {
           state.isLoading = true;
           state.error = null;
         });
 
         try {
-          // In a real implementation, this would sync to cloud storage
-          // For now, just mark as saved (persistence middleware handles local storage)
-          
-          await new Promise(resolve => setTimeout(resolve, 500)); // Simulate API call
-          
-          set(state => {
+          set((state) => {
             state.hasUnsavedChanges = false;
             state.lastSyncTime = new Date().toISOString();
             state.isLoading = false;
           });
-
         } catch (error) {
-          set(state => {
+          set((state) => {
             state.error = error instanceof Error ? error.message : 'Failed to save preferences';
             state.isLoading = false;
           });
@@ -256,28 +332,20 @@ export const usePreferencesStore = create<PreferencesStore>()(
       },
 
       loadPreferences: async () => {
-        set(state => {
+        set((state) => {
           state.isLoading = true;
           state.error = null;
         });
 
         try {
-          // In a real implementation, this would load from cloud storage
-          // The persist middleware already handles loading from localStorage
-          
-          await new Promise(resolve => setTimeout(resolve, 300)); // Simulate API call
-          
-          set(state => {
+          set((state) => {
             state.isLoading = false;
             state.lastSyncTime = new Date().toISOString();
           });
 
-          // Apply current theme
-          const currentTheme = get().theme;
-          applyThemeToDocument(currentTheme);
-
+          applyThemeToDocument(get().preferences.theme);
         } catch (error) {
-          set(state => {
+          set((state) => {
             state.error = error instanceof Error ? error.message : 'Failed to load preferences';
             state.isLoading = false;
           });
@@ -286,64 +354,43 @@ export const usePreferencesStore = create<PreferencesStore>()(
       },
 
       exportPreferences: () => {
-        const state = get();
-        const exportData = {
+        const { preferences } = get();
+        const exportPayload = {
           version: '1.0.0',
           exportDate: new Date().toISOString(),
-          preferences: {
-            theme: state.theme,
-            defaultTimeFrame: state.defaultTimeFrame,
-            benchmarkSource: state.benchmarkSource,
-            // showBenchmarks: state.showBenchmarks,
-            notifications: state.notifications
-            // privacy: state.privacy,
-            // display: state.display,
-            // import: state.import,
-            // export: state.export
-          }
+          preferences
         };
-        
-        return JSON.stringify(exportData, null, 2);
+        return JSON.stringify(exportPayload, null, 2);
       },
 
       importPreferences: (data) => {
         try {
-          const importData = JSON.parse(data);
-          
-          if (!importData.preferences) {
+          const parsed = JSON.parse(data) as { preferences?: PreferencePatch };
+          if (!parsed.preferences) {
             throw new Error('Invalid preferences format');
           }
-
-          set(state => {
-            Object.assign(state, importData.preferences);
-            state.hasUnsavedChanges = true;
-          });
-
-          // Apply imported theme
-          applyThemeToDocument(importData.preferences.theme || 'system');
-
+          get().updatePreferences(parsed.preferences);
         } catch (error) {
-          set(state => {
+          set((state) => {
             state.error = error instanceof Error ? error.message : 'Failed to import preferences';
           });
           throw error;
         }
       },
 
-      // State management
-      setLoading: (loading) => set(state => {
+      setLoading: (loading) => set((state) => {
         state.isLoading = loading;
       }),
 
-      setError: (error) => set(state => {
+      setError: (error) => set((state) => {
         state.error = error;
       }),
 
-      markAsChanged: () => set(state => {
+      markAsChanged: () => set((state) => {
         state.hasUnsavedChanges = true;
       }),
 
-      markAsSaved: () => set(state => {
+      markAsSaved: () => set((state) => {
         state.hasUnsavedChanges = false;
         state.lastSyncTime = new Date().toISOString();
       })
@@ -351,7 +398,6 @@ export const usePreferencesStore = create<PreferencesStore>()(
     {
       name: 'wordle-stats-preferences',
       storage: createJSONStorage(() => {
-        // Use chrome.storage.sync for extension context, localStorage for web
         if (typeof chrome !== 'undefined' && chrome.storage) {
           return {
             getItem: async (name: string) => {
@@ -369,49 +415,21 @@ export const usePreferencesStore = create<PreferencesStore>()(
         return localStorage;
       }),
       partialize: (state) => ({
-        // Only persist user preferences, not transient state
-        theme: state.theme,
-        defaultTimeFrame: state.defaultTimeFrame,
-        benchmarkSource: state.benchmarkSource,
-        // showBenchmarks: state.showBenchmarks,
-        notifications: state.notifications
-        // privacy: state.privacy,
-        // display: state.display,
-        // import: state.import,
-        // export: state.export
+        preferences: state.preferences
       })
     }
   )
 );
 
-// Theme application utility
-function applyThemeToDocument(theme: 'light' | 'dark' | 'system') {
-  if (typeof document === 'undefined') return;
-
-  const root = document.documentElement;
-  
-  if (theme === 'system') {
-    // Use system preference
-    const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    root.setAttribute('data-theme', systemPrefersDark ? 'dark' : 'light');
-  } else {
-    root.setAttribute('data-theme', theme);
-  }
-}
-
-// Initialize theme on store creation
 if (typeof window !== 'undefined') {
-  // Listen for system theme changes
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
-    const currentTheme = usePreferencesStore.getState().theme;
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    const currentTheme = usePreferencesStore.getState().preferences.theme;
     if (currentTheme === 'system') {
       applyThemeToDocument('system');
     }
   });
 
-  // Apply initial theme
-  const initialTheme = usePreferencesStore.getState().theme;
-  applyThemeToDocument(initialTheme);
+  applyThemeToDocument(usePreferencesStore.getState().preferences.theme);
 }
 
 export default usePreferencesStore;

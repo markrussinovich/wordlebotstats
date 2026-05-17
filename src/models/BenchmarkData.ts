@@ -2,8 +2,14 @@
 import { BenchmarkData, BenchmarkStats, BenchmarkSource, TimeFrame } from '@/types/benchmarkTypes';
 import { StatisticsPeriod, ComparisonResult } from '@/types/gameTypes';
 
+type NormalizedBenchmarkData = BenchmarkData & {
+  timeFrame: TimeFrame;
+  stats: BenchmarkStats;
+  metadata?: unknown;
+};
+
 export class BenchmarkDataModel {
-  private data: BenchmarkData;
+  private data: NormalizedBenchmarkData;
 
   constructor(data: Partial<BenchmarkData>) {
     this.data = this.validateAndNormalize(data);
@@ -16,7 +22,7 @@ export class BenchmarkDataModel {
 
   static createNationalAverage(stats: BenchmarkStats): BenchmarkDataModel {
     return new BenchmarkDataModel({
-      source: 'national-average',
+      source: 'national',
       timeFrame: '30d',
       stats,
       lastUpdated: new Date().toISOString(),
@@ -30,7 +36,7 @@ export class BenchmarkDataModel {
       timeFrame: 'all',
       stats,
       lastUpdated: new Date().toISOString(),
-      sampleSize: null // WordleBot doesn't provide sample sizes
+      sampleSize: 0 // WordleBot doesn't provide sample sizes
     });
   }
 
@@ -44,7 +50,7 @@ export class BenchmarkDataModel {
   }
 
   // Validation and normalization
-  private validateAndNormalize(data: Partial<BenchmarkData>): BenchmarkData {
+  private validateAndNormalize(data: Partial<BenchmarkData>): NormalizedBenchmarkData {
     const errors: string[] = [];
 
     // Required fields validation
@@ -78,8 +84,12 @@ export class BenchmarkDataModel {
       timeFrame: data.timeFrame!,
       stats: data.stats!,
       lastUpdated: data.lastUpdated || new Date().toISOString(),
-      sampleSize: data.sampleSize || null,
-      metadata: data.metadata
+      sampleSize: data.sampleSize ?? data.stats!.sampleSize ?? 0,
+      winRate: data.winRate ?? data.stats!.winRate,
+      averageGuesses: data.averageGuesses ?? data.stats!.averageGuesses,
+      guessDistribution: data.guessDistribution ?? data.stats!.guessDistribution ?? [0, 0, 0, 0, 0, 0, 0],
+      coverage: data.coverage ?? data.stats!.coverage ?? 100,
+      metadata: (data as { metadata?: unknown }).metadata
     };
   }
 
@@ -134,7 +144,7 @@ export class BenchmarkDataModel {
   }
 
   get isNational(): boolean {
-    return this.data.source === 'national-average';
+    return this.data.source === 'national';
   }
 
   get isWordleBot(): boolean {
@@ -158,20 +168,11 @@ export class BenchmarkDataModel {
 
     return {
       benchmarkSource: this.data.source,
-      userStats: {
-        winRate: userStats.winRate,
-        averageGuesses: userStats.averageGuesses,
-        gameCount: userStats.gameCount
-      },
-      benchmarkStats: this.data.stats,
-      comparison: {
-        winRateDiff,
-        averageGuessesDiff,
-        winRatePercentile,
-        guessesPercentile,
-        overallRank: this.calculateOverallRank(winRatePercentile, guessesPercentile)
-      },
-      insights: this.generateInsights(winRateDiff, averageGuessesDiff, winRatePercentile)
+      benchmarkStats: this.data,
+      winRateDelta: winRateDiff,
+      averageGuessesDelta: averageGuessesDiff,
+      significanceLevel: this.calculateOverallRank(winRatePercentile, guessesPercentile) / 100,
+      beatsBenchmark: winRateDiff >= 0 && averageGuessesDiff <= 0
     };
   }
 
@@ -259,14 +260,10 @@ export class BenchmarkDataModel {
   // Utility methods
   getDisplayName(): string {
     switch (this.data.source) {
-      case 'national-average':
+      case 'national':
         return 'National Average';
       case 'wordlebot':
         return 'WordleBot';
-      case 'reddit-survey':
-        return 'Reddit Community';
-      case 'nyt-stats':
-        return 'NYT Statistics';
       default:
         return 'Unknown Source';
     }
@@ -313,7 +310,7 @@ export class BenchmarkDataModel {
   }
 
   toSummaryString(): string {
-    const { source, stats } = this.data;
+    const { stats } = this.data;
     return `${this.getDisplayName()}: ${stats.winRate.toFixed(1)}% win rate, ` +
            `${stats.averageGuesses.toFixed(1)} avg guesses`;
   }

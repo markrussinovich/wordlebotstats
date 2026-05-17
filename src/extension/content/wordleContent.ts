@@ -150,7 +150,6 @@ class WordleIntegration {
       let guesses = 0;
       let isComplete = false;
       let isWon = false;
-      let lastRowState = '';
 
       Array.from(rows).forEach((row, index) => {
         const tiles = row.querySelectorAll('[data-testid^="tile"]') ||
@@ -209,9 +208,6 @@ class WordleIntegration {
         const shareButton = document.querySelector('[data-testid="share-button"]') ||
                            document.querySelector('button[aria-label*="Share"]') ||
                            document.querySelector('.ShareButton');
-
-        const statsButton = document.querySelector('[data-testid="stats-button"]') ||
-                           document.querySelector('button[aria-label*="Statistics"]');
 
         if (shareButton || (completionModal && completionModal.textContent)) {
           isComplete = true;
@@ -287,15 +283,16 @@ class WordleIntegration {
     const now = new Date();
     
     return {
-      id: `${gameState.date}-${gameState.gameNumber || 'unknown'}`,
+      gameId: `${gameState.date}-${gameState.gameNumber || 'unknown'}`,
       date: gameState.date,
       won: gameState.isWon,
+      attempts: gameState.guesses,
       guesses: gameState.guesses,
       maxGuesses: gameState.maxGuesses,
       duration: 0, // We can't reliably measure duration from the page
       wordLength: 5, // Wordle is always 5 letters
       gameNumber: gameState.gameNumber,
-      source: 'wordle-nyt',
+      source: 'wordle-page',
       importedAt: now.toISOString(),
       guessDistribution: [], // Could be enhanced to extract actual guesses
       hardMode: false // Could be detected from game settings

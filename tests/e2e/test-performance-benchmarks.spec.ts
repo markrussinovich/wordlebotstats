@@ -149,7 +149,7 @@ test.describe('Performance Benchmarking', () => {
     console.log(`Large dataset chart render time: ${chartLoadTime}ms`);
   });
 
-  test('memory usage should be reasonable', async ({ page, context }) => {
+  test('memory usage should be reasonable', async ({ page }) => {
     await page.goto('/dashboard');
     
     // Get initial memory usage

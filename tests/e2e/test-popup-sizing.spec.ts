@@ -1,9 +1,8 @@
 import { test, expect } from '@playwright/test';
 import path from 'path';
-import { fileURLToPath } from 'url';
 
 test.describe('Popup Sizing Verification', () => {
-  test('verify popup fits without scrollbars', async ({ page, context }) => {
+  test('verify popup fits without scrollbars', async ({ page }) => {
     // Load the popup HTML directly
     const popupHtmlPath = path.resolve(process.cwd(), 'dist/popup.html');
     await page.goto(`file:///${popupHtmlPath.replace(/\\/g, '/')}`);

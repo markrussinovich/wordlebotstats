@@ -1,5 +1,4 @@
 import { test, expect } from '@playwright/test';
-import { chromium } from '@playwright/test';
 
 test.describe('Wordle Bot Scraper', () => {
   test('should extract game data correctly from WordleBot page', async ({ page }) => {

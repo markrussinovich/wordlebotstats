@@ -1,9 +1,9 @@
-import { test, expect, chromium, type BrowserContext, type Page } from '@playwright/test';
+import { test, expect, chromium, type BrowserContext } from '@playwright/test';
 import path from 'path';
+import fs from 'fs';
 
 test.describe('Extension Diagnostic Tests', () => {
   let context: BrowserContext;
-  let serviceWorkerPage: Page | null = null;
 
   test.beforeAll(async () => {
     const pathToExtension = path.join(process.cwd(), 'dist');
@@ -19,7 +19,7 @@ test.describe('Extension Diagnostic Tests', () => {
     });
 
     // Try to get service worker
-    await context.waitForTimeout(3000);
+    await new Promise(resolve => setTimeout(resolve, 3000));
     const workers = context.serviceWorkers();
     console.log('Service workers found:', workers.length);
     
@@ -33,7 +33,6 @@ test.describe('Extension Diagnostic Tests', () => {
   });
 
   test('extension files exist and are valid', async () => {
-    const fs = require('fs');
     const distPath = path.join(process.cwd(), 'dist');
     
     // Check manifest
@@ -115,16 +114,10 @@ test.describe('Extension Diagnostic Tests', () => {
       const worker = workers[0];
       console.log('Service worker URL:', worker.url());
       
-      // Listen for console messages
       const messages: string[] = [];
-      worker.on('console', (msg) => {
-        const text = msg.text();
-        messages.push(`[${msg.type()}] ${text}`);
-        console.log(`SW Console [${msg.type()}]:`, text);
-      });
       
       // Wait a bit to collect messages
-      await context.waitForTimeout(5000);
+      await new Promise(resolve => setTimeout(resolve, 5000));
       
       console.log('Total console messages:', messages.length);
       

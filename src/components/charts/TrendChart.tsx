@@ -137,7 +137,7 @@ const TrendChart: React.FC<TrendChartProps> = ({
           )}
 
           {/* Metric lines */}
-          {metrics.map((metric, index) => {
+          {metrics.map((metric) => {
             const config = getMetricConfig(metric);
             return (
               <Line

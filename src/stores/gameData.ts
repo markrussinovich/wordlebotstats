@@ -5,6 +5,7 @@ import { TimeFrame } from '@/types/benchmarkTypes';
 import { 
   GetQuickStatsMessage, 
   QuickStatsResponse, 
+  DashboardDataResponse,
   MessageType 
 } from '@/types/messagingTypes';
 import { 
@@ -216,46 +217,43 @@ export const useGameDataStore = create<GameDataState>()(
           });
 
           console.log('[GameDataStore] Requesting dashboard data from extension...');
-          const response = await chrome.runtime.sendMessage({
-            type: MessageType.GET_DASHBOARD_DATA
-          });
+          const response = await sendDashboardDataRequestWithRetry();
 
           console.log('[GameDataStore] Response received:', response);
           console.log('[GameDataStore] Games count:', response?.games?.length);
-          
-          if (response && response.games) {
-            // Debug: Log sample games to see structure
-            if (response.games.length > 0) {
-              console.log('[GameDataStore] Sample games (first 5):');
-              response.games.slice(0, 5).forEach((game: GameResult, i: number) => {
-                console.log(`  Game ${i + 1}:`, {
-                  date: game.date,
-                  won: game.won,
-                  attempts: game.attempts,
-                  guesses: game.guesses,
-                  puzzleNumber: game.puzzleNumber || game.puzzle
-                });
-              });
-              
-              // Count won/lost
-              const wonCount = response.games.filter((g: GameResult) => g.won).length;
-              const lostCount = response.games.filter((g: GameResult) => !g.won).length;
-              console.log('[GameDataStore] Won games:', wonCount);
-              console.log('[GameDataStore] Lost games:', lostCount);
-            }
-            
-            set((state) => {
-              state.games = response.games;
-              state.lastUpdated = new Date().toISOString();
-              state.isLoading = false;
-              // Clear cached statistics to force recalculation
-              Object.keys(state.currentStatistics).forEach(key => {
-                state.currentStatistics[key as TimeFrame] = null;
+
+          // Debug: Log sample games to see structure
+          if (response.games.length > 0) {
+            console.log('[GameDataStore] Sample games (first 5):');
+            response.games.slice(0, 5).forEach((game: GameResult, i: number) => {
+              console.log(`  Game ${i + 1}:`, {
+                date: game.date,
+                won: game.won,
+                attempts: game.attempts,
+                guesses: game.guesses,
+                puzzleNumber: game.puzzleNumber || game.puzzle
               });
             });
+
+            // Count won/lost
+            const wonCount = response.games.filter((g: GameResult) => g.won).length;
+            const lostCount = response.games.filter((g: GameResult) => !g.won).length;
+            console.log('[GameDataStore] Won games:', wonCount);
+            console.log('[GameDataStore] Lost games:', lostCount);
           }
+
+          set((state) => {
+            state.games = response.games;
+            state.lastUpdated = new Date().toISOString();
+            // Clear cached statistics to force recalculation
+            Object.keys(state.currentStatistics).forEach(key => {
+              state.currentStatistics[key as TimeFrame] = null;
+            });
+          });
         } catch (error) {
           console.error('[GameDataStore] Failed to load data from extension:', error);
+          throw error;
+        } finally {
           set((state) => {
             state.isLoading = false;
           });
@@ -312,6 +310,51 @@ export const useGameDataStore = create<GameDataState>()(
     }
   }))
 );
+
+type DashboardDataMessageResponse = Partial<DashboardDataResponse> & {
+  success?: boolean;
+  games?: GameResult[];
+  error?: string;
+};
+
+const DASHBOARD_DATA_RETRY_DELAYS_MS = [150, 300, 600];
+
+async function sendDashboardDataRequestWithRetry(): Promise<DashboardDataResponse> {
+  let lastResponse: DashboardDataMessageResponse | null | undefined;
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= DASHBOARD_DATA_RETRY_DELAYS_MS.length; attempt++) {
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: MessageType.GET_DASHBOARD_DATA
+      }) as DashboardDataMessageResponse | null | undefined;
+
+      if (response?.success === true && Array.isArray(response.games)) {
+        return response as DashboardDataResponse;
+      }
+
+      lastResponse = response;
+    } catch (error) {
+      lastError = error;
+    }
+
+    const delay = DASHBOARD_DATA_RETRY_DELAYS_MS[attempt];
+    if (delay !== undefined) {
+      console.warn(`[GameDataStore] Dashboard data request failed on attempt ${attempt + 1}; retrying...`, lastResponse ?? lastError);
+      await wait(delay);
+    }
+  }
+
+  if (lastError) {
+    throw lastError;
+  }
+
+  throw new Error(lastResponse?.error || 'Invalid dashboard data response from extension');
+}
+
+function wait(milliseconds: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, milliseconds));
+}
 
 // Helper function to calculate statistics from games
 function calculateStatisticsFromGames(

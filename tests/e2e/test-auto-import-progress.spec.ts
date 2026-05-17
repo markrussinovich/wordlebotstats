@@ -1,4 +1,4 @@
-import { test, expect, chromium, BrowserContext, Page } from '@playwright/test';
+import { test, expect, chromium, BrowserContext } from '@playwright/test';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -50,15 +50,10 @@ test.describe('Auto-Import Progress Tests', () => {
   test('should trigger auto-import on popup open', async () => {
     const page = await context.newPage();
     
-    // Listen for background tab opening (scraper)
-    const backgroundTabPromise = new Promise<Page>(resolve => {
-      context.on('page', page => {
-        // Check if it's a background tab (not the popup)
-        if (page.url().includes('nytimes.com') || page.url().includes('wordlebot')) {
-          console.log('✓ Background scraper tab opened:', page.url());
-          resolve(page);
-        }
-      });
+    context.on('page', page => {
+      if (page.url().includes('nytimes.com') || page.url().includes('wordlebot')) {
+        console.log('✓ Background scraper tab opened:', page.url());
+      }
     });
     
     await page.goto(`chrome-extension://${extensionId}/popup.html`);

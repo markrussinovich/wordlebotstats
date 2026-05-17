@@ -1,5 +1,5 @@
 // Custom hook for dashboard data integration with extension messaging
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useGameDataStore } from '@/stores/gameData';
 import { useBenchmarksStore } from '@/stores/benchmarks';
 import { usePreferencesStore } from '@/stores/preferences';
@@ -15,21 +15,23 @@ export const useDashboardData = (): DashboardDataHook => {
   const [error, setError] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
 
-  const gameStore = useGameDataStore();
-  const benchmarkStore = useBenchmarksStore();
-  const preferencesStore = usePreferencesStore();
+  const gameIsLoading = useGameDataStore((state) => state.isLoading);
+  const loadDataFromExtension = useGameDataStore((state) => state.loadDataFromExtension);
+  const benchmarkIsLoading = useBenchmarksStore((state) => state.isLoading);
+  const fetchBenchmarks = useBenchmarksStore((state) => state.fetchBenchmarks);
+  const loadPreferences = usePreferencesStore((state) => state.loadPreferences);
 
-  const isLoading = gameStore.isLoading || benchmarkStore.isLoading;
+  const isLoading = gameIsLoading || benchmarkIsLoading;
 
-  const refreshData = async () => {
+  const refreshData = useCallback(async () => {
     try {
       setError(null);
       
       // Load data from extension in parallel
       await Promise.all([
-        gameStore.loadDataFromExtension(),
-        benchmarkStore.fetchBenchmarks(),
-        preferencesStore.loadPreferences()
+        loadDataFromExtension(),
+        fetchBenchmarks(),
+        loadPreferences()
       ]);
       
       setInitialized(true);
@@ -37,14 +39,14 @@ export const useDashboardData = (): DashboardDataHook => {
       console.error('[Dashboard] Failed to load data:', err);
       setError(err instanceof Error ? err.message : 'Failed to load dashboard data');
     }
-  };
+  }, [fetchBenchmarks, loadDataFromExtension, loadPreferences]);
 
   // Initialize on mount
   useEffect(() => {
     if (!initialized) {
       refreshData();
     }
-  }, [initialized]);
+  }, [initialized, refreshData]);
 
   return {
     isLoading,

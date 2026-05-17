@@ -59,8 +59,6 @@ test.describe('Scraper Progress Messages', () => {
     
     // Run scrape with progress tracking
     const result = await page.evaluate(async () => {
-      const progress: Array<{ iteration: number; gamesFound: number; totalUnique: number }> = [];
-      
       // Mock scrapeAllGames with progress tracking
       const scraper = (window as any).__WORDLE_EXTRACTOR_V5__;
       const games = await scraper.scrapeAllGames(5);

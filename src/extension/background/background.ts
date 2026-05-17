@@ -17,7 +17,7 @@ import {
 import { GameResult } from '@/types/gameTypes';
 import { ExtensionStorage } from './extensionStorage';
 import logger from '../utils/logger';
-const log = logger.log; const warn = logger.warn; const errorLog = logger.error;
+const log = logger.log; const errorLog = logger.error;
 
 // Initialize storage service
 let storageService: ExtensionStorage;
@@ -122,9 +122,7 @@ chrome.runtime.onMessage.addListener(
     handleExtensionMessage(message, sender)
       .then(response => {
   log('[BACKGROUND DEBUG] Sending response:', response);
-        if (response) {
-          sendResponse(response);
-        }
+        sendResponse(response ?? null);
       })
       .catch(error => {
         console.error('[BACKGROUND DEBUG] Message handling error:', error);
@@ -890,7 +888,7 @@ async function handleOpenDashboardTab(_message: OpenDashboardTabMessage): Promis
         await chrome.tabs.reload(existingTab.id);
         return { success: true, reused: true, tabId: existingTab.id };
       }
-    } catch (err) {
+    } catch {
       dashboardTabId = null;
     }
   }

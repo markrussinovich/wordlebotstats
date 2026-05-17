@@ -27,7 +27,7 @@ export class StatisticsPeriodModel {
       return gameDate >= new Date(startDate) && gameDate <= new Date(endDate);
     });
     
-    return new StatisticsPeriodModel(filteredGames, 'custom');
+    return new StatisticsPeriodModel(filteredGames, 'all');
   }
 
   // Core statistics calculation
@@ -56,36 +56,44 @@ export class StatisticsPeriodModel {
 
     return {
       timeFrame,
+      startDate: this.getFirstGameDate() ?? '',
+      endDate: this.getLastGameDate() ?? '',
       gameCount,
+      winCount: wonGames.length,
       winRate,
       averageGuesses,
       currentStreak: streaks.current,
       maxStreak: streaks.max,
       guessDistribution,
-      firstGameDate: this.getFirstGameDate(),
-      lastGameDate: this.getLastGameDate(),
-      trends,
-      calculatedAt: new Date().toISOString()
+      medianGuesses: averageGuesses,
+      perfectGames: guessDistribution[0] ?? 0,
+      lastGuessWins: guessDistribution[5] ?? 0,
+      trends: {
+        direction: trends.direction,
+        strength: Math.abs(trends.winRateChange)
+      }
     };
   }
 
   private getEmptyStatistics(timeFrame: TimeFrame): StatisticsPeriod {
     return {
       timeFrame,
+      startDate: '',
+      endDate: '',
       gameCount: 0,
+      winCount: 0,
       winRate: 0,
       averageGuesses: 0,
       currentStreak: 0,
       maxStreak: 0,
-      guessDistribution: [0, 0, 0, 0, 0, 0],
-      firstGameDate: null,
-      lastGameDate: null,
+      guessDistribution: [0, 0, 0, 0, 0, 0, 0],
+      medianGuesses: 0,
+      perfectGames: 0,
+      lastGuessWins: 0,
       trends: {
-        winRateChange: 0,
-        averageGuessesChange: 0,
-        direction: 'stable'
-      },
-      calculatedAt: new Date().toISOString()
+        direction: 'stable',
+        strength: 0
+      }
     };
   }
 
@@ -217,8 +225,8 @@ export class StatisticsPeriodModel {
     return { ...this.data };
   }
 
-  get timeFrame(): TimeFrame {
-    return this.data.timeFrame;
+  get timeFrame(): StatisticsPeriod['timeFrame'] {
+    return this.data.timeFrame ?? 'all';
   }
 
   get gameCount(): number {

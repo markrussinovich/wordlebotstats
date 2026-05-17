@@ -15,7 +15,7 @@ const SettingsPage: React.FC = () => {
   const [importFile, setImportFile] = useState<File | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
-  const handleThemeChange = (theme: 'light' | 'dark' | 'auto') => {
+  const handleThemeChange = (theme: 'light' | 'dark' | 'system') => {
     updatePreferences({ theme });
   };
 
@@ -104,13 +104,14 @@ const SettingsPage: React.FC = () => {
               </div>
               <Select
                 value={preferences.theme}
-                onChange={handleThemeChange}
+                onChange={(value) => handleThemeChange(value as 'light' | 'dark' | 'system')}
+                options={[
+                  { value: 'light', label: 'Light' },
+                  { value: 'dark', label: 'Dark' },
+                  { value: 'system', label: 'System' }
+                ]}
                 className="w-32"
-              >
-                <option value="light">Light</option>
-                <option value="dark">Dark</option>
-                <option value="auto">Auto</option>
-              </Select>
+              />
             </div>
 
             <div className="flex items-center justify-between">
@@ -124,14 +125,15 @@ const SettingsPage: React.FC = () => {
               </div>
               <Select
                 value={preferences.defaultTimeFrame}
-                onChange={handleDefaultTimeFrameChange}
+                onChange={(value) => handleDefaultTimeFrameChange(value as '7d' | '30d' | '90d' | 'all')}
+                options={[
+                  { value: '7d', label: 'Last 7 Days' },
+                  { value: '30d', label: 'Last 30 Days' },
+                  { value: '90d', label: 'Last 90 Days' },
+                  { value: 'all', label: 'All Time' }
+                ]}
                 className="w-32"
-              >
-                <option value="7d">Last 7 Days</option>
-                <option value="30d">Last 30 Days</option>
-                <option value="90d">Last 90 Days</option>
-                <option value="all">All Time</option>
-              </Select>
+              />
             </div>
           </div>
         </CardContent>
@@ -153,12 +155,13 @@ const SettingsPage: React.FC = () => {
               </div>
               <Select
                 value={preferences.benchmarkSource}
-                onChange={handleBenchmarkSourceChange}
+                onChange={(value) => handleBenchmarkSourceChange(value as 'national' | 'wordlebot')}
+                options={[
+                  { value: 'national', label: 'National Average' },
+                  { value: 'wordlebot', label: 'WordleBot' }
+                ]}
                 className="w-40"
-              >
-                <option value="national">National Average</option>
-                <option value="wordlebot">WordleBot</option>
-              </Select>
+              />
             </div>
 
             <div className="flex items-center justify-between">

@@ -27,7 +27,7 @@ export class GameResultModel {
       duration: 0,
       wordLength: 5,
       gameNumber,
-      source: 'wordle-nyt',
+      source: 'wordle-page',
       importedAt: new Date().toISOString(),
       guessDistribution: [],
       hardMode: false
@@ -87,6 +87,7 @@ export class GameResultModel {
     return {
       date: data.date!,
       won: data.won!,
+      attempts: data.guesses ?? data.attempts ?? 0,
       guesses: data.guesses || 0,
       maxGuesses: data.maxGuesses || 6,
       duration: data.duration || 0,
@@ -123,12 +124,14 @@ export class GameResultModel {
   }
 
   get guesses(): number {
-    return this.data.guesses;
+    return this.data.guesses ?? this.data.attempts ?? 0;
   }
 
   get efficiency(): number {
     if (!this.data.won) return 0;
-    return (this.data.maxGuesses - this.data.guesses + 1) / this.data.maxGuesses;
+    const maxGuesses = this.data.maxGuesses ?? 6;
+    const guesses = this.guesses;
+    return (maxGuesses - guesses + 1) / maxGuesses;
   }
 
   get isRecent(): boolean {
@@ -184,8 +187,8 @@ export class GameResultModel {
   }
 
   addGuess(guess: GuessResult): GameResultModel {
-    const updatedDistribution = [...this.data.guessDistribution, guess];
-    return this.update({ guessDistribution: updatedDistribution });
+    const guessPattern = [...(this.data.guessPattern ?? []), [guess]];
+    return this.update({ guessPattern });
   }
 
   setMetadata(key: string, value: any): GameResultModel {

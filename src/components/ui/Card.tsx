@@ -5,7 +5,6 @@ export interface CardProps extends HTMLAttributes<HTMLDivElement> {
   variant?: 'default' | 'outlined' | 'elevated';
   padding?: 'none' | 'sm' | 'md' | 'lg';
   interactive?: boolean;
-  as?: keyof JSX.IntrinsicElements;
 }
 
 const Card = forwardRef<HTMLDivElement, CardProps>(({
@@ -14,7 +13,6 @@ const Card = forwardRef<HTMLDivElement, CardProps>(({
   variant = 'default',
   padding = 'md',
   interactive = false,
-  as: Component = 'div',
   ...props
 }, ref) => {
   const baseClasses = 'rounded-lg';
@@ -45,14 +43,15 @@ const Card = forwardRef<HTMLDivElement, CardProps>(({
   ].filter(Boolean).join(' ');
 
   return (
-    <Component
+    <div
       ref={ref}
       className={classes}
       tabIndex={interactive ? 0 : undefined}
       role={interactive ? 'button' : undefined}
+      {...props}
     >
       {children}
-    </Component>
+    </div>
   );
 });
 

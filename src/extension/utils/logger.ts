@@ -30,7 +30,7 @@ let enabled = resolveEnvFlag() || resolveStorageFlag();
 
 export function setDebugLogging(on: boolean) {
   enabled = on;
-  try { localStorage.setItem('WORDLE_DEBUG_LOGS', on ? 'true' : 'false'); } catch {}
+  try { localStorage.setItem('WORDLE_DEBUG_LOGS', on ? 'true' : 'false'); } catch { /* ignore storage failures */ }
 }
 
 g.WORDLE_ENABLE_DEBUG_LOGS = () => setDebugLogging(true);

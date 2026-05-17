@@ -1,5 +1,5 @@
 // Input component with validation states and variants
-import React, { InputHTMLAttributes, forwardRef, useState } from 'react';
+import React, { InputHTMLAttributes, forwardRef } from 'react';
 
 export interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> {
   label?: string;
@@ -92,14 +92,6 @@ const Input = forwardRef<HTMLInputElement, InputProps>(({
           id={inputId}
           className={inputClasses}
           disabled={disabled}
-          onFocus={(e) => {
-            setIsFocused(true);
-            props.onFocus?.(e);
-          }}
-          onBlur={(e) => {
-            setIsFocused(false);
-            props.onBlur?.(e);
-          }}
           {...props}
         />
         

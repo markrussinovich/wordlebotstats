@@ -30,7 +30,7 @@
     "lucide-react": "^0.294.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-router-dom": "^7.9.3",
+    "react-router-dom": "^7.17.0",
     "recharts": "^2.8.0",
     "zustand": "^4.4.7"
   },
@@ -46,9 +46,9 @@
     "@types/react-dom": "^18.2.17",
     "@typescript-eslint/eslint-plugin": "^6.14.0",
     "@typescript-eslint/parser": "^6.14.0",
-    "@vitejs/plugin-react": "^4.2.1",
+    "@vitejs/plugin-react": "^6.0.2",
     "archiver": "^7.0.1",
-    "esbuild": "^0.19.0",
+    "esbuild": "^0.28.1",
     "eslint": "^8.55.0",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.5",
@@ -59,9 +59,9 @@
     "sharp": "^0.34.4",
     "terser": "^5.44.0",
     "ts-jest": "^29.1.1",
-    "tsx": "^4.20.6",
+    "tsx": "^4.22.4",
     "typescript": "^5.2.2",
-    "vite": "^5.0.8"
+    "vite": "^8.0.16"
   },
   "browserslist": {
     "production": [

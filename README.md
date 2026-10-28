@@ -27,7 +27,7 @@ The common-answer pool uses lowercase five-letter entries from public-domain Alt
 NYT reader means load automatically from WordleBot's public per-puzzle `summary.json`, not the ordinary daily puzzle API or recent-score aggregate. The calculation matches WordleBot's reader distribution and failure penalty. Normal mode is the fallback when history does not identify a mode; viewing a daily analysis captures its mode only when the puzzle number and played guesses match your stored game. The reader mode is shown in the popup tooltip and dashboard details. Requests are anonymous, bounded, and cached; unavailable summaries remain N/A without blocking imports. Previously user-entered per-puzzle figures are kept and never overwritten by automatic retrieval. The timeline's head-to-head stats (vs Solver, vs NYT Readers) use only matching played games in the selected range; hover them for averages and coverage. Your and the local solver's failures count as seven turns for comparisons; rolling plots use available observations and connect lines across missing points.
 
 ## 📸 Screenshot
-![Wordle Stat Explorer dashboard](https://github.com/markrussinovich/wordlebotstats/blob/001-wordle-stat-explorer/listing/assets/popupanddashboard.png)
+![Wordle Stat Explorer dashboard](listing/assets/popupanddashboard.png)
 
 ## 🏗 Architecture Overview
 

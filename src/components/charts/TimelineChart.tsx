@@ -59,11 +59,11 @@ interface ChartDataPoint {
 
 const CHART_MARGINS = { top: 20, right: 5, left: 5, bottom: 20 } as const;
 const METRICS = [
-  { key: 'user', label: 'Your turns', color: 'var(--cp-wordle-green)', axis: 'turns', dash: '' },
-  { key: 'solver', label: 'Local solver', color: 'var(--cp-text)', axis: 'turns', dash: '6 3' },
-  { key: 'readers', label: 'NYT readers', color: 'var(--cp-warning)', axis: 'turns', dash: '2 3' },
-  { key: 'skill', label: 'Skill', color: 'var(--cp-link)', axis: 'score', dash: '8 3' },
-  { key: 'luck', label: 'Luck', color: 'var(--cp-orange)', axis: 'score', dash: '3 3' },
+  { key: 'user', label: 'Your turns', color: 'var(--cp-wordle-green)', axis: 'turns' },
+  { key: 'solver', label: 'Local solver', color: 'var(--cp-text)', axis: 'turns' },
+  { key: 'readers', label: 'NYT readers', color: 'var(--cp-warning)', axis: 'turns' },
+  { key: 'skill', label: 'Skill', color: 'var(--cp-link)', axis: 'score' },
+  { key: 'luck', label: 'Luck', color: 'var(--cp-orange)', axis: 'score' },
 ] as const;
 type MetricKey = typeof METRICS[number]['key'] | 'games';
 
@@ -659,8 +659,7 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
             <svg className="metric-swatch" width="20" height="10" viewBox="0 0 20 10" aria-hidden="true">
               {metric.key === 'games'
                 ? <circle cx="10" cy="5" r="4.5" fill="var(--metric-color)" />
-                : <line x1="1" x2="19" y1="5" y2="5" stroke="var(--metric-color)" strokeWidth="3.5"
-                    strokeDasharray={'dash' in metric ? metric.dash || undefined : undefined} />}
+                : <line x1="1" x2="19" y1="5" y2="5" stroke="var(--metric-color)" strokeWidth="3.5" />}
             </svg>
             {metric.label}
           </button>
@@ -721,7 +720,7 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
           {METRICS.map(metric => (
             <Line key={metric.key} className={`metric-${metric.key}`}
               type="monotone" dataKey={metric.key} name={metric.label} connectNulls
-              stroke={metric.color} strokeDasharray={metric.dash}
+              stroke={metric.color}
               strokeWidth={metric.key === 'user' || highlighted === metric.key ? 4.5 : 3}
               strokeOpacity={metric.key !== 'user' && highlighted && highlighted !== metric.key ? 0.2 : 1}
               hide={!metrics[metric.key]} yAxisId={metric.axis}

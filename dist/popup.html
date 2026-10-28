@@ -60,23 +60,23 @@
 
     body {
       width: 380px;
-      height: fit-content;
-      max-height: 530px;
+      height: auto;
       margin: 0;
       padding: 0;
       font-family: "Segoe UI", Aptos, Calibri, -apple-system, BlinkMacSystemFont, sans-serif;
       background-color: #ffffff;
       overflow-x: hidden;
-      overflow-y: auto;
+      overflow-y: hidden;
     }
 
     .popup-container {
       display: flex;
       flex-direction: column;
-      height: fit-content;
+      max-height: 600px;
     }
 
     .popup-header {
+      flex-shrink: 0;
       padding: 12px 16px;
       background: linear-gradient(135deg, #6aaa64 0%, #538d4e 100%);
       color: white;
@@ -86,7 +86,7 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 12px;
+      margin-bottom: 0;
     }
 
     .popup-header h1 {
@@ -120,6 +120,7 @@
     }
 
     .time-frame-picker {
+      flex-shrink: 0;
       display: flex;
       gap: 4px;
       margin: 2px 16px 2px 16px;
@@ -153,6 +154,8 @@
 
     .popup-main {
       flex: 1;
+      min-height: 0;
+      overflow-y: auto;
       padding: 0;
       display: flex;
       flex-direction: column;
@@ -161,6 +164,7 @@
 
     /* Game Viewer */
     .game-viewer {
+      flex-shrink: 0;
       background: #f8f9fa;
       border-bottom: 1px solid #e9ecef;
       padding: 4px 16px;
@@ -254,6 +258,9 @@
       flex-direction: column;
       align-items: center;
       gap: 2px;
+      min-height: 44px;
+      box-sizing: border-box;
+      justify-content: center;
     }
 
     .score-item .score-label {
@@ -421,20 +428,45 @@
       white-space: nowrap;
     }
 
-    .score-item .solver-solution-btn {
-      font-family: inherit;
-      padding: 0;
-      border: none;
-      background: none;
-      color: var(--cp-accent);
+    .solver-solution-btn {
+      font: inherit;
+      min-width: 56px;
+      padding: 4px 6px;
+      border: 1px solid var(--cp-border-strong);
+      border-radius: 6px;
+      background: var(--cp-surface);
       cursor: pointer;
-      text-decoration: underline;
+    }
+
+    .solver-solution-btn:hover:not(:disabled) {
+      background: var(--cp-accent-soft);
+      border-color: var(--cp-accent);
+    }
+
+    .solver-solution-btn:focus-visible {
+      outline: 2px solid var(--cp-accent);
+      outline-offset: 2px;
+    }
+
+    .solver-solution-btn .score-value {
+      color: var(--cp-text-muted);
+    }
+
+    .solver-solution-btn .score-value[data-comparison="solver-better"] {
+      color: var(--cp-danger);
+    }
+
+    .solver-solution-btn .score-value[data-comparison="tie"] {
+      color: var(--cp-success);
+    }
+
+    .solver-solution-btn .score-value[data-comparison="user-better"] {
+      color: var(--cp-link);
     }
 
     .solver-solution-btn:disabled {
-      color: var(--cp-text-muted);
+      opacity: 0.6;
       cursor: default;
-      text-decoration: none;
     }
 
     .game-board-mode {
@@ -659,13 +691,14 @@
 
     .stats-grid {
       display: grid;
+      flex-shrink: 0;
       grid-template-columns: 1fr 1fr;
       gap: 8px;
       padding: 2px 16px 4px 16px;
     }
 
     .stat-card {
-      padding: 16px 12px;
+      padding: 10px 12px;
       background: #e6e7e8;
       border-radius: 8px;
       text-align: center;
@@ -693,6 +726,7 @@
     }
 
     .popup-footer {
+      flex-shrink: 0;
       padding: 6px 16px 6px;
       border-top: 1px solid rgba(255,255,255,0.2);
       background: linear-gradient(135deg, #6aaa64 0%, #538d4e 100%);

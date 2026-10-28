@@ -6,7 +6,6 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
 } from 'recharts';
 import { GameResult } from '@/types/gameTypes';
@@ -125,17 +124,27 @@ const SolveAnalytics: React.FC<Props> = ({ games, allGames = games }) => {
   };
 
   return (
-    <section className="solve-analytics" aria-labelledby="solve-heading">
-      <h2 id="solve-heading">
+    <section
+      className="chart-section solve-analytics"
+      aria-labelledby="solve-heading"
+    >
+      <h2 id="solve-heading" className="section-title">
         Solve analytics: you, NYT readers, and a local solver
       </h2>
-      <p>{SOLVER_DESCRIPTION}</p>
-      <p>
-        NYT reader averages load from WordleBot&apos;s per-puzzle summaries.
-        Reader mode is shown in each game&apos;s details; normal mode is used
-        when history does not identify a mode. Missing figures are N/A, never a
-        national estimate. You can also enter a figure in a game&apos;s details.
+      <p className="section-subtitle">
+        Compare your turns with NYT readers and a local normal-mode solver.
       </p>
+      <details className="solve-methodology">
+        <summary>About the solver and NYT reader data</summary>
+        <p>{SOLVER_DESCRIPTION}</p>
+        <p>
+          NYT reader averages load from WordleBot&apos;s per-puzzle summaries.
+          Reader mode is shown in each game&apos;s details; normal mode is used
+          when history does not identify a mode. Missing figures are N/A, never
+          a national estimate. You can also enter a figure in a game&apos;s
+          details.
+        </p>
+      </details>
       <p>
         Failures count as 7 turns in comparisons (shown as X/6). Unplayed games
         are excluded from head-to-head averages. Solver results use normal mode
@@ -153,11 +162,11 @@ const SolveAnalytics: React.FC<Props> = ({ games, allGames = games }) => {
             ['NYT readers', readerPair],
           ] as const
         ).map(([label, pair]) => (
-          <div className="solve-tile" key={label}>
-            <h3>You vs {label}</h3>
+          <div className="stat-item solve-tile" key={label}>
+            <h3 className="stat-label">You vs {label}</h3>
             {pair ? (
               <>
-                <strong>
+                <strong className="stat-value">
                   {pair.delta > 0 ? '+' : ''}
                   {pair.delta.toFixed(2)} turns
                 </strong>
@@ -190,65 +199,102 @@ const SolveAnalytics: React.FC<Props> = ({ games, allGames = games }) => {
           <ResponsiveContainer width="100%" height={300}>
             <LineChart
               data={chart}
-              margin={{ top: 16, right: 24, left: 0, bottom: 8 }}
+              margin={{ top: 20, right: 5, left: 5, bottom: 20 }}
             >
-              <CartesianGrid stroke="var(--cp-border)" strokeDasharray="3 3" />
+              <CartesianGrid
+                stroke="var(--cp-chart-grid)"
+                strokeDasharray="3 3"
+              />
               <XAxis
                 dataKey="date"
-                stroke="var(--cp-text-muted)"
+                stroke="var(--cp-chart-axis)"
+                style={{ fontSize: '12px' }}
+                tickFormatter={(date: string) =>
+                  new Date(`${date}T00:00:00`).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                  })
+                }
                 minTickGap={60}
               />
               <YAxis
                 domain={[1, 7]}
                 ticks={[1, 2, 3, 4, 5, 6, 7]}
-                stroke="var(--cp-text-muted)"
+                stroke="var(--cp-chart-axis)"
+                style={{ fontSize: '12px' }}
+                label={{ value: 'Turns', angle: -90, position: 'insideLeft' }}
               />
               <Tooltip
-                contentStyle={{
-                  background: 'var(--cp-surface)',
-                  borderColor: 'var(--cp-border)',
-                  color: 'var(--cp-text)',
-                }}
-                formatter={(value: number) => value.toFixed(2)}
+                content={({ active, payload, label }) =>
+                  active && payload?.length ? (
+                    <div className="chart-tooltip">
+                      <div className="tooltip-date">{label}</div>
+                      {payload.map((entry) => (
+                        <p key={String(entry.dataKey)}>
+                          {entry.name}: {formatTurns(Number(entry.value))}
+                        </p>
+                      ))}
+                    </div>
+                  ) : null
+                }
               />
-              <Legend />
               <Line
+                type="monotone"
                 dataKey="user"
                 name="You"
-                stroke="var(--cp-accent)"
+                stroke="var(--cp-chart-turns)"
+                strokeWidth={3}
                 dot={!trend}
                 isAnimationActive={false}
               />
               <Line
+                type="monotone"
                 dataKey="solver"
                 name="Local solver"
-                stroke="var(--cp-success)"
+                stroke="var(--cp-wordle-green)"
+                strokeWidth={2}
                 strokeDasharray="6 3"
                 dot={!trend}
                 isAnimationActive={false}
               />
               <Line
+                type="monotone"
                 dataKey="readers"
                 name="NYT readers"
-                stroke="var(--cp-link)"
+                stroke="var(--cp-chart-readers)"
+                strokeWidth={2}
                 strokeDasharray="2 3"
                 dot={!trend}
                 isAnimationActive={false}
               />
             </LineChart>
           </ResponsiveContainer>
+          <div className="chart-legend-custom" aria-label="Chart legend">
+            <span className="legend-item">
+              <span className="legend-line solve-legend-user" />
+              You
+            </span>
+            <span className="legend-item">
+              <span className="legend-line solve-legend-solver" />
+              Local solver
+            </span>
+            <span className="legend-item">
+              <span className="legend-line solve-legend-readers" />
+              NYT readers
+            </span>
+          </div>
         </div>
       ) : (
         <p>No games in the selected range.</p>
       )}
-      <h3>Individual games</h3>
+      <h3 className="section-title">Individual games</h3>
       <p>
         Expand a tile to reveal the answer and the solver&apos;s actual guess
         sequence.
       </p>
       <div className="solve-games">
         {tiles.map((point) => (
-          <details className="solve-tile" key={point.date}>
+          <details className="stat-item solve-tile" key={point.date}>
             <summary>
               <span>
                 {point.date}

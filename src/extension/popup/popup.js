@@ -684,6 +684,17 @@ document.addEventListener('DOMContentLoaded', function() {
     const showSolverBoard = showSolverSolution && solver?.guesses?.length > 0;
     const userTurns = getUserTurns(currentGame);
     const userTurnCount = userTurns === 7 ? 'X/6' : userTurns ?? 'N/A';
+    const solverTurnCount = solver?.status === 'failed' ? 7 :
+      solver?.status === 'solved' ? solver.turns : null;
+    const comparison = userTurns === null || solverTurnCount === null ? 'unavailable' :
+      solverTurnCount < userTurns ? 'solver-better' :
+      solverTurnCount === userTurns ? 'tie' : 'user-better';
+    const comparisonDescription = {
+      'solver-better': 'The solver uses fewer turns than you.',
+      tie: 'You and the solver use the same number of turns.',
+      'user-better': 'You use fewer turns than the solver.',
+      unavailable: 'Turn comparison is unavailable.'
+    }[comparison];
     const wordClass = (showSolverBoard ? solver.status === 'solved' : currentGame.won) ? '' : ' lost';
     const gameBoard = renderGameBoard(
       showSolverBoard ? { guessPattern: solver.guesses.map(guess => guess.feedback) } : currentGame,
@@ -714,13 +725,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     <span class="score-label">NYT Avg</span>
                     <span class="score-value" data-testid="popup-reader-average">${hasReaderAverage ? readerAverage.toFixed(2) : 'N/A'}</span>
                   </div>
-                  <div class="score-item" title="${showSolverBoard ? 'Return to your played guesses' : solverTitle}">
+                  <button class="score-item solver-solution-btn" id="solver-solution-btn"
+                    title="${showSolverBoard ? 'Return to your played guesses.' : solverTitle} ${comparisonDescription}"
+                    aria-label="${showSolverBoard ? 'Show your game' : 'Show local solver solution'}"
+                    aria-description="${comparisonDescription}"
+                    aria-controls="popup-game-board"
+                    ${solver?.guesses?.length ? '' : 'disabled'}>
                     <span class="score-label">${showSolverBoard ? 'User' : 'Solver'}</span>
-                    <button class="score-value solver-solution-btn" id="solver-solution-btn"
-                      aria-label="${showSolverBoard ? 'Show your game' : 'Show local solver solution'}"
-                      aria-controls="popup-game-board"
-                      ${solver?.guesses?.length ? '' : 'disabled'}>${showSolverBoard ? userTurnCount : solverTurns}</button>
-                  </div>
+                    <span class="score-value" data-comparison="${comparison}">${showSolverBoard ? userTurnCount : solverTurns}</span>
+                  </button>
                 </div>
               </div>
               

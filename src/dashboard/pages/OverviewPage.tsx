@@ -143,20 +143,16 @@ const OverviewPage: React.FC = () => {
           </div>
         </div>
         
-        <div className="stat-item stat-item-streaks">
-          <div className="streak-group">
-            <div className="streak-stat">
-              <div className="stat-label">Current Streak</div>
-              <div className="stat-value stat-streak">
-                {rangeStreaks ? rangeStreaks.current : (statistics?.currentStreak || 0)}
-              </div>
-            </div>
-            <div className="streak-stat">
-              <div className="stat-label">Longest Streak</div>
-              <div className="stat-value stat-streak">
-                {rangeStreaks ? rangeStreaks.max : (statistics?.maxStreak || 0)}
-              </div>
-            </div>
+        <div className="stat-item">
+          <div className="stat-label">Current Streak</div>
+          <div className="stat-value stat-streak">
+            {rangeStreaks ? rangeStreaks.current : (statistics?.currentStreak || 0)}
+          </div>
+        </div>
+        <div className="stat-item">
+          <div className="stat-label">Longest Streak</div>
+          <div className="stat-value stat-streak">
+            {rangeStreaks ? rangeStreaks.max : (statistics?.maxStreak || 0)}
           </div>
         </div>
       </div>

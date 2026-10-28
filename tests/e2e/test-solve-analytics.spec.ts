@@ -184,10 +184,59 @@ test('real solver worker, chart, tiles, reader persistence and cached reload wor
     page.getByRole('heading', { name: 'Performance Timeline' })
   ).toBeVisible();
   await expect(page.locator('.solve-games details')).toHaveCount(3);
+  const overviewStats = page.locator('.stats-panel > .stat-item');
+  await expect(overviewStats).toHaveCount(6);
+  const statPositions = await overviewStats.evaluateAll((items) =>
+    items.map((item) => item.getBoundingClientRect().y)
+  );
+  expect(new Set(statPositions).size).toBe(1);
+  expect(
+    (await page.locator('.dashboard-header').boundingBox())!.height
+  ).toBeLessThan(90);
+  expect(
+    (await page.locator('.stats-panel').boundingBox())!.height
+  ).toBeLessThan(90);
+  for (const scheme of ['light', 'dark'] as const) {
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.reload();
+    await expect(page.locator('.solve-games details')).toHaveCount(3);
+    const styles = await page.evaluate(() => {
+      const read = (selector: string) => {
+        const style = getComputedStyle(document.querySelector(selector)!);
+        return {
+          font: style.fontFamily,
+          background: style.backgroundColor,
+          border: style.borderColor,
+          radius: style.borderRadius,
+          padding: style.padding,
+        };
+      };
+      return {
+        timeline: read('.chart-section:not(.solve-analytics)'),
+        analytics: read('.solve-analytics'),
+        overviewTile: read('.stats-panel .stat-item'),
+        comparisonTile: read('.solve-summary .solve-tile'),
+        gameTile: read('.solve-games .solve-tile'),
+      };
+    });
+    expect(styles.analytics).toEqual(styles.timeline);
+    expect(styles.comparisonTile).toEqual(styles.overviewTile);
+    expect(styles.gameTile).toEqual(styles.overviewTile);
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(overviewStats).toHaveCount(6);
+  const mobileSize = await page.evaluate(() => ({
+    width: document.documentElement.scrollWidth,
+    viewport: innerWidth,
+  }));
+  expect(mobileSize.width).toBeLessThanOrEqual(mobileSize.viewport);
+  expect(
+    (await page.locator('.stats-panel').boundingBox())!.height
+  ).toBeLessThan(260);
   expect(errors).toEqual([]);
 });
 
-test('popup preserves background responses, computes comparisons and keeps partial-import warnings compact', async ({
+test('popup fits browser bounds, provides colored comparison buttons and keeps partial-import warnings compact', async ({
   page,
 }) => {
   test.setTimeout(90000);
@@ -280,8 +329,28 @@ test('popup preserves background responses, computes comparisons and keeps parti
   const solver = page.getByRole('button', {
     name: 'Show local solver solution',
   });
-  await expect(solver).toHaveText(/^[1-6]$/, { timeout: 60000 });
-  const turns = await solver.textContent();
+  const solverValue = solver.locator('.score-value');
+  await expect(solverValue).toHaveText(/^[1-6]$/, { timeout: 60000 });
+  await expect(solver).toContainText('Solver');
+  const turns = await solverValue.textContent();
+  const dashboard = page.getByRole('button', {
+    name: 'Dashboard',
+    exact: true,
+  });
+  await expect(dashboard).toBeInViewport({ ratio: 1 });
+  const popupSize = await page.evaluate(() => ({
+    height: document.documentElement.scrollHeight,
+    width: document.documentElement.scrollWidth,
+    viewportHeight: innerHeight,
+    viewportWidth: innerWidth,
+  }));
+  expect(popupSize.height).toBeLessThanOrEqual(popupSize.viewportHeight);
+  expect(popupSize.width).toBeLessThanOrEqual(popupSize.viewportWidth);
+  const toggleBounds = (await solver.boundingBox())!;
+  expect(toggleBounds.width).toBeGreaterThanOrEqual(44);
+  expect(toggleBounds.height).toBeGreaterThanOrEqual(44);
+  await expect(solver).toHaveCSS('border-top-style', 'solid');
+  await expect(solver).toHaveCSS('border-top-width', '1px');
   const alignment = await page
     .locator('.board-and-scores')
     .evaluate((board) => {
@@ -350,27 +419,31 @@ test('popup preserves background responses, computes comparisons and keeps parti
     page.locator('.comparison-scores .score-label').last()
   ).toHaveText('User');
   const userSwitch = page.getByRole('button', { name: 'Show your game' });
-  await expect(userSwitch).toHaveText('4');
+  await expect(userSwitch).toContainText('User');
+  await expect(userSwitch.locator('.score-value')).toHaveText('4');
+  await expect(dashboard).toBeInViewport({ ratio: 1 });
   await userSwitch.click();
   await expect(userBoard).toBeVisible();
   expect(await userBoard.innerHTML()).toBe(userBoardMarkup);
   await expect(
     page.locator('.comparison-scores .score-label').last()
   ).toHaveText('Solver');
-  await expect(solver).toHaveText(turns!);
+  await expect(solverValue).toHaveText(turns!);
   await solver.click();
   await page.getByRole('button', { name: 'Previous game' }).click();
   await expect(page.getByTestId('popup-reader-average')).toHaveText('N/A');
-  await expect(solver).toHaveText('1', { timeout: 60000 });
+  await expect(solverValue).toHaveText('1', { timeout: 60000 });
+  await expect(solverValue).toHaveAttribute('data-comparison', 'tie');
   await expect(page.locator('.board-row')).toHaveCount(6);
   await expect(
     page.getByRole('group', { name: 'Local solver board' })
   ).toHaveCount(0);
   await page.getByRole('button', { name: 'Previous game' }).click();
-  await expect(solver).toHaveText('N/A', { timeout: 60000 });
+  await expect(solverValue).toHaveText('N/A', { timeout: 60000 });
+  await expect(solverValue).toHaveAttribute('data-comparison', 'unavailable');
   await expect(solver).toBeDisabled();
   await page.getByRole('button', { name: 'Previous game' }).click();
-  await expect(solver).toHaveText('N/A');
+  await expect(solverValue).toHaveText('N/A');
   await expect(solver).toBeDisabled();
   await page.getByRole('button', { name: 'Next game' }).click();
   await page.getByRole('button', { name: 'Next game' }).click();
@@ -389,12 +462,7 @@ test('popup preserves background responses, computes comparisons and keeps parti
   await expect(warning).toContainText('2 games could not be imported');
   expect((await warning.boundingBox())!.height).toBeLessThanOrEqual(46);
   await expect(page.getByRole('alert')).toHaveCount(0);
-  const dashboard = page.getByRole('button', {
-    name: 'Dashboard',
-    exact: true,
-  });
-  await dashboard.scrollIntoViewIfNeeded();
-  await expect(dashboard).toBeInViewport();
+  await expect(dashboard).toBeInViewport({ ratio: 1 });
   await page.getByRole('button', { name: 'Dismiss notification' }).click();
   await expect(warning).toHaveCount(0);
 
@@ -447,8 +515,42 @@ test('popup preserves background responses, computes comparisons and keeps parti
     };
   });
   await page.reload();
-  await expect(solver).toHaveText(turns!);
+  await expect(solverValue).toHaveText(turns!);
   await expect(page.getByTestId('popup-reader-average')).toHaveText('4.20');
+  for (const comparison of [
+    { attempts: 7, state: 'solver-better', color: 'rgb(220, 38, 38)' },
+    { attempts: Number(turns), state: 'tie', color: 'rgb(22, 163, 74)' },
+    { attempts: 1, state: 'user-better', color: 'rgb(0, 120, 212)' },
+  ]) {
+    await page.evaluate((attempts) => {
+      const stored = JSON.parse(
+        localStorage.getItem('popup-test-storage') || '{}'
+      );
+      stored.games[0].attempts = attempts;
+      stored.games[0].won = attempts <= 6;
+      localStorage.setItem('popup-test-storage', JSON.stringify(stored));
+    }, comparison.attempts);
+    await page.reload();
+    await expect(solverValue).toHaveText(turns!);
+    await expect(solverValue).toHaveAttribute(
+      'data-comparison',
+      comparison.state
+    );
+    await expect(solverValue).toHaveCSS('color', comparison.color);
+    await solver.click();
+    const userValue = page
+      .getByRole('button', { name: 'Show your game' })
+      .locator('.score-value');
+    await expect(userValue).toHaveText(
+      comparison.attempts === 7 ? 'X/6' : String(comparison.attempts)
+    );
+    await expect(userValue).toHaveAttribute(
+      'data-comparison',
+      comparison.state
+    );
+    await expect(userValue).toHaveCSS('color', comparison.color);
+    await expect(dashboard).toBeInViewport({ ratio: 1 });
+  }
   expect(errors).toEqual([]);
 });
 
@@ -543,7 +645,9 @@ test('real extension routes imports and dashboard replies correctly while its po
     await expect(popup.getByRole('alert')).toHaveCount(0);
     await expect(popup.getByRole('status')).toHaveCount(0);
     await expect(
-      popup.getByRole('button', { name: 'Show local solver solution' })
+      popup
+        .getByRole('button', { name: 'Show local solver solution' })
+        .locator('.score-value')
     ).toHaveText('1');
     await background.evaluate(() => {
       globalThis.fetch = async () =>

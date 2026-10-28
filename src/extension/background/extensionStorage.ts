@@ -2,11 +2,13 @@
 // Uses only chrome.storage API (no IndexedDB which isn't available in service workers)
 
 import { GameResult } from '@/types/gameTypes';
+import { mergeGames } from '@/utils/mergeGames';
 import logger from '../utils/logger';
 const log = logger.log; const errorLog = logger.error;
 
 export class ExtensionStorage {
   private static instance: ExtensionStorage;
+  private writeQueue: Promise<unknown> = Promise.resolve();
 
   private constructor() {}
 
@@ -28,29 +30,26 @@ export class ExtensionStorage {
       return result.games || [];
     } catch (error) {
   errorLog('[ExtensionStorage] Failed to get games:', error);
-      return [];
-    }
-  }
-
-  async saveGame(game: GameResult): Promise<void> {
-    try {
-      const games = await this.getAllGames();
-      const existingIndex = games.findIndex(g => g.date === game.date);
-      
-      if (existingIndex >= 0) {
-        games[existingIndex] = game;
-      } else {
-        games.push(game);
-      }
-      
-      await chrome.storage.local.set({ games });
-    } catch (error) {
-  errorLog('[ExtensionStorage] Failed to save game:', error);
       throw error;
     }
   }
 
+  async saveGame(game: GameResult): Promise<void> {
+    const result = await this.bulkImportGames([game]);
+    if (result.errors) throw new Error('Game could not be saved');
+  }
+
   async bulkImportGames(newGames: GameResult[]): Promise<{
+    imported: number;
+    duplicates: number;
+    errors: number;
+  }> {
+    const operation = this.writeQueue.then(() => this.importGames(newGames));
+    this.writeQueue = operation.catch(() => undefined);
+    return operation;
+  }
+
+  private async importGames(newGames: GameResult[]): Promise<{
     imported: number;
     duplicates: number;
     errors: number;
@@ -77,14 +76,21 @@ export class ExtensionStorage {
       // Process new games
       for (const game of newGames) {
         try {
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(game.date) || !Number.isFinite(Date.parse(game.date)) ||
+              new Date(game.date).toISOString().slice(0, 10) !== game.date) {
+            throw new Error('Invalid game date');
+          }
           const existing = gameMap.get(game.date);
           
           if (existing) {
-            // Check if new game has more data
-            const shouldReplace = this.shouldReplaceExisting(existing, game);
+            const merged = mergeGames(existing, game);
+            const meaningful = (value: GameResult) => JSON.stringify({
+              ...value, importedAt: undefined, boardImageUrl: undefined
+            });
+            const shouldReplace = meaningful(merged) !== meaningful(existing);
             
             if (shouldReplace) {
-              gameMap.set(game.date, game);
+              gameMap.set(game.date, merged);
               imported++;
             } else {
               duplicates++;
@@ -123,28 +129,6 @@ export class ExtensionStorage {
 
   log(`[ExtensionStorage] =====> bulkImportGames complete: imported=${imported}, duplicates=${duplicates}, errors=${errors}`);
     return { imported, duplicates, errors };
-  }
-
-  private shouldReplaceExisting(existing: GameResult, newGame: GameResult): boolean {
-    // Prefer games with more data (WordleBot data is richer)
-    const existingScore = this.getDataRichnessScore(existing);
-    const newScore = this.getDataRichnessScore(newGame);
-    
-    return newScore > existingScore;
-  }
-
-  private getDataRichnessScore(game: GameResult): number {
-    let score = 0;
-    
-    score += 1; // Base score
-    if (game.skillScore !== undefined) score += 2;
-    if (game.luckScore !== undefined) score += 2;
-    if (game.analysisUrl) score += 1;
-    if (game.solution) score += 1;
-    if (game.guessPattern && game.guessPattern.length > 0) score += 2;
-    if (game.duration || game.timeToComplete) score += 1;
-    
-    return score;
   }
 
   async getNewestGame(): Promise<GameResult | null> {

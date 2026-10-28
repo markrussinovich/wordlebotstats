@@ -1,10 +1,32 @@
 var WordleBotContent = (() => {
   var __defProp = Object.defineProperty;
+  var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+  var __getOwnPropNames = Object.getOwnPropertyNames;
+  var __hasOwnProp = Object.prototype.hasOwnProperty;
   var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+  var __export = (target, all) => {
+    for (var name in all)
+      __defProp(target, name, { get: all[name], enumerable: true });
+  };
+  var __copyProps = (to, from, except, desc) => {
+    if (from && typeof from === "object" || typeof from === "function") {
+      for (let key of __getOwnPropNames(from))
+        if (!__hasOwnProp.call(to, key) && key !== except)
+          __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+    }
+    return to;
+  };
+  var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
   var __publicField = (obj, key, value) => {
     __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
     return value;
   };
+
+  // src/extension/content/wordleBotContent.ts
+  var wordleBotContent_exports = {};
+  __export(wordleBotContent_exports, {
+    WordleBotScraper: () => WordleBotScraper
+  });
 
   // src/extension/utils/logger.ts
   var import_meta = {};
@@ -71,12 +93,16 @@ var WordleBotContent = (() => {
       __publicField(this, "shouldStop", false);
       __publicField(this, "gamesProcessed", 0);
       __publicField(this, "duplicatesSkipped", 0);
-      __publicField(this, "processedCardElements", /* @__PURE__ */ new WeakSet());
-      // Track processed cards to avoid re-extraction
+      __publicField(this, "processedCardElements", /* @__PURE__ */ new WeakMap());
+      __publicField(this, "unreadableCards", /* @__PURE__ */ new Set());
+      __publicField(this, "attemptedDates", /* @__PURE__ */ new Set());
+      __publicField(this, "importCounts", { imported: 0, duplicates: 0, errors: 0 });
       // Confirmed selectors from v5
       __publicField(this, "GAME_CARD_SELECTOR", ".rating-container:not(.label-container)");
       __publicField(this, "SHOW_MORE_BUTTON_SELECTOR", '[class*="show-more-button"]');
       __publicField(this, "loadMoreNoGrowthAttempts", 0);
+      __publicField(this, "emptyPageAttempts", 0);
+      __publicField(this, "dateCursor", /* @__PURE__ */ new Date());
       log("[WordleBotScraper] Initialized");
       this.setupMessageListener();
       this.checkAutoStart();
@@ -114,7 +140,7 @@ var WordleBotContent = (() => {
     }
     async getNewestPageGame() {
       try {
-        const games = this.extractVisibleGames();
+        const games = this.extractVisibleGames(false);
         if (games.length === 0) {
           return null;
         }
@@ -133,7 +159,7 @@ var WordleBotContent = (() => {
         return null;
       }
     }
-    async startScraping(mode, stopAtDate, maxIterations = 50) {
+    async startScraping(mode, stopAtDate, maxIterations = 200) {
       if (this.isRunning) {
         console.log("[WordleBotScraper] Already running");
         return;
@@ -142,24 +168,40 @@ var WordleBotContent = (() => {
       this.shouldStop = false;
       this.gamesProcessed = 0;
       this.duplicatesSkipped = 0;
+      this.processedCardElements = /* @__PURE__ */ new WeakMap();
+      this.unreadableCards = /* @__PURE__ */ new Set();
+      this.attemptedDates = /* @__PURE__ */ new Set();
+      this.importCounts = { imported: 0, duplicates: 0, errors: 0 };
+      this.emptyPageAttempts = 0;
+      this.dateCursor = /* @__PURE__ */ new Date();
       this.loadMoreNoGrowthAttempts = 0;
       console.log(`[WordleBotScraper] Starting ${mode} scrape`);
       this.sendProgress(0, 0, "Opening WordleBot page...");
+      const allGames = /* @__PURE__ */ new Map();
       try {
-        await this.scrapeWithRetry(stopAtDate, maxIterations, 0, /* @__PURE__ */ new Map());
+        const limit = Number.isFinite(maxIterations) ? Math.max(1, Math.floor(maxIterations)) : 200;
+        await this.scrapeWithRetry(stopAtDate, limit, 0, allGames);
       } catch (error) {
         console.error("[WordleBotScraper] Error during scraping:", error);
+        try {
+          await this.processAndSendGames(Array.from(allGames.values()), false);
+        } catch (saveError) {
+          errorLog("[WordleBotScraper] Could not save partial history:", saveError);
+        }
         this.sendError(
           error instanceof Error ? error.message : "Unknown error",
           "UNKNOWN",
-          false
+          true
         );
       } finally {
         this.isRunning = false;
       }
     }
     async scrapeWithRetry(stopAtDate, maxIterations, iteration, allGames) {
-      if (this.shouldStop || iteration >= maxIterations) {
+      if (iteration >= maxIterations) {
+        throw new Error("History page limit reached. Imported pages were preserved; retry with a higher page limit to finish.");
+      }
+      if (this.shouldStop) {
         console.log("[WordleBotScraper] Stopping: shouldStop=" + this.shouldStop + ", iteration=" + iteration);
         await this.processAndSendGames(Array.from(allGames.values()));
         return;
@@ -184,6 +226,9 @@ var WordleBotContent = (() => {
       const games = this.extractVisibleGames();
       console.log(`[WordleBotScraper] Iteration ${iteration + 1}: Found ${games.length} games`);
       if (games.length === 0 && iteration === 0) {
+        if (++this.emptyPageAttempts >= 5) {
+          throw new Error("No dated history cards could be read. Please retry after WordleBot has loaded.");
+        }
         console.log("[WordleBotScraper] No games found on first attempt, retrying...");
         await this.delay(500);
         return this.scrapeWithRetry(stopAtDate, maxIterations, iteration, allGames);
@@ -195,10 +240,6 @@ var WordleBotContent = (() => {
         if (key && !allGames.has(key)) {
           allGames.set(key, game);
           newGamesThisIteration++;
-        } else if (key && stopAtDate) {
-          console.log(`[WordleBotScraper] Found duplicate game (${game.date || game.gameNumber}), stopping incremental scrape`);
-          reachedStopDate = true;
-          break;
         }
         if (stopAtDate && game.date && game.date < stopAtDate) {
           console.log(`[WordleBotScraper] Reached date before stop date: ${game.date} < ${stopAtDate}`);
@@ -213,6 +254,7 @@ var WordleBotContent = (() => {
         await this.processAndSendGames(Array.from(allGames.values()));
         return;
       }
+      await this.processAndSendGames(Array.from(allGames.values()), false);
       console.log(`[WordleBotScraper] Iteration ${iteration}: Attempting to load more games...`);
       const loadedMore = await this.loadMoreGames();
       console.log(`[WordleBotScraper] Iteration ${iteration}: loadMoreGames returned ${loadedMore}`);
@@ -332,15 +374,19 @@ var WordleBotContent = (() => {
       }
       return false;
     }
-    extractVisibleGames() {
+    extractVisibleGames(markProcessed = true) {
       console.log(`[WordleBotScraper] =====> extractVisibleGames() called, searching for cards...`);
       const extractStart = performance.now();
       const cards = document.querySelectorAll(this.GAME_CARD_SELECTOR);
       console.log(`[WordleBotScraper] =====> Found ${cards.length} card elements`);
       const games = [];
       let skipped = 0;
+      this.dateCursor = /* @__PURE__ */ new Date();
       cards.forEach((card, index) => {
-        if (this.processedCardElements.has(card)) {
+        if (markProcessed && this.processedCardElements.has(card)) {
+          const cached = this.processedCardElements.get(card);
+          if (cached?.date)
+            this.dateCursor = new Date(cached.date);
           skipped++;
           return;
         }
@@ -348,14 +394,19 @@ var WordleBotContent = (() => {
           const cardStart = performance.now();
           const game = this.extractGameFromCard(card);
           const cardDuration = (performance.now() - cardStart).toFixed(0);
-          if (game.solution || game.gameNumber) {
+          if (game.date && (game.solution || game.gameNumber)) {
             games.push(game);
-            this.processedCardElements.add(card);
+            if (markProcessed)
+              this.processedCardElements.set(card, game);
+            this.unreadableCards.delete(card);
             if (cardDuration !== "0") {
               console.log(`[WordleBotScraper] =====> Card ${index + 1}: Extracted in ${cardDuration}ms (${game.solution || game.gameNumber})`);
             }
-          }
+          } else if (markProcessed)
+            this.unreadableCards.add(card);
         } catch (error) {
+          if (markProcessed)
+            this.unreadableCards.add(card);
           console.error("[WordleBotScraper] Error extracting game:", error);
         }
       });
@@ -370,28 +421,47 @@ var WordleBotContent = (() => {
         game.solution = solutionEl.textContent?.trim().toUpperCase();
         console.log("[WordleBotScraper] Found solution:", game.solution);
       }
-      const dateEl = card.querySelector("span.date-label");
+      const dateEl = card.querySelector("span.date-label, .game-header");
       if (dateEl) {
         const dateText = dateEl.textContent?.trim() || "";
         game.dateString = dateText;
-        const dateMatch = dateText.match(/(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2})/);
+        const dateMatch = dateText.match(/(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2})(?:,?\s+(\d{4}))?/);
         if (dateMatch && dateMatch[1] && dateMatch[2]) {
           const monthName = dateMatch[1];
           const day = parseInt(dateMatch[2], 10);
-          const currentDate = /* @__PURE__ */ new Date();
-          const currentYear = currentDate.getFullYear();
+          const currentDate = this.dateCursor;
+          const currentYear = dateMatch[3] ? Number(dateMatch[3]) : currentDate.getFullYear();
           const monthIndex = (/* @__PURE__ */ new Date(`${monthName} 1, ${currentYear}`)).getMonth();
-          const currentDateUtc = Date.UTC(currentYear, currentDate.getMonth(), currentDate.getDate());
+          const currentDateUtc = Date.UTC(currentYear, currentDate.getUTCMonth(), currentDate.getUTCDate());
           let candidateUtc = Date.UTC(currentYear, monthIndex, day);
-          if (candidateUtc > currentDateUtc) {
+          if (!dateMatch[3] && candidateUtc > currentDateUtc) {
             candidateUtc = Date.UTC(currentYear - 1, monthIndex, day);
           }
           const isoDate = new Date(candidateUtc).toISOString().split("T")[0];
           if (isoDate) {
             game.date = isoDate;
+            this.dateCursor = new Date(candidateUtc);
             console.log("[WordleBotScraper] Found date:", game.date, "from", game.dateString);
           }
         }
+      }
+      const numberMatch = card.textContent?.match(/#\s*([\d,]+)|Wordle\s+([\d,]+)/i);
+      if (numberMatch) {
+        game.gameNumber = Number((numberMatch[1] || numberMatch[2]).replace(/,/g, ""));
+        if (!game.dateString?.match(/\d{1,2},?\s+\d{4}\b/)) {
+          game.date = new Date(Date.UTC(2021, 5, 19) + game.gameNumber * 864e5).toISOString().slice(0, 10);
+        }
+        if (!game.date)
+          throw new Error("Missing puzzle date");
+        this.dateCursor = new Date(game.date);
+      }
+      const readerValue = card.querySelector("[data-reader-average], .reader-average, .nyt-reader-average");
+      const readerText = readerValue?.getAttribute("data-reader-average") || readerValue?.textContent || card.textContent?.match(/(?:NYT(?:imes)?\s+readers?|NY\s*Times\s+readers?|readers?['’]?\s+average)\s*[:\s]*(\d(?:\.\d+)?)/i)?.[1];
+      const readerMatch = readerText?.match(/\d+(?:\.\d+)?/);
+      if (readerMatch) {
+        const value = Number(readerMatch[0]);
+        if (value >= 1 && value <= 7)
+          game.nytReaderAverage = value;
       }
       const ratingRight = card.querySelector(".rating-right");
       if (ratingRight) {
@@ -403,15 +473,16 @@ var WordleBotContent = (() => {
           console.log("[WordleBotScraper] Found luck:", game.luckScore);
           if (numValues.length >= 3 && numValues[2]) {
             const stepsText = numValues[2].textContent?.trim() || "";
-            if (stepsText === "-" || stepsText === "\u2014" || stepsText === "\u2013" || stepsText === "") {
+            if (stepsText === "") {
+              game.steps = 0;
+            } else if (stepsText === "-" || stepsText === "\u2014" || stepsText === "\u2013" || stepsText === "X") {
               game.won = false;
-              game.steps = 7;
+              game.steps = Number.isFinite(game.skillScore) || Number.isFinite(game.luckScore) || stepsText === "X" ? 7 : 0;
               console.log("[WordleBotScraper] Lost game (dash or empty detected)");
             } else {
               const parsedSteps = parseInt(stepsText, 10);
               if (isNaN(parsedSteps) || parsedSteps === 0) {
-                game.won = false;
-                game.steps = 7;
+                game.steps = 0;
                 console.log("[WordleBotScraper] Lost game (invalid steps)");
               } else {
                 game.steps = parsedSteps;
@@ -420,7 +491,7 @@ var WordleBotContent = (() => {
               }
             }
           } else {
-            if (game.skillScore !== void 0 && game.luckScore !== void 0) {
+            if (Number.isFinite(game.skillScore) && Number.isFinite(game.luckScore)) {
               game.won = false;
               game.steps = 7;
               console.log("[WordleBotScraper] Lost game (no steps data)");
@@ -428,6 +499,10 @@ var WordleBotContent = (() => {
           }
         }
       }
+      if (!Number.isFinite(game.skillScore))
+        delete game.skillScore;
+      if (!Number.isFinite(game.luckScore))
+        delete game.luckScore;
       const boardVisual = this.extractBoardVisual(card);
       if (boardVisual) {
         if (boardVisual.pattern && boardVisual.pattern.length > 0) {
@@ -808,6 +883,9 @@ var WordleBotContent = (() => {
       if (normalized.includes("gray") || normalized.includes("grey")) {
         return "absent";
       }
+      if (normalized.includes("incorrect")) {
+        return "absent";
+      }
       if (normalized.includes("correct") || normalized.includes("exact") || normalized.includes("right")) {
         return "correct";
       }
@@ -952,9 +1030,16 @@ var WordleBotContent = (() => {
       const style = window.getComputedStyle(button);
       const isHidden = style.display === "none" || style.visibility === "hidden";
       const isDisabled = button.hasAttribute("disabled") || button.getAttribute("aria-disabled") === "true";
-      if (isHidden || isDisabled) {
+      if (isHidden) {
         console.log("[WordleBotScraper] =====> Load more button unavailable (hidden or disabled) - returning false");
         return false;
+      }
+      if (isDisabled) {
+        if (++this.loadMoreNoGrowthAttempts >= 3) {
+          throw new Error("History pagination remained disabled. Retry to finish importing.");
+        }
+        await this.delay(1e3);
+        return true;
       }
       console.log("[WordleBotScraper] =====> Button is visible and enabled, clicking it...");
       const beforeCount = document.querySelectorAll(this.GAME_CARD_SELECTOR).length;
@@ -980,7 +1065,9 @@ var WordleBotContent = (() => {
         await this.delay(200);
         return true;
       }
-      console.log("[WordleBotScraper] No additional cards after multiple attempts, stopping pagination.");
+      if (stillHasButton) {
+        throw new Error("History pagination stalled. Retry to finish importing.");
+      }
       return false;
     }
     delay(ms) {
@@ -1032,18 +1119,16 @@ var WordleBotContent = (() => {
       }
       return null;
     }
-    async processAndSendGames(rawGames) {
+    async processAndSendGames(rawGames, complete = true) {
       const startTime = performance.now();
       console.log(`[WordleBotScraper] =====> processAndSendGames called with ${rawGames.length} games`);
-      this.sendProgress(rawGames.length, 0, "ready");
+      this.sendProgress(rawGames.length, this.gamesProcessed, "ready");
       const sortedGames = rawGames.sort((a, b) => {
-        const aNum = a.gameNumber || 0;
-        const bNum = b.gameNumber || 0;
-        return bNum - aNum;
+        return (b.date || "").localeCompare(a.date || "");
       });
       console.log(`[WordleBotScraper] =====> Converting ${rawGames.length} games to GameResult format...`);
       const convertStart = performance.now();
-      const gameResults = sortedGames.map((raw) => this.convertToGameResult(raw));
+      const gameResults = sortedGames.filter((raw) => raw.date && !this.attemptedDates.has(raw.date)).map((raw) => this.convertToGameResult(raw));
       console.log(`[WordleBotScraper] =====> Conversion completed in ${(performance.now() - convertStart).toFixed(0)}ms`);
       const batchSize = 10;
       let imported = 0;
@@ -1053,11 +1138,13 @@ var WordleBotContent = (() => {
       for (let i = 0; i < gameResults.length; i += batchSize) {
         const batchStart = performance.now();
         const batch = gameResults.slice(i, i + batchSize);
-        const processedSoFar = Math.min(i + batch.length, gameResults.length);
+        batch.forEach((game) => this.attemptedDates.add(game.date));
+        this.gamesProcessed = this.attemptedDates.size;
+        const processedSoFar = this.gamesProcessed;
         const batchNum = Math.floor(i / batchSize) + 1;
         console.log(`[WordleBotScraper] =====> Batch ${batchNum}: Sending progress update (${processedSoFar}/${gameResults.length})`);
         this.sendProgress(
-          gameResults.length,
+          rawGames.length,
           processedSoFar,
           "processing"
         );
@@ -1070,10 +1157,12 @@ var WordleBotContent = (() => {
           });
           const messageDuration = (performance.now() - messageStart).toFixed(0);
           console.log(`[WordleBotScraper] =====> Batch ${batchNum}: Background responded in ${messageDuration}ms:`, response);
-          if (response.success) {
+          if (response?.success) {
             imported += response.imported || 0;
             duplicates += response.duplicates || 0;
             errors += response.errors || 0;
+          } else {
+            errors += batch.length;
           }
         } catch (error) {
           console.error(`[WordleBotScraper] Batch ${batchNum}: Error sending batch:`, error);
@@ -1083,18 +1172,28 @@ var WordleBotContent = (() => {
         console.log(`[WordleBotScraper] =====> Batch ${batchNum}: Complete in ${batchDuration}ms (imported: ${imported}, duplicates: ${duplicates}, errors: ${errors})`);
       }
       console.log(`[WordleBotScraper] =====> All batches complete. Total duration: ${(performance.now() - startTime).toFixed(0)}ms`);
-      if (gameResults.length > 0) {
+      if (complete && rawGames.length > 0) {
         console.log(`[WordleBotScraper] =====> Sending final 'processed' progress update`);
-        this.sendProgress(gameResults.length, gameResults.length, "processed");
+        this.sendProgress(rawGames.length, this.gamesProcessed, "processed");
       }
       console.log(`[WordleBotScraper] =====> Calling sendComplete: imported=${imported}, duplicates=${duplicates}, errors=${errors}, total=${sortedGames.length}`);
-      this.sendComplete(imported, duplicates, errors, sortedGames);
+      this.importCounts.imported += imported;
+      this.importCounts.duplicates += duplicates;
+      this.importCounts.errors += errors;
+      if (complete)
+        await this.sendComplete(
+          this.importCounts.imported,
+          this.importCounts.duplicates,
+          this.importCounts.errors + this.unreadableCards.size,
+          sortedGames
+        );
       console.log(`[WordleBotScraper] =====> sendComplete called successfully`);
     }
     convertToGameResult(raw) {
       const now = /* @__PURE__ */ new Date();
-      const dateString = raw.date ?? now.toISOString().split("T")[0];
-      const date = dateString;
+      if (!raw.date)
+        throw new Error("Cannot import a game without a date");
+      const date = raw.date;
       const attempts = raw.steps ?? 0;
       const won = raw.won !== void 0 ? raw.won : attempts > 0 && attempts <= 6;
       return {
@@ -1107,6 +1206,10 @@ var WordleBotContent = (() => {
         ...raw.solution && { solution: raw.solution },
         ...raw.skillScore !== void 0 && { skillScore: raw.skillScore },
         ...raw.luckScore !== void 0 && { luckScore: raw.luckScore },
+        ...raw.nytReaderAverage !== void 0 && {
+          nytReaderAverage: raw.nytReaderAverage,
+          nytReaderSource: "wordlebot"
+        },
         ...raw.boardImageUrl && { boardImageUrl: raw.boardImageUrl },
         ...raw.guessPattern && raw.guessPattern.length > 0 && { guessPattern: raw.guessPattern },
         ...raw.analysisUrl && { analysisUrl: raw.analysisUrl },
@@ -1165,7 +1268,7 @@ var WordleBotContent = (() => {
         console.error("[WordleBotScraper] Error sending progress:", error);
       });
     }
-    sendComplete(imported, duplicates, errors, games) {
+    async sendComplete(imported, duplicates, errors, games) {
       console.log(`[WordleBotScraper] =====> sendComplete building message...`);
       const message = {
         type: "WORDLE_BOT_SCRAPE_COMPLETE" /* WORDLE_BOT_SCRAPE_COMPLETE */,
@@ -1204,8 +1307,9 @@ var WordleBotContent = (() => {
           }
         }
         console.error(`[WordleBotScraper] =====> FAILED to send completion message after ${maxAttempts} attempts`);
+        throw new Error("Import finished, but completion could not be acknowledged.");
       };
-      sendWithRetry();
+      await sendWithRetry();
     }
     sendError(error, code, recoverable) {
       const message = {
@@ -1226,4 +1330,5 @@ var WordleBotContent = (() => {
   if (typeof window !== "undefined") {
     window.__wordleBotScraper = scraper;
   }
+  return __toCommonJS(wordleBotContent_exports);
 })();

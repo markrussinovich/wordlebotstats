@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { GameResult, StatisticsPeriod } from '@/types/gameTypes';
 import { TimeFrame } from '@/types/benchmarkTypes';
+import { mergeGames } from '@/utils/mergeGames';
 import { 
   GetQuickStatsMessage, 
   QuickStatsResponse, 
@@ -61,10 +62,10 @@ export const useGameDataStore = create<GameDataState>()(
     // Game management actions
     addGame: (game: GameResult) => set((state) => {
       // Check for duplicates
-      const existingIndex = state.games.findIndex(g => g.gameId === game.gameId);
+      const existingIndex = state.games.findIndex(g => g.date === game.date);
       if (existingIndex >= 0) {
         // Update existing game
-        state.games[existingIndex] = game;
+        state.games[existingIndex] = mergeGames(state.games[existingIndex], game);
       } else {
         // Add new game, maintain chronological order
         state.games.push(game);
@@ -80,10 +81,12 @@ export const useGameDataStore = create<GameDataState>()(
 
     addGames: (games: GameResult[]) => set((state) => {
       // Merge games, avoiding duplicates
-      const existingIds = new Set(state.games.map(g => g.gameId));
-      const newGames = games.filter(g => !existingIds.has(g.gameId));
-      
-      state.games.push(...newGames);
+      const byDate = new Map(state.games.map(game => [game.date, game]));
+      for (const game of games) {
+        const existing = byDate.get(game.date);
+        byDate.set(game.date, existing ? mergeGames(existing, game) : game);
+      }
+      state.games = Array.from(byDate.values());
       state.games.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
       state.lastUpdated = new Date().toISOString();
       

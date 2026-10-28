@@ -48,6 +48,8 @@ export interface GameResult {
   // WordleBot-specific fields
   skillScore?: number; // 0-100 rating from WordleBot
   luckScore?: number; // 0-100 rating from WordleBot
+  nytReaderAverage?: number; // Per-puzzle NYT readers' mean solve turns, when available
+  nytReaderSource?: 'wordlebot' | 'manual';
   analysisUrl?: string; // Link to detailed WordleBot analysis
   boardImageUrl?: string; // Data URL or URL of the game board image
   scrapedFrom?: 'wordle-bot' | 'manual' | 'live-capture'; // Source of the data

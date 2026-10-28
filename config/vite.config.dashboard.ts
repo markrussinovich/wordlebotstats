@@ -30,6 +30,11 @@ export default defineConfig({
       '@': resolve(__dirname, '../src'),
     },
   },
+  worker: {
+    rollupOptions: {
+      output: { entryFileNames: 'solver.worker.js' },
+    },
+  },
   build: {
     target: 'es2020',
     

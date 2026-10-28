@@ -4,11 +4,13 @@ import TimelineChart from '@/components/charts/TimelineChart';
 import TurnDistributionBar from '@/components/charts/TurnDistributionBar';
 import { useGameDataStore } from '@/stores/gameData';
 import { calculateStreakStats } from '@/utils/streakCalculation';
+import SolveAnalytics from '../components/SolveAnalytics';
+import { GameResult } from '@/types/gameTypes';
 
 const OverviewPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [rangeStreaks, setRangeStreaks] = useState<{ current: number; max: number } | null>(null);
-  const [filteredGames, setFilteredGames] = useState<any[]>([]);
+  const [filteredGames, setFilteredGames] = useState<GameResult[]>([]);
 
   // Store hooks
   const { 
@@ -45,8 +47,9 @@ const OverviewPage: React.FC = () => {
     
     // Filter games by selected date range
     const filtered = games.filter(game => {
-      const gameDate = new Date(game.date);
-      return gameDate >= startDate && gameDate <= endDate;
+      const start = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-${String(startDate.getDate()).padStart(2, '0')}`;
+      const end = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`;
+      return game.date >= start && game.date <= end;
     });
     setFilteredGames(filtered);
     
@@ -168,10 +171,11 @@ const OverviewPage: React.FC = () => {
         <TimelineChart 
           games={games} 
           onRangeChange={handleRangeChange}
-          turnDistribution={<TurnDistributionBar games={filteredGames.length > 0 ? filteredGames : games} />}
+          turnDistribution={<TurnDistributionBar games={filteredGames} />}
           streakData={rangeStreaks}
         />
       </div>
+      <SolveAnalytics games={filteredGames} allGames={games} />
     </div>
   );
 };

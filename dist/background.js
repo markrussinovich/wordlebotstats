@@ -5,6 +5,26 @@ var __publicField = (obj, key, value) => {
   return value;
 };
 
+// src/utils/mergeGames.ts
+function mergeGames(existing, incoming) {
+  const defined = Object.fromEntries(
+    Object.entries(incoming).filter(
+      ([, value]) => value !== void 0 && value !== null
+    )
+  );
+  const merged = { ...existing, ...defined };
+  if (!incoming.attempts && existing.attempts) {
+    merged.attempts = existing.attempts;
+    merged.guesses = existing.guesses;
+    merged.won = existing.won;
+  }
+  if (!incoming.guessPattern?.length && existing.guessPattern?.length) {
+    merged.guessPattern = existing.guessPattern;
+  }
+  merged.hardMode = existing.hardMode || incoming.hardMode;
+  return merged;
+}
+
 // src/extension/utils/logger.ts
 var g = globalThis;
 function resolveEnvFlag() {
@@ -65,6 +85,7 @@ var log = logger_default.log;
 var errorLog = logger_default.error;
 var _ExtensionStorage = class _ExtensionStorage {
   constructor() {
+    __publicField(this, "writeQueue", Promise.resolve());
   }
   static getInstance() {
     if (!_ExtensionStorage.instance) {
@@ -81,25 +102,20 @@ var _ExtensionStorage = class _ExtensionStorage {
       return result.games || [];
     } catch (error) {
       errorLog("[ExtensionStorage] Failed to get games:", error);
-      return [];
-    }
-  }
-  async saveGame(game) {
-    try {
-      const games = await this.getAllGames();
-      const existingIndex = games.findIndex((g2) => g2.date === game.date);
-      if (existingIndex >= 0) {
-        games[existingIndex] = game;
-      } else {
-        games.push(game);
-      }
-      await chrome.storage.local.set({ games });
-    } catch (error) {
-      errorLog("[ExtensionStorage] Failed to save game:", error);
       throw error;
     }
   }
+  async saveGame(game) {
+    const result = await this.bulkImportGames([game]);
+    if (result.errors)
+      throw new Error("Game could not be saved");
+  }
   async bulkImportGames(newGames) {
+    const operation = this.writeQueue.then(() => this.importGames(newGames));
+    this.writeQueue = operation.catch(() => void 0);
+    return operation;
+  }
+  async importGames(newGames) {
     log(`[ExtensionStorage] =====> bulkImportGames called with ${newGames.length} games`);
     let imported = 0;
     let duplicates = 0;
@@ -116,11 +132,20 @@ var _ExtensionStorage = class _ExtensionStorage {
       log(`[ExtensionStorage] =====> Processing ${newGames.length} new games...`);
       for (const game of newGames) {
         try {
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(game.date) || !Number.isFinite(Date.parse(game.date)) || new Date(game.date).toISOString().slice(0, 10) !== game.date) {
+            throw new Error("Invalid game date");
+          }
           const existing = gameMap.get(game.date);
           if (existing) {
-            const shouldReplace = this.shouldReplaceExisting(existing, game);
+            const merged = mergeGames(existing, game);
+            const meaningful = (value) => JSON.stringify({
+              ...value,
+              importedAt: void 0,
+              boardImageUrl: void 0
+            });
+            const shouldReplace = meaningful(merged) !== meaningful(existing);
             if (shouldReplace) {
-              gameMap.set(game.date, game);
+              gameMap.set(game.date, merged);
               imported++;
             } else {
               duplicates++;
@@ -152,28 +177,6 @@ var _ExtensionStorage = class _ExtensionStorage {
     }
     log(`[ExtensionStorage] =====> bulkImportGames complete: imported=${imported}, duplicates=${duplicates}, errors=${errors}`);
     return { imported, duplicates, errors };
-  }
-  shouldReplaceExisting(existing, newGame) {
-    const existingScore = this.getDataRichnessScore(existing);
-    const newScore = this.getDataRichnessScore(newGame);
-    return newScore > existingScore;
-  }
-  getDataRichnessScore(game) {
-    let score = 0;
-    score += 1;
-    if (game.skillScore !== void 0)
-      score += 2;
-    if (game.luckScore !== void 0)
-      score += 2;
-    if (game.analysisUrl)
-      score += 1;
-    if (game.solution)
-      score += 1;
-    if (game.guessPattern && game.guessPattern.length > 0)
-      score += 2;
-    if (game.duration || game.timeToComplete)
-      score += 1;
-    return score;
   }
   async getNewestGame() {
     try {
@@ -294,7 +297,7 @@ async function loadInitialScrapeStatus() {
     errorLog2("[Background] Failed to hydrate scrape status from storage:", error);
   }
 }
-loadInitialScrapeStatus().catch(() => {
+var initialScrapeStatus = loadInitialScrapeStatus().catch(() => {
 });
 chrome.runtime.onInstalled.addListener(async (details) => {
   log2("[Background] Extension installed:", details.reason);
@@ -541,27 +544,34 @@ async function handleStartWordleBotScrape(message) {
   try {
     console.log(`[BACKGROUND DEBUG] Starting WordleBot scrape (mode: ${message.mode})`);
     console.log("[BACKGROUND DEBUG] Storage service available:", !!storageService);
+    await initialScrapeStatus;
+    if ((currentScrapeStatus.phase === "checking" || currentScrapeStatus.phase === "importing") && Date.now() - Date.parse(currentScrapeStatus.lastUpdated) < 3e5) {
+      return { success: true, skipped: true, reason: "A history import is already running." };
+    }
+    await updateScrapeStatus({
+      phase: "checking",
+      mode: message.mode,
+      gamesFound: 0,
+      gamesProcessed: 0,
+      newGames: 0,
+      duplicates: 0,
+      errors: 0,
+      error: null,
+      dateRange: null,
+      statusMessage: "Checking history"
+    });
     if (!storageService) {
       console.log("[BACKGROUND DEBUG] Initializing storage service...");
       storageService = ExtensionStorage.getInstance();
       await storageService.initialize();
     }
-    let stopAtDate = message.stopAtDate;
-    let newestStoredGame = null;
-    if ((message.mode === "incremental" || message.mode === "auto") && !stopAtDate) {
-      console.log("[BACKGROUND DEBUG] Getting newest game for incremental mode...");
-      newestStoredGame = await storageService.getNewestGame();
-      stopAtDate = newestStoredGame?.date;
-      console.log("[BACKGROUND DEBUG] Newest stored game:", newestStoredGame?.date, "Game#", newestStoredGame?.gameNumber);
-    } else if (stopAtDate) {
-      console.log("[BACKGROUND DEBUG] Using provided stopAtDate:", stopAtDate);
-    }
+    const stopAtDate = message.stopAtDate;
     console.log("[BACKGROUND DEBUG] Storing scrape parameters in storage...");
     await chrome.storage.local.set({
       wordleBotScrapeParams: {
         mode: message.mode,
         stopAtDate,
-        maxIterations: message.maxIterations || 20,
+        maxIterations: message.maxIterations || 200,
         timestamp: Date.now()
       }
     });
@@ -573,17 +583,6 @@ async function handleStartWordleBotScrape(message) {
     scraperTabId = tab.id || null;
     console.log("[BACKGROUND DEBUG] Opened WordleBot tab:", scraperTabId);
     console.log("[BACKGROUND DEBUG] Tab created, content script will auto-start scraping");
-    await updateScrapeStatus({
-      phase: "checking",
-      gamesFound: 0,
-      gamesProcessed: 0,
-      newGames: 0,
-      duplicates: 0,
-      errors: 0,
-      mode: message.mode,
-      error: null,
-      statusMessage: "Checking for latest games"
-    });
     return { success: true, ...scraperTabId ? { tabId: scraperTabId } : {}, message: "Scraping started" };
   } catch (error) {
     console.error("[Background] Failed to start WordleBot scrape:", error);
@@ -671,31 +670,31 @@ async function handleWordleBotScrapeComplete(message) {
     }
     await storageService.updateScraperMetadata({
       lastScrape: (/* @__PURE__ */ new Date()).toISOString(),
-      lastScrapeMode: "auto",
-      // TODO: derive real mode from message when available
-      totalScraped: message.totalGames
+      lastScrapeMode: currentScrapeStatus.mode || "auto",
+      totalScraped: message.totalGames,
+      lastError: message.errors ? `${message.errors} games failed to import` : ""
     });
   } catch (metadataError) {
     console.error("[Background] Failed to update scraper metadata after completion:", metadataError);
   }
-  if (scraperTabId) {
+  const completedTabId = scraperTabId;
+  if (completedTabId) {
     setTimeout(() => {
-      if (scraperTabId) {
-        chrome.tabs.remove(scraperTabId).catch(() => {
-        });
+      chrome.tabs.remove(completedTabId).catch(() => {
+      });
+      if (scraperTabId === completedTabId)
         scraperTabId = null;
-      }
     }, 2e3);
   }
   await updateScrapeStatus({
-    phase: "complete",
+    phase: message.errors ? "error" : "complete",
     gamesFound: message.totalGames ?? currentScrapeStatus.gamesFound,
     gamesProcessed: message.totalGames ?? currentScrapeStatus.gamesProcessed,
     newGames: message.newGames ?? currentScrapeStatus.newGames,
     duplicates: message.duplicates ?? currentScrapeStatus.duplicates,
     errors: message.errors ?? currentScrapeStatus.errors,
-    statusMessage: message.newGames && message.newGames > 0 ? `Added ${message.newGames} new game${message.newGames === 1 ? "" : "s"}` : "Scrape complete",
-    error: null,
+    statusMessage: message.errors ? `Import incomplete: ${message.errors} games failed. Retry to fill history.` : message.newGames && message.newGames > 0 ? `Added ${message.newGames} new game${message.newGames === 1 ? "" : "s"}` : "Scrape complete",
+    error: message.errors ? "Some games were not saved. Retry the import." : null,
     dateRange: message.dateRange ?? currentScrapeStatus.dateRange
   });
   console.log("[Background] Forwarding COMPLETE message to popup");
@@ -705,7 +704,10 @@ async function handleWordleBotScrapeComplete(message) {
   } catch (err) {
     console.log("[Background] Could not forward to popup:", err);
   }
+  const completedAt = currentScrapeStatus.lastUpdated;
   setTimeout(() => {
+    if (currentScrapeStatus.phase !== "complete" || currentScrapeStatus.lastUpdated !== completedAt)
+      return;
     updateScrapeStatus({
       phase: "idle",
       gamesFound: 0,

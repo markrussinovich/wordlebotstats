@@ -88,7 +88,7 @@ async function loadInitialScrapeStatus(): Promise<void> {
   }
 }
 
-loadInitialScrapeStatus().catch(() => {
+const initialScrapeStatus = loadInitialScrapeStatus().catch(() => {
   // Best-effort hydration; ignore failures here.
 });
 
@@ -420,6 +420,15 @@ async function handleStartWordleBotScrape(message: any): Promise<void | { succes
   try {
     console.log(`[BACKGROUND DEBUG] Starting WordleBot scrape (mode: ${message.mode})`);
     console.log('[BACKGROUND DEBUG] Storage service available:', !!storageService);
+    await initialScrapeStatus;
+    if ((currentScrapeStatus.phase === 'checking' || currentScrapeStatus.phase === 'importing') &&
+        Date.now() - Date.parse(currentScrapeStatus.lastUpdated) < 300000) {
+      return { success: true, skipped: true, reason: 'A history import is already running.' };
+    }
+    await updateScrapeStatus({
+      phase: 'checking', mode: message.mode, gamesFound: 0, gamesProcessed: 0,
+      newGames: 0, duplicates: 0, errors: 0, error: null, dateRange: null, statusMessage: 'Checking history'
+    });
     
     // Initialize storage service if not available
     if (!storageService) {
@@ -428,17 +437,8 @@ async function handleStartWordleBotScrape(message: any): Promise<void | { succes
       await storageService.initialize();
     }
     
-    // Get newest game date from storage for incremental mode
-    let stopAtDate: string | undefined = message.stopAtDate;
-    let newestStoredGame: any = null;
-    if ((message.mode === 'incremental' || message.mode === 'auto') && !stopAtDate) {
-      console.log('[BACKGROUND DEBUG] Getting newest game for incremental mode...');
-      newestStoredGame = await storageService.getNewestGame();
-      stopAtDate = newestStoredGame?.date;
-      console.log('[BACKGROUND DEBUG] Newest stored game:', newestStoredGame?.date, 'Game#', newestStoredGame?.gameNumber);
-    } else if (stopAtDate) {
-      console.log('[BACKGROUND DEBUG] Using provided stopAtDate:', stopAtDate);
-    }
+    // A newest-date cutoff cannot repair older holes or enrich partial records.
+    const stopAtDate: string | undefined = message.stopAtDate;
     
     // Store scrape parameters in storage for content script to pick up
     console.log('[BACKGROUND DEBUG] Storing scrape parameters in storage...');
@@ -446,7 +446,7 @@ async function handleStartWordleBotScrape(message: any): Promise<void | { succes
       wordleBotScrapeParams: {
         mode: message.mode,
         stopAtDate,
-        maxIterations: message.maxIterations || 20,
+        maxIterations: message.maxIterations || 200,
         timestamp: Date.now()
       }
     });
@@ -464,18 +464,6 @@ async function handleStartWordleBotScrape(message: any): Promise<void | { succes
     // The content script will auto-start scraping when it loads
     console.log('[BACKGROUND DEBUG] Tab created, content script will auto-start scraping');
 
-    await updateScrapeStatus({
-      phase: 'checking',
-      gamesFound: 0,
-      gamesProcessed: 0,
-      newGames: 0,
-      duplicates: 0,
-      errors: 0,
-      mode: message.mode,
-      error: null,
-      statusMessage: 'Checking for latest games'
-    });
-    
     return { success: true, ...(scraperTabId ? { tabId: scraperTabId } : {}), message: 'Scraping started' };
   } catch (error) {
     console.error('[Background] Failed to start WordleBot scrape:', error);
@@ -584,34 +572,34 @@ async function handleWordleBotScrapeComplete(message: any): Promise<{ success: b
     }
     await storageService.updateScraperMetadata({
       lastScrape: new Date().toISOString(),
-      lastScrapeMode: 'auto', // TODO: derive real mode from message when available
-      totalScraped: message.totalGames
+      lastScrapeMode: currentScrapeStatus.mode || 'auto',
+      totalScraped: message.totalGames,
+      lastError: message.errors ? `${message.errors} games failed to import` : ''
     });
   } catch (metadataError) {
     console.error('[Background] Failed to update scraper metadata after completion:', metadataError);
   }
   
   // Close the scraper tab after a short delay to allow user to see completion
-  if (scraperTabId) {
+  const completedTabId = scraperTabId;
+  if (completedTabId) {
     setTimeout(() => {
-      if (scraperTabId) {
-        chrome.tabs.remove(scraperTabId).catch(() => {});
-        scraperTabId = null;
-      }
+      chrome.tabs.remove(completedTabId).catch(() => {});
+      if (scraperTabId === completedTabId) scraperTabId = null;
     }, 2000);
   }
   
   await updateScrapeStatus({
-    phase: 'complete',
+    phase: message.errors ? 'error' : 'complete',
     gamesFound: message.totalGames ?? currentScrapeStatus.gamesFound,
     gamesProcessed: message.totalGames ?? currentScrapeStatus.gamesProcessed,
     newGames: message.newGames ?? currentScrapeStatus.newGames,
     duplicates: message.duplicates ?? currentScrapeStatus.duplicates,
     errors: message.errors ?? currentScrapeStatus.errors,
-    statusMessage: message.newGames && message.newGames > 0
+    statusMessage: message.errors ? `Import incomplete: ${message.errors} games failed. Retry to fill history.` : message.newGames && message.newGames > 0
       ? `Added ${message.newGames} new game${message.newGames === 1 ? '' : 's'}`
       : 'Scrape complete',
-    error: null,
+    error: message.errors ? 'Some games were not saved. Retry the import.' : null,
     dateRange: message.dateRange ?? currentScrapeStatus.dateRange
   });
 
@@ -624,7 +612,9 @@ async function handleWordleBotScrapeComplete(message: any): Promise<{ success: b
     console.log('[Background] Could not forward to popup:', err);
   }
   
+  const completedAt = currentScrapeStatus.lastUpdated;
   setTimeout(() => {
+    if (currentScrapeStatus.phase !== 'complete' || currentScrapeStatus.lastUpdated !== completedAt) return;
     updateScrapeStatus({
       phase: 'idle',
       gamesFound: 0,

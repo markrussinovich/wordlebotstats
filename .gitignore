@@ -3,7 +3,8 @@ node_modules/
 package-lock.json
 
 # Build outputs
-dist/
+dist/*
+!dist/solver.worker.js
 *.tsbuildinfo
 
 # Artifacts and temporary files

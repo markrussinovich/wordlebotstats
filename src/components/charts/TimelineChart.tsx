@@ -59,6 +59,10 @@ const normalizeGuessStatus = (rawStatus: string | undefined): GuessResult['statu
 
   const lower = rawStatus.toLowerCase();
 
+  if (lower.includes('incorrect') || lower.includes('gray') || lower.includes('grey')) return 'absent';
+  if (lower.includes('green')) return 'correct';
+  if (lower.includes('yellow')) return 'present';
+
   if (lower.includes('correct') || lower.includes('right') || lower.includes('exact')) {
     return 'correct';
   }

@@ -8,6 +8,17 @@ Wordle Stat Explorer is a Chrome/Edge Manifest V3 extension that scrapes your NY
 - Local-only storage with fast de-duplication and board-image cleanup
 - Popup quick stats: win rate, average guesses, streaks, and game counts by time frame
 - React-powered dashboard with timelines, trend analysis, WordleBot skill/luck scores
+- Solve analytics: per-game tiles and daily/20-game trends comparing your turns, a local solver, and per-puzzle NYT reader averages. Expand a tile to reveal the solver's guesses and feedback.
+
+### Analysis branch
+
+History imports reconcile all history WordleBot makes available, including older gaps and partial records, rather than stopping at the newest stored date. Explicit `stopAtDate` limits are still supported. Each page is saved before loading the next. Pagination failures and page limits report incomplete imports and preserve the games already read; retrying safely merges data, including after a same-day failure. NYT may limit how far back its history is available; the extension cannot recover games NYT no longer provides.
+
+The local solver runs off the UI thread and caches versioned results in local extension storage. It uses a fixed **SLATE** opening, correct duplicate-letter feedback, equal candidate probabilities, and minimum expected remaining candidates among candidate words plus 128 informative probe words. With at most eight candidates it searches for minimum expected turns over the full bundled guess dictionary (not optimized for the six-turn deadline). This is a WordleBot-style heuristic, **not NYT WordleBot, not globally optimal**, and not a hindsight solution that starts with the known answer. It always uses normal mode; your hard-mode games are marked.
+
+The bundled 15,921-word dictionary is the five-letter subset of public-domain [dwyl/english-words](https://github.com/dwyl/english-words), pinned to revision `20f5cc9b3f0ccc8ce45d814c532b7c2031bba31c` (license in `src/solver/data/LICENSE.txt`). It includes obscure words and words NYT may reject, and is not NYT's answer/guess list. Answers outside it show N/A. Regenerate it with `node scripts\update-solver-dictionary.mjs`; dictionary or policy changes require a solver cache version bump.
+
+NYT reader means are imported only when explicitly labelled on a history card. The ordinary NYT daily puzzle API does **not** supply reader statistics; missing history figures remain N/A. You can enter a per-puzzle figure from WordleBot in a tile's details (marked user-entered and saved locally). Head-to-head summaries use only matching played games and show coverage. Failures count as seven turns for comparisons, not as zero or a win; rolling plots use available observations and leave missing points blank.
 
 ## 📸 Screenshot
 ![Wordle Stat Explorer dashboard](https://github.com/markrussinovich/wordlebotstats/blob/001-wordle-stat-explorer/listing/assets/popupanddashboard.png)

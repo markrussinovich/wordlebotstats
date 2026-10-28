@@ -295,6 +295,15 @@ document.addEventListener('DOMContentLoaded', function() {
     } else if (message.type === 'WORDLE_BOT_SCRAPE_COMPLETE') {
       scraperStatus.active = false;
       scraperStatus.message = '';
+      if (message.errors > 0) {
+        activeNotification = {
+          id: 'scrape-incomplete',
+          type: 'error',
+          title: 'History import incomplete',
+          message: 'Some games could not be imported. Refresh to retry and fill the remaining history.',
+          icon: '⚠️'
+        };
+      }
       
       console.log(`[Popup] Scrape complete - ${message.newGames} new games, ${message.totalGames} total checked`);
       
@@ -346,7 +355,7 @@ document.addEventListener('DOMContentLoaded', function() {
       const response = await chrome.runtime.sendMessage({
         type: 'START_WORDLE_BOT_SCRAPE',
         mode: fillGaps ? 'full' : 'auto',
-        maxIterations: 50
+        maxIterations: 200
       });
       
       console.log('[Popup] Auto-import response:', response);
@@ -367,7 +376,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
   
-  // Incremental scrape - fetch only new games
+  // Reconcile recent and older history so missed games can be recovered.
   async function triggerIncrementalScrape() {
     try {
       console.log('[Popup] Triggering incremental scrape for new games');
@@ -377,13 +386,10 @@ document.addEventListener('DOMContentLoaded', function() {
   scraperStatus.message = 'Checking for new games...';
       render();
       
-      // For incremental mode, don't pass stopAtDate - let the background script
-      // handle duplicate detection. We just want to scrape the first page of games
-      // (the most recent ones) and the background will skip duplicates automatically.
       const response = await chrome.runtime.sendMessage({
         type: 'START_WORDLE_BOT_SCRAPE',
         mode: 'incremental',
-        maxIterations: 1 // Only scrape the first page (most recent games)
+        maxIterations: 200
       });
       
       console.log('[Popup] Incremental scrape response:', response);
@@ -436,26 +442,17 @@ document.addEventListener('DOMContentLoaded', function() {
   // Returns true if a gap-fill scrape was triggered, false otherwise
   async function checkAndFillGaps() {
     try {
-      const result = await chrome.storage.local.get(['games', 'lastGapFillDate']);
+      const result = await chrome.storage.local.get(['games']);
       const games = result.games || [];
       
       if (games.length < 2) return false;
       
-      // Only attempt gap-fill once per day
-      const today = new Date().toISOString().slice(0, 10);
-      if (result.lastGapFillDate === today) {
-        console.log('[Popup] Gap-fill already attempted today, skipping');
-        return false;
-      }
-      
       const { gapDays, gapStart, gapEnd } = detectLargestGap(games);
       console.log(`[Popup] Largest gap: ${gapDays} days (${gapStart} → ${gapEnd})`);
       
-      if (gapDays >= 7) {
+      if (gapDays > 1) {
         console.log(`[Popup] Significant gap detected (${gapDays} days), triggering full scrape to fill`);
-        // Remember we tried today so we don't re-trigger
-        await chrome.storage.local.set({ lastGapFillDate: today });
-        triggerAutoImport(true);
+        await triggerAutoImport(true);
         return true;
       }
       

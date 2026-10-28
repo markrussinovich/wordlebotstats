@@ -65,17 +65,18 @@ async function buildExtension() {
       mkdirSync(distDir, { recursive: true });
     }
     
-    // Copy popup files (vanilla JS - no build needed)
-    console.log('Copying popup files...');
+    console.log('Building popup...');
     copyFile(
       resolve(rootDir, 'src/extension/popup/popup.html'),
       resolve(rootDir, 'dist/popup.html')
     );
-    copyFile(
-      resolve(rootDir, 'src/extension/popup/popup.js'),
-      resolve(rootDir, 'dist/popup.js')
-    );
-    console.log('✓ popup files copied\n');
+    await esbuild.build({
+      ...sharedConfig,
+      entryPoints: [resolve(rootDir, 'src/extension/popup/popup.js')],
+      outfile: resolve(rootDir, 'dist/popup.js'),
+      format: 'iife',
+    });
+    console.log('✓ popup built\n');
     
     // Build dashboard using Vite
     console.log('Building dashboard with Vite...');

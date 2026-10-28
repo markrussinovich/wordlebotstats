@@ -663,6 +663,7 @@ async function handleWordleBotScrapeProgress(message) {
 }
 async function handleWordleBotScrapeComplete(message) {
   console.log("[Background] Scrape complete:", message);
+  const partial = message.errors > 0 && (message.newGames || 0) + (message.duplicates || 0) > 0;
   try {
     if (!storageService) {
       storageService = ExtensionStorage.getInstance();
@@ -687,7 +688,7 @@ async function handleWordleBotScrapeComplete(message) {
     }, 2e3);
   }
   await updateScrapeStatus({
-    phase: message.errors ? "error" : "complete",
+    phase: message.errors ? partial ? "warning" : "error" : "complete",
     gamesFound: message.totalGames ?? currentScrapeStatus.gamesFound,
     gamesProcessed: message.totalGames ?? currentScrapeStatus.gamesProcessed,
     newGames: message.newGames ?? currentScrapeStatus.newGames,

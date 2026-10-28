@@ -383,6 +383,9 @@ var WordleBotContent = (() => {
       let skipped = 0;
       this.dateCursor = /* @__PURE__ */ new Date();
       cards.forEach((card, index) => {
+        if (!card.querySelector("strong.solution, span.date-label, .game-header, .wordle-board")) {
+          return;
+        }
         if (markProcessed && this.processedCardElements.has(card)) {
           const cached = this.processedCardElements.get(card);
           if (cached?.date)

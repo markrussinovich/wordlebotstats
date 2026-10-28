@@ -95,8 +95,19 @@ describe('background history lifecycle', () => {
       errors: 3,
     });
     await jest.advanceTimersByTimeAsync(5000);
-    expect(stored.wordleBotScrapeStatus.phase).toBe('error');
+    expect(stored.wordleBotScrapeStatus.phase).toBe('warning');
     expect(stored.scraperMetadata.lastScrapeMode).toBe('full');
     expect(stored.scraperMetadata.lastError).toContain('3');
+  });
+
+  it('keeps a completely failed import as an error', async () => {
+    await message({
+      type: MessageType.WORDLE_BOT_SCRAPE_COMPLETE,
+      totalGames: 5,
+      newGames: 0,
+      duplicates: 0,
+      errors: 5,
+    });
+    expect(stored.wordleBotScrapeStatus.phase).toBe('error');
   });
 });

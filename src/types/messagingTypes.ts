@@ -237,7 +237,7 @@ export interface WordleBotScrapeErrorMessage {
   recoverable: boolean;
 }
 
-export type WordleBotScrapePhase = 'idle' | 'checking' | 'importing' | 'complete' | 'error';
+export type WordleBotScrapePhase = 'idle' | 'checking' | 'importing' | 'complete' | 'warning' | 'error';
 
 export interface WordleBotScrapeStatusSnapshot {
   phase: WordleBotScrapePhase;

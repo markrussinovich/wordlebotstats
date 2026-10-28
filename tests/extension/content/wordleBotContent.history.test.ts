@@ -57,7 +57,7 @@ describe('WordleBot history reconciliation', () => {
     const more = jest
       .spyOn(scraper as any, 'loadMoreGames')
       .mockImplementationOnce(async () => {
-        expect(imported.map(game => game.date)).toEqual(['2026-10-27']);
+        expect(imported.map((game) => game.date)).toEqual(['2026-10-27']);
         document.body.insertAdjacentHTML(
           'beforeend',
           card('October 25, 2026', 'CRANE')
@@ -122,6 +122,21 @@ describe('WordleBot history reconciliation', () => {
         (message) => message.type === MessageType.WORDLE_BOT_SCRAPE_COMPLETE
       )?.errors
     ).toBe(1);
+  });
+
+  it('ignores non-game rating rows while reporting malformed game cards', async () => {
+    document.body.innerHTML =
+      '<div class="rating-container">STEPS <span class="num">3.9</span></div>' +
+      card('October 27, 2026') +
+      '<div class="rating-container"><strong class="solution">CRANE</strong></div>';
+    jest.spyOn(scraper as any, 'loadMoreGames').mockResolvedValue(false);
+    await scraper.startScraping('full');
+    expect(imported).toHaveLength(1);
+    expect(
+      messages.find(
+        (message) => message.type === MessageType.WORDLE_BOT_SCRAPE_COMPLETE
+      )
+    ).toMatchObject({ totalGames: 1, newGames: 1, errors: 1 });
   });
 
   it('preserves explicit years and only captures explicitly labelled reader averages', async () => {

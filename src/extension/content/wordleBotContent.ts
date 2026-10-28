@@ -432,6 +432,9 @@ export class WordleBotScraper {
     this.dateCursor = new Date();
 
     cards.forEach((card, index) => {
+      if (!card.querySelector('strong.solution, span.date-label, .game-header, .wordle-board')) {
+        return;
+      }
       // Skip cards we've already processed
       if (markProcessed && this.processedCardElements.has(card)) {
         const cached = this.processedCardElements.get(card);

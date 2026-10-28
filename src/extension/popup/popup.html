@@ -5,15 +5,69 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Wordle Stat Explorer</title>
   <style>
+    :root {
+      color-scheme: light;
+      --cp-bg: #f7f4ef;
+      --cp-bg-elevated: #fcfbf8;
+      --cp-surface: #ffffff;
+      --cp-surface-soft: #f5f5f5;
+      --cp-border: #dedede;
+      --cp-border-strong: #919191;
+      --cp-text: #242424;
+      --cp-text-muted: #5c5c5c;
+      --cp-text-soft: #6f6f6f;
+      --cp-accent: #b11f4b;
+      --cp-accent-hover: #9a1a41;
+      --cp-accent-soft: rgba(177, 31, 75, 0.08);
+      --cp-accent-fg: #ffffff;
+      --cp-success: #16a34a;
+      --cp-danger: #dc2626;
+      --cp-warning: #f59e0b;
+      --cp-link: #0078d4;
+      --cp-shadow: 0 18px 48px rgba(0, 0, 0, 0.12);
+      --cp-overlay: rgba(255, 255, 255, 0.8);
+      --cp-panel: rgba(255, 255, 255, 0.86);
+      --cp-panel-strong: rgba(255, 255, 255, 0.96);
+      --cp-sheen: rgba(255, 255, 255, 0.55);
+      --cp-highlight: rgba(177, 31, 75, 0.12);
+    }
+    html[data-theme="dark"] {
+      color-scheme: dark;
+      --cp-bg: #3d3b3a;
+      --cp-bg-elevated: #343231;
+      --cp-surface: #292929;
+      --cp-surface-soft: #2e2e2e;
+      --cp-border: #474747;
+      --cp-border-strong: #5f5f5f;
+      --cp-text: #dedede;
+      --cp-text-muted: #919191;
+      --cp-text-soft: #b0b0b0;
+      --cp-accent: #fd8ea1;
+      --cp-accent-hover: #fb7b91;
+      --cp-accent-soft: rgba(253, 142, 161, 0.14);
+      --cp-accent-fg: #1a1a1a;
+      --cp-success: #4ade80;
+      --cp-danger: #f87171;
+      --cp-warning: #fbbf24;
+      --cp-link: #4da6ff;
+      --cp-shadow: 0 18px 48px rgba(0, 0, 0, 0.32);
+      --cp-overlay: rgba(41, 41, 41, 0.88);
+      --cp-panel: rgba(41, 41, 41, 0.72);
+      --cp-panel-strong: rgba(41, 41, 41, 0.96);
+      --cp-sheen: rgba(255, 255, 255, 0.04);
+      --cp-highlight: rgba(253, 142, 161, 0.12);
+    }
+
     body {
       width: 380px;
       height: fit-content;
       max-height: 530px;
       margin: 0;
       padding: 0;
-      font-family: 'Helvetica Neue', Arial, sans-serif;
+      font-family: "Segoe UI", Aptos, Calibri, -apple-system, BlinkMacSystemFont, sans-serif;
       background-color: #ffffff;
-      overflow: hidden;
+      overflow-x: hidden;
+      overflow-y: auto;
     }
 
     .popup-container {
@@ -114,6 +168,8 @@
 
     .game-board-container {
       display: flex;
+      flex-direction: column;
+      align-items: center;
       justify-content: center;
       margin: 6px 0 0px 0;
     }
@@ -327,6 +383,61 @@
     .notification.error {
       border-color: #f3b0b5;
       background: #fff1f2;
+    }
+
+    .notification.warning {
+      align-items: center;
+      gap: 6px;
+      padding: 6px 8px;
+      margin: 4px 16px;
+      border-color: var(--cp-warning);
+      background: var(--cp-surface);
+      color: var(--cp-text);
+      text-align: left;
+      box-shadow: none;
+    }
+
+    .notification.warning .notification-message {
+      flex: 1;
+      font-size: 11px;
+      line-height: 16px;
+      color: var(--cp-text);
+    }
+
+    .notification.warning .notification-dismiss {
+      color: var(--cp-text-muted);
+    }
+
+    .comparison-scores .score-label {
+      white-space: nowrap;
+    }
+
+    .score-item .solver-solution-btn {
+      padding: 0;
+      border: none;
+      background: none;
+      color: var(--cp-accent);
+      cursor: pointer;
+      text-decoration: underline;
+    }
+
+    .solver-solution-btn:disabled {
+      color: var(--cp-text-muted);
+      cursor: default;
+      text-decoration: none;
+    }
+
+    .popup-solver-path {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 8px 0 4px;
+      font-size: 12px;
+      line-height: 1.5;
+      color: var(--cp-text);
+    }
+
+    .popup-solver-path small {
+      color: var(--cp-text-muted);
     }
 
     .notification-icon {

@@ -563,6 +563,7 @@ async function handleWordleBotScrapeProgress(message: any): Promise<{ success: b
 
 async function handleWordleBotScrapeComplete(message: any): Promise<{ success: boolean }> {
   console.log('[Background] Scrape complete:', message);
+  const partial = message.errors > 0 && (message.newGames || 0) + (message.duplicates || 0) > 0;
   
   // Update scraper metadata
   try {
@@ -590,7 +591,7 @@ async function handleWordleBotScrapeComplete(message: any): Promise<{ success: b
   }
   
   await updateScrapeStatus({
-    phase: message.errors ? 'error' : 'complete',
+    phase: message.errors ? (partial ? 'warning' : 'error') : 'complete',
     gamesFound: message.totalGames ?? currentScrapeStatus.gamesFound,
     gamesProcessed: message.totalGames ?? currentScrapeStatus.gamesProcessed,
     newGames: message.newGames ?? currentScrapeStatus.newGames,

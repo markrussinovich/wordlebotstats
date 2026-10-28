@@ -1,3 +1,6 @@
+import '../../dashboard/theme';
+import { SOLVER_VERSION, SOLVER_DESCRIPTION } from '../../solver/solver';
+
 // Popup script for Wordle Stats extension
 console.log('[Popup] Popup script loading...');
 
@@ -23,6 +26,66 @@ document.addEventListener('DOMContentLoaded', function() {
     message: ''
   };
   let activeNotification = null;
+  const solverCacheKey = `solver-${SOLVER_VERSION}`;
+  let solverResults = {};
+  let solverWorker = null;
+  let solverError = null;
+  let showSolverSolution = false;
+  let cacheWrites = Promise.resolve();
+  const solverCacheReady = chrome.storage.local.get(solverCacheKey)
+    .then(value => { solverResults = value[solverCacheKey] || {}; })
+    .catch(() => {});
+
+  window.addEventListener('pagehide', () => solverWorker?.terminate());
+
+  async function calculateSolverResults() {
+    await solverCacheReady;
+    if (solverWorker || solverError) return;
+    const current = allGames[currentGameIndex];
+    const solutions = [...new Set([current, ...allGames]
+      .flatMap(game => game?.solution ? [game.solution.trim().toUpperCase()] : []))]
+      .filter(solution => !solverResults[solution]);
+    if (!solutions.length) {
+      render();
+      return;
+    }
+    try {
+      solverWorker = new Worker(chrome.runtime.getURL('solver.worker.js'), { type: 'module' });
+      const fail = message => {
+        solverError = message;
+        solverWorker?.terminate();
+        solverWorker = null;
+        render();
+      };
+      solverWorker.onerror = () => fail('Solver could not run. Reopen the popup to retry.');
+      solverWorker.onmessage = ({ data }) => {
+        if (data.solution && data.result) {
+          solverResults[data.solution] = data.result;
+          // Save each result so closing the popup does not discard finished games.
+          cacheWrites = cacheWrites.then(async () => {
+            const stored = await chrome.storage.local.get(solverCacheKey);
+            await chrome.storage.local.set({
+              [solverCacheKey]: { ...stored[solverCacheKey], ...solverResults }
+            });
+          }).catch(error => console.warn('[Popup] Solver cache could not be saved:', error));
+          render();
+        }
+        if (data.error) fail(data.error);
+        else if (data.complete) {
+          solverWorker.terminate();
+          solverWorker = null;
+          calculateSolverResults();
+        }
+      };
+      solverWorker.postMessage(solutions);
+    } catch (error) {
+      solverError = 'Solver could not start. Reopen the popup to retry.';
+      solverWorker?.terminate();
+      solverWorker = null;
+      console.error('[Popup] Solver failed:', error);
+      render();
+    }
+  }
   
   // Storage keys for persistence
   const STORAGE_KEYS = {
@@ -186,6 +249,7 @@ document.addEventListener('DOMContentLoaded', function() {
       prevBtn.addEventListener('click', async () => {
         if (currentGameIndex < allGames.length - 1) {
           currentGameIndex++;
+          showSolverSolution = false;
           await saveCurrentGameIndex();
           render();
         }
@@ -196,6 +260,7 @@ document.addEventListener('DOMContentLoaded', function() {
       nextBtn.addEventListener('click', async () => {
         if (currentGameIndex > 0) {
           currentGameIndex--;
+          showSolverSolution = false;
           await saveCurrentGameIndex();
           render();
         }
@@ -209,6 +274,11 @@ document.addEventListener('DOMContentLoaded', function() {
         render();
       });
     }
+
+    document.getElementById('solver-solution-btn')?.addEventListener('click', () => {
+      showSolverSolution = !showSolverSolution;
+      render();
+    });
   }
   
   async function loadStatistics() {
@@ -272,11 +342,13 @@ document.addEventListener('DOMContentLoaded', function() {
       // Don't clear loading state here since we don't set it for quick switches
       // isLoading = false;
       render();
+      calculateSolverResults();
     }
   }
   
   // Listen for scraper progress messages
-  chrome.runtime.onMessage.addListener(async (message) => {
+  // Observers must not return a Promise: it can win the response race with the background.
+  chrome.runtime.onMessage.addListener((message) => {
     console.log('[Popup] Received message:', message);
     
     if (message.type === 'WORDLE_BOT_SCRAPE_PROGRESS') {
@@ -296,21 +368,22 @@ document.addEventListener('DOMContentLoaded', function() {
       scraperStatus.active = false;
       scraperStatus.message = '';
       if (message.errors > 0) {
+        const partial = (message.newGames || 0) + (message.duplicates || 0) > 0;
         activeNotification = {
           id: 'scrape-incomplete',
-          type: 'error',
-          title: 'History import incomplete',
-          message: 'Some games could not be imported. Refresh to retry and fill the remaining history.',
+          type: partial ? 'warning' : 'error',
+          title: partial ? 'History import incomplete' : 'History import failed',
+          message: `${message.errors} game${message.errors === 1 ? '' : 's'} could not be imported. Refresh to retry.`,
           icon: '⚠️'
         };
-      }
+      } else activeNotification = null;
       
       console.log(`[Popup] Scrape complete - ${message.newGames} new games, ${message.totalGames} total checked`);
       
       // Reset to most recent game if new games were found
       if (message.newGames > 0) {
         currentGameIndex = 0;
-        await saveCurrentGameIndex();
+        saveCurrentGameIndex();
         console.log('[Popup] Reset to newest game due to new games found');
       }
       
@@ -340,6 +413,7 @@ document.addEventListener('DOMContentLoaded', function() {
         render();
       }
     }
+    return false;
   });
   
   // Auto-import on load
@@ -492,11 +566,21 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     const icon = activeNotification.icon || 'ℹ️';
-    const title = activeNotification.title || 'Notice';
-    const message = activeNotification.message || '';
+    const title = escapeHtml(activeNotification.title || 'Notice');
+    const message = escapeHtml(activeNotification.message || '');
+
+    if (activeNotification.type === 'warning') {
+      return `
+        <div class="notification warning" role="status" title="${title}">
+          <span aria-hidden="true">⚠</span>
+          <span class="notification-message">${message}</span>
+          <button class="notification-dismiss" data-dismiss-notification aria-label="Dismiss notification">✕</button>
+        </div>
+      `;
+    }
 
     return `
-      <div class="notification ${activeNotification.type}">
+      <div class="notification ${activeNotification.type}" role="alert">
         <div class="notification-icon">${icon}</div>
         <div class="notification-body">
           <div class="notification-title">${title}</div>
@@ -505,6 +589,12 @@ document.addEventListener('DOMContentLoaded', function() {
         <button class="notification-dismiss" data-dismiss-notification aria-label="Dismiss notification">✕</button>
       </div>
     `;
+  }
+
+  function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, character => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[character]);
   }
 
   function renderLoadingState(message) {
@@ -558,6 +648,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const gameBoard = renderGameBoard(currentGame);
 
     const hasScores = currentGame.skillScore !== undefined && currentGame.luckScore !== undefined;
+    const readerAverage = currentGame.nytReaderAverage;
+    const hasReaderAverage = Number.isFinite(readerAverage) && readerAverage >= 1 && readerAverage <= 7;
+    const solver = solverResults[currentGame.solution?.trim().toUpperCase()];
+    const solverTurns = solver?.status === 'solved' ? solver.turns :
+      solver?.status === 'failed' ? 'X/6' : solver || solverError || !currentGame.solution ? 'N/A' : '...';
+    const solverTitle = escapeHtml(solverError || (solver?.status === 'unavailable'
+      ? 'This answer is outside the bundled solver dictionary.'
+      : SOLVER_DESCRIPTION));
 
     return `
       <div class="game-viewer">
@@ -570,15 +668,27 @@ document.addEventListener('DOMContentLoaded', function() {
           
           <div class="game-board-container">
             <div class="board-and-scores">
-              <button class="nav-btn nav-btn-large" id="prev-game-btn" ${currentGameIndex >= allGames.length - 1 ? 'disabled' : ''}>
-                ‹
-              </button>
+              <div class="score-right-stacked comparison-scores">
+                <button class="nav-btn nav-btn-large" id="prev-game-btn" aria-label="Previous game" ${currentGameIndex >= allGames.length - 1 ? 'disabled' : ''}>
+                  ‹
+                </button>
+                <div class="score-item" title="${hasReaderAverage ? 'Per-puzzle NYT reader average' : 'NYT history does not supply this figure. Enter the per-puzzle reader average in the dashboard.'}">
+                  <span class="score-label">NYT Avg</span>
+                  <span class="score-value" data-testid="popup-reader-average">${hasReaderAverage ? readerAverage.toFixed(2) : 'N/A'}</span>
+                </div>
+                <div class="score-item" title="${solverTitle}">
+                  <span class="score-label">Solver</span>
+                  <button class="score-value solver-solution-btn" id="solver-solution-btn"
+                    aria-label="Show local solver solution" aria-expanded="${showSolverSolution}"
+                    ${solver?.guesses?.length ? '' : 'disabled'}>${solverTurns}</button>
+                </div>
+              </div>
               
               <div class="game-viewer-content">${gameBoard}</div>
               
               ${hasScores ? `
                 <div class="score-right-stacked">
-                  <button class="nav-btn nav-btn-large" id="next-game-btn" ${currentGameIndex <= 0 ? 'disabled' : ''}>
+                  <button class="nav-btn nav-btn-large" id="next-game-btn" aria-label="Next game" ${currentGameIndex <= 0 ? 'disabled' : ''}>
                     ›
                   </button>
                   <div style="margin-top: 16px;">
@@ -593,11 +703,17 @@ document.addEventListener('DOMContentLoaded', function() {
                   </div>
                 </div>
               ` : `
-                <button class="nav-btn nav-btn-large" id="next-game-btn" ${currentGameIndex <= 0 ? 'disabled' : ''}>
+                <button class="nav-btn nav-btn-large" id="next-game-btn" aria-label="Next game" ${currentGameIndex <= 0 ? 'disabled' : ''}>
                   ›
                 </button>
               `}
             </div>
+            ${showSolverSolution && solver?.guesses?.length ? `
+              <div class="popup-solver-path" role="region" aria-label="Local solver solution">
+                <div>${solver.guesses.map(guess => escapeHtml(guess.word)).join(' &rarr; ')}</div>
+                <small>Normal-mode estimate, not NYT WordleBot or guaranteed optimal.</small>
+              </div>
+            ` : ''}
           </div>
         </div>
       </div>
@@ -610,7 +726,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Try to use guessPattern first
     if (game.guessPattern) {
       pattern = game.guessPattern;
-    } else if (game.guesses) {
+    } else if (Array.isArray(game.guesses)) {
       // Convert legacy guesses format
       pattern = game.guesses.map(row => {
         if (typeof row === 'string') {
@@ -657,6 +773,7 @@ document.addEventListener('DOMContentLoaded', function() {
   function normalizeGuessStatus(rawStatus) {
     if (!rawStatus) return 'absent';
     const lower = rawStatus.toLowerCase();
+    if (lower.includes('incorrect') || lower.includes('absent')) return 'absent';
     if (lower.includes('correct') || lower.includes('right') || lower.includes('exact')) {
       return 'correct';
     }

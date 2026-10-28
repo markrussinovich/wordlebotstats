@@ -241,6 +241,14 @@
       justify-self: center;
     }
 
+    .score-metrics {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      margin-top: 16px;
+    }
+
     .score-item {
       display: flex;
       flex-direction: column;
@@ -258,6 +266,7 @@
     .score-item .score-value {
       font-size: 14px;
       font-weight: 700;
+      line-height: 20px;
       color: #6aaa64;
     }
 
@@ -413,6 +422,7 @@
     }
 
     .score-item .solver-solution-btn {
+      font-family: inherit;
       padding: 0;
       border: none;
       background: none;
@@ -427,17 +437,18 @@
       text-decoration: none;
     }
 
-    .popup-solver-path {
-      width: 100%;
-      box-sizing: border-box;
-      padding: 8px 0 4px;
-      font-size: 12px;
-      line-height: 1.5;
-      color: var(--cp-text);
+    .game-board-mode {
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 10px;
+      font-weight: 600;
+      line-height: 16px;
+      color: var(--cp-text-muted);
     }
 
-    .popup-solver-path small {
-      color: var(--cp-text-muted);
+    .game-board-mode[data-mode="solver"] {
+      background: var(--cp-accent-soft);
+      color: var(--cp-accent);
     }
 
     .notification-icon {

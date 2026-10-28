@@ -282,6 +282,27 @@ test('popup preserves background responses, computes comparisons and keeps parti
   });
   await expect(solver).toHaveText(/^[1-6]$/, { timeout: 60000 });
   const turns = await solver.textContent();
+  const alignment = await page
+    .locator('.board-and-scores')
+    .evaluate((board) => {
+      const positions = (selector: string) =>
+        [...board.querySelectorAll(selector)].map((item) => ({
+          label: item.querySelector('.score-label')!.getBoundingClientRect().y,
+          value: item.querySelector('.score-value')!.getBoundingClientRect().y,
+        }));
+      return {
+        left: positions('.comparison-scores .score-item'),
+        right: positions(
+          '.score-right-stacked:not(.comparison-scores) .score-item'
+        ),
+      };
+    });
+  expect(alignment.left).toHaveLength(2);
+  expect(alignment.right).toHaveLength(2);
+  alignment.left.forEach((position, index) => {
+    expect(position.label).toBeCloseTo(alignment.right[index].label, 1);
+    expect(position.value).toBeCloseTo(alignment.right[index].value, 1);
+  });
 
   for (const type of ['BULK_IMPORT_GAMES', 'GET_DASHBOARD_DATA']) {
     expect(
@@ -300,19 +321,50 @@ test('popup preserves background responses, computes comparisons and keeps parti
     });
   }
 
+  const userBoard = page.getByRole('group', { name: 'Your game board' });
+  const userBoardMarkup = await userBoard.innerHTML();
   await solver.click();
+  const solverBoard = page.getByRole('group', { name: 'Local solver board' });
+  await expect(solverBoard).toBeVisible();
   await expect(
-    page.getByRole('region', { name: 'Local solver solution' })
-  ).toContainText(/SLATE.*APPLE/);
+    page.getByText('Local solver (normal mode)', { exact: true })
+  ).toBeVisible();
+  await expect(solverBoard.locator('.board-row')).toHaveCount(6);
+  expect(
+    (
+      await solverBoard
+        .locator('.board-row')
+        .first()
+        .locator('.board-cell')
+        .allTextContents()
+    ).map((text) => text.trim())
+  ).toEqual(['S', 'L', 'A', 'T', 'E']);
+  const lastGuess = solverBoard.locator('.board-row').nth(Number(turns) - 1);
+  expect(
+    (await lastGuess.locator('.board-cell').allTextContents()).map((text) =>
+      text.trim()
+    )
+  ).toEqual(['A', 'P', 'P', 'L', 'E']);
+  await expect(lastGuess.locator('.board-cell-correct')).toHaveCount(5);
   await expect(
-    page.getByRole('region', { name: 'Local solver solution' })
-  ).toContainText('not NYT WordleBot');
+    page.locator('.comparison-scores .score-label').last()
+  ).toHaveText('User');
+  const userSwitch = page.getByRole('button', { name: 'Show your game' });
+  await expect(userSwitch).toHaveText('4');
+  await userSwitch.click();
+  await expect(userBoard).toBeVisible();
+  expect(await userBoard.innerHTML()).toBe(userBoardMarkup);
+  await expect(
+    page.locator('.comparison-scores .score-label').last()
+  ).toHaveText('Solver');
+  await expect(solver).toHaveText(turns!);
+  await solver.click();
   await page.getByRole('button', { name: 'Previous game' }).click();
   await expect(page.getByTestId('popup-reader-average')).toHaveText('N/A');
   await expect(solver).toHaveText('1', { timeout: 60000 });
   await expect(page.locator('.board-row')).toHaveCount(6);
   await expect(
-    page.getByRole('region', { name: 'Local solver solution' })
+    page.getByRole('group', { name: 'Local solver board' })
   ).toHaveCount(0);
   await page.getByRole('button', { name: 'Previous game' }).click();
   await expect(solver).toHaveText('N/A', { timeout: 60000 });
@@ -442,6 +494,7 @@ test('real extension routes imports and dashboard replies correctly while its po
             hardMode: false,
             solution: 'APPLE',
             nytReaderAverage: 4.2,
+            nytReaderSource: 'manual',
           },
         ],
       })
@@ -467,6 +520,7 @@ test('real extension routes imports and dashboard replies correctly while its po
             hardMode: false,
             solution: 'SLATE',
             nytReaderAverage: 3.9,
+            nytReaderSource: 'manual',
           },
         ],
       })
@@ -491,6 +545,69 @@ test('real extension routes imports and dashboard replies correctly while its po
     await expect(
       popup.getByRole('button', { name: 'Show local solver solution' })
     ).toHaveText('1');
+    await background.evaluate(() => {
+      globalThis.fetch = async () =>
+        new Response(
+          JSON.stringify({
+            botUserSteps: {
+              normal: [0, 0, 0, 8, 2, 0, 0],
+              hard: [0, 0, 0, 6, 4, 0, 0],
+            },
+          }),
+          { status: 200 }
+        );
+    });
+    await dashboard.evaluate(() =>
+      chrome.runtime.sendMessage({
+        type: 'BULK_IMPORT_GAMES',
+        games: [
+          {
+            date: '2026-10-30',
+            solution: 'GRIST',
+            attempts: 4,
+            won: true,
+            hardMode: false,
+            guessPattern: ['SLATE', 'GRIST'].map((word) =>
+              [...word].map((letter) => ({ letter, status: 'correct' }))
+            ),
+          },
+        ],
+      })
+    );
+    const readerRequest = {
+      type: 'GET_NYT_READER_AVERAGE',
+      date: '2026-10-30',
+      hardMode: true,
+      words: ['SLATE', 'GRIST'],
+    };
+    expect(
+      await dashboard.evaluate(
+        (request) =>
+          chrome.runtime.sendMessage({ ...request, words: ['GRIST'] }),
+        readerRequest
+      )
+    ).toMatchObject({ success: false, game: null });
+    expect(
+      await dashboard.evaluate(
+        (request) => chrome.runtime.sendMessage(request),
+        readerRequest
+      )
+    ).toMatchObject({
+      success: true,
+      game: {
+        hardMode: true,
+        nytReaderMode: 'hard',
+        nytReaderAverage: 4.4,
+        attempts: 4,
+      },
+    });
+    const stored = await dashboard.evaluate(() =>
+      chrome.storage.local.get('games')
+    );
+    expect(stored.games).toHaveLength(3);
+    expect(
+      stored.games.find((game: any) => game.date === '2026-10-30')
+    ).toMatchObject({ nytReaderAverage: 4.4, nytReaderSource: 'wordlebot' });
   } finally {
     await context.close();
   }

@@ -12,7 +12,8 @@
   
   "host_permissions": [
     "https://www.nytimes.com/games/wordle*",
-    "https://www.nytimes.com/interactive/2022/upshot/wordle-bot.html"
+    "https://www.nytimes.com/interactive/2022/upshot/wordle-bot.html",
+    "https://static01.nyt.com/newsgraphics/2022/wordlebot/*"
   ],
   
   "background": {

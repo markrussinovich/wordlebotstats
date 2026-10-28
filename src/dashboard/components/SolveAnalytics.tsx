@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   LineChart,
   Line,
@@ -35,6 +35,37 @@ const formatTurns = (value: number | null) =>
 const SolveAnalytics: React.FC<Props> = ({ games, allGames = games }) => {
   const { results, running, error } = useSolver(allGames);
   const addGame = useGameDataStore((state) => state.addGame);
+  const attemptedReaders = useRef(new Set<string>());
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      for (const game of [...allGames].sort((a, b) =>
+        b.date.localeCompare(a.date)
+      )) {
+        if (cancelled) return;
+        const key = `${game.date}:${game.hardMode}`;
+        if (
+          !game.solution ||
+          game.nytReaderSource === 'manual' ||
+          attemptedReaders.current.has(key)
+        )
+          continue;
+        attemptedReaders.current.add(key);
+        try {
+          const response = await chrome.runtime.sendMessage({
+            type: MessageType.GET_NYT_READER_AVERAGE,
+            date: game.date,
+          });
+          if (response?.success && response.game) addGame(response.game);
+        } catch {
+          // Reader data is optional; missing figures do not prevent analytics.
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [allGames, addGame]);
   const [trend, setTrend] = useState(true);
   const [page, setPage] = useState(0);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
@@ -100,9 +131,10 @@ const SolveAnalytics: React.FC<Props> = ({ games, allGames = games }) => {
       </h2>
       <p>{SOLVER_DESCRIPTION}</p>
       <p>
-        NYT readers are per-puzzle averages captured when labelled on WordleBot
-        history cards. Missing figures are N/A, never a national estimate. You
-        can enter a figure from WordleBot in a game&apos;s details.
+        NYT reader averages load from WordleBot&apos;s per-puzzle summaries.
+        Reader mode is shown in each game&apos;s details; normal mode is used
+        when history does not identify a mode. Missing figures are N/A, never a
+        national estimate. You can also enter a figure in a game&apos;s details.
       </p>
       <p>
         Failures count as 7 turns in comparisons (shown as X/6). Unplayed games
@@ -279,7 +311,7 @@ const SolveAnalytics: React.FC<Props> = ({ games, allGames = games }) => {
               {point.game.nytReaderSource === 'manual'
                 ? 'user-entered from WordleBot'
                 : point.readers !== null
-                  ? 'WordleBot history'
+                  ? `WordleBot${point.game.nytReaderMode ? ` (${point.game.nytReaderMode} mode)` : ''}`
                   : 'unavailable'}
               .
             </p>

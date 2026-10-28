@@ -110,6 +110,27 @@ var _ExtensionStorage = class _ExtensionStorage {
     if (result.errors)
       throw new Error("Game could not be saved");
   }
+  async updateReaderAverage(date, readers, hardMode) {
+    const operation = this.writeQueue.then(async () => {
+      const games = await this.getAllGames();
+      const index = games.findIndex((game2) => game2.date === date);
+      const game = games[index];
+      if (!game)
+        return null;
+      if (readers.nytReaderMode !== (hardMode ?? game.hardMode ? "hard" : "normal")) {
+        return game;
+      }
+      games[index] = {
+        ...game,
+        ...game.nytReaderSource === "manual" ? {} : readers,
+        ...hardMode !== void 0 ? { hardMode } : {}
+      };
+      await chrome.storage.local.set({ games });
+      return games[index];
+    });
+    this.writeQueue = operation.catch(() => void 0);
+    return operation;
+  }
   async bulkImportGames(newGames) {
     const operation = this.writeQueue.then(() => this.importGames(newGames));
     this.writeQueue = operation.catch(() => void 0);
@@ -237,6 +258,56 @@ var _ExtensionStorage = class _ExtensionStorage {
 };
 __publicField(_ExtensionStorage, "instance");
 var ExtensionStorage = _ExtensionStorage;
+
+// src/utils/nytReaderAverage.ts
+function parseNytReaderAverage(summary, hardMode) {
+  const mode = hardMode ? "hard" : "normal";
+  const counts = (summary?.botUserSteps ?? summary?.steps)?.[mode];
+  if (!Array.isArray(counts) || counts.length !== 7 || !counts.every((count) => Number.isSafeInteger(count) && count >= 0))
+    return null;
+  const total = counts.reduce((sum, count) => sum + count, 0);
+  const penalty = summary.unsolvedPenalty?.[mode] ?? 0;
+  if (!total || !Number.isFinite(penalty) || penalty < 0)
+    return null;
+  const average = (counts.reduce((sum, count, index) => sum + count * (index + 1), 0) + penalty) / total;
+  if (!Number.isFinite(average) || average < 1 || average > 7)
+    return null;
+  return {
+    nytReaderAverage: average,
+    nytReaderMode: mode,
+    nytReaderSource: "wordlebot"
+  };
+}
+var summaries = /* @__PURE__ */ new Map();
+async function fetchNytReaderAverage(game) {
+  const solution = game.solution?.trim().toLowerCase();
+  if (!solution || !/^[a-z]{5}$/.test(solution) || !/^\d{4}-\d{2}-\d{2}$/.test(game.date) || !Number.isFinite(Date.parse(game.date)) || new Date(game.date).toISOString().slice(0, 10) !== game.date)
+    return null;
+  const key = `${solution}-${game.date}`;
+  let cached = summaries.get(key);
+  if (!cached || cached.expires < Date.now()) {
+    const data = (async () => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5e3);
+      try {
+        const response = await fetch(
+          `https://static01.nyt.com/newsgraphics/2022/wordlebot/${key}/summary.json`,
+          { credentials: "omit", signal: controller.signal }
+        );
+        if (!response.ok)
+          return null;
+        return await response.json();
+      } catch {
+        return null;
+      } finally {
+        clearTimeout(timeout);
+      }
+    })();
+    cached = { expires: Date.now() + 5 * 60 * 1e3, data };
+    summaries.set(key, cached);
+  }
+  return parseNytReaderAverage(await cached.data, game.hardMode);
+}
 
 // src/extension/background/background.ts
 var log2 = logger_default.log;
@@ -370,6 +441,8 @@ async function handleExtensionMessage(message, _sender) {
       return handleGetQuickStats(message);
     case "GET_DASHBOARD_DATA" /* GET_DASHBOARD_DATA */:
       return handleGetDashboardData(message);
+    case "GET_NYT_READER_AVERAGE" /* GET_NYT_READER_AVERAGE */:
+      return handleGetNytReaderAverage(message);
     case "OPEN_DASHBOARD_TAB" /* OPEN_DASHBOARD_TAB */:
       return handleOpenDashboardTab(message);
     case "SYNC_DATA" /* SYNC_DATA */:
@@ -394,6 +467,36 @@ async function handleExtensionMessage(message, _sender) {
     default:
       throw new Error(`Unknown message type: ${message.type}`);
   }
+}
+async function handleGetNytReaderAverage(message) {
+  if (!storageService) {
+    storageService = ExtensionStorage.getInstance();
+    await storageService.initialize();
+  }
+  const games = await storageService.getAllGames();
+  const game = games.find((game2) => game2.date === message.date);
+  if (!game)
+    return { success: true, game: null };
+  let hardMode;
+  if (typeof message.hardMode === "boolean") {
+    const words = game.guessPattern?.map(
+      (row) => row.map((cell) => cell.letter).join("").toUpperCase()
+    ).filter((word) => /^[A-Z]{5}$/.test(word));
+    if (!words?.length || JSON.stringify(words) !== JSON.stringify(message.words)) {
+      return { success: false, game: null };
+    }
+    hardMode = message.hardMode;
+  }
+  if (game.nytReaderSource === "manual")
+    return { success: true, game };
+  const readers = await fetchNytReaderAverage({
+    ...game,
+    hardMode: hardMode ?? game.hardMode
+  });
+  return {
+    success: true,
+    game: readers ? await storageService.updateReaderAverage(game.date, readers, hardMode) : game
+  };
 }
 async function handleImportGameResult(message) {
   try {

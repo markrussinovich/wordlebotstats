@@ -97,6 +97,43 @@ describe('history persistence', () => {
     expect(stored).toHaveLength(2);
   });
 
+  it('serializes reader enrichment with imports and protects manual and mode-specific values', async () => {
+    stored = [game('2026-10-28', { skillScore: 88 })];
+    const readers = {
+      nytReaderAverage: 4.2,
+      nytReaderMode: 'hard' as const,
+      nytReaderSource: 'wordlebot' as const,
+    };
+    await Promise.all([
+      storage.updateReaderAverage('2026-10-28', readers, true),
+      storage.bulkImportGames([game('2026-10-27')]),
+    ]);
+    expect(stored).toHaveLength(2);
+    expect(stored[0]).toMatchObject({
+      ...readers,
+      hardMode: true,
+      skillScore: 88,
+      won: true,
+      attempts: 4,
+    });
+    await storage.updateReaderAverage('2026-10-28', {
+      ...readers,
+      nytReaderMode: 'normal',
+      nytReaderAverage: 3.8,
+    });
+    expect(stored[0].nytReaderAverage).toBe(4.2);
+    await storage.saveGame({
+      ...stored[0]!,
+      nytReaderAverage: 4.3,
+      nytReaderSource: 'manual',
+    });
+    await storage.updateReaderAverage('2026-10-28', readers);
+    expect(stored[0]).toMatchObject({
+      nytReaderAverage: 4.3,
+      nytReaderSource: 'manual',
+    });
+  });
+
   it('keeps distinct games without optional IDs and enriches existing store entries', () => {
     useGameDataStore.getState().clearAllGames();
     useGameDataStore.getState().addGame(game('2026-10-24'));

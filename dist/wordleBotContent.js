@@ -97,6 +97,7 @@ var WordleBotContent = (() => {
       __publicField(this, "unreadableCards", /* @__PURE__ */ new Set());
       __publicField(this, "attemptedDates", /* @__PURE__ */ new Set());
       __publicField(this, "importCounts", { imported: 0, duplicates: 0, errors: 0 });
+      __publicField(this, "lastCapturedAnalysis", "");
       // Confirmed selectors from v5
       __publicField(this, "GAME_CARD_SELECTOR", ".rating-container:not(.label-container)");
       __publicField(this, "SHOW_MORE_BUTTON_SELECTOR", '[class*="show-more-button"]');
@@ -106,6 +107,41 @@ var WordleBotContent = (() => {
       log("[WordleBotScraper] Initialized");
       this.setupMessageListener();
       this.checkAutoStart();
+    }
+    async captureAnalysisMode() {
+      const results = document.querySelector("#g-wordle-results");
+      const text = results?.textContent || "";
+      const number = text.match(/Your Ratings for Wordle No\.\s*([\d,]+)/i);
+      const population = text.match(/Based on my analysis of\s*[\d,]+\s*(hard\s+mode\s*)?Wordles/i);
+      if (!results || !number || !population)
+        return;
+      const gameNumber = Number(number[1].replace(/,/g, ""));
+      if (!Number.isSafeInteger(gameNumber) || gameNumber < 0 || gameNumber > 1e5)
+        return;
+      const words = this.extractBoardVisual(results)?.pattern?.map(
+        (row) => row.map((cell) => cell.letter).join("").toUpperCase()
+      ).filter((word) => /^[A-Z]{5}$/.test(word));
+      if (!words?.length)
+        return;
+      const date = new Date(Date.UTC(2021, 5, 19) + gameNumber * 864e5).toISOString().slice(0, 10);
+      const hardMode = Boolean(population[1]);
+      const key = JSON.stringify({ date, hardMode, words });
+      if (key === this.lastCapturedAnalysis)
+        return;
+      this.lastCapturedAnalysis = key;
+      try {
+        const response = await chrome.runtime.sendMessage({
+          type: "GET_NYT_READER_AVERAGE" /* GET_NYT_READER_AVERAGE */,
+          date,
+          hardMode,
+          words
+        });
+        if (!response?.success || !response.game)
+          this.lastCapturedAnalysis = "";
+      } catch (error) {
+        this.lastCapturedAnalysis = "";
+        errorLog("[WordleBotScraper] Analysis reader data unavailable:", error);
+      }
     }
     async checkAutoStart() {
       try {
@@ -179,6 +215,7 @@ var WordleBotContent = (() => {
       this.sendProgress(0, 0, "Opening WordleBot page...");
       const allGames = /* @__PURE__ */ new Map();
       try {
+        await this.captureAnalysisMode();
         const limit = Number.isFinite(maxIterations) ? Math.max(1, Math.floor(maxIterations)) : 200;
         await this.scrapeWithRetry(stopAtDate, limit, 0, allGames);
       } catch (error) {
@@ -1327,6 +1364,19 @@ var WordleBotContent = (() => {
     }
   };
   var scraper = new WordleBotScraper();
+  if (location.hostname === "www.nytimes.com") {
+    let captureTimer;
+    const observer = new MutationObserver(() => {
+      if (captureTimer !== void 0)
+        return;
+      captureTimer = setTimeout(() => {
+        captureTimer = void 0;
+        void scraper.captureAnalysisMode();
+      }, 300);
+    });
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+    void scraper.captureAnalysisMode();
+  }
   if (!document.hasFocus()) {
     console.log("[WordleBotScraper] Background mode detected, auto-starting");
   }

@@ -40,6 +40,7 @@ export class WordleBotScraper {
   private unreadableCards = new Set<Element>();
   private attemptedDates = new Set<string>();
   private importCounts = { imported: 0, duplicates: 0, errors: 0 };
+  private lastCapturedAnalysis = '';
 
   // Confirmed selectors from v5
   private readonly GAME_CARD_SELECTOR = '.rating-container:not(.label-container)';
@@ -52,6 +53,34 @@ export class WordleBotScraper {
   log('[WordleBotScraper] Initialized');
     this.setupMessageListener();
     this.checkAutoStart();
+  }
+
+  async captureAnalysisMode(): Promise<void> {
+    const results = document.querySelector<HTMLElement>('#g-wordle-results');
+    const text = results?.textContent || '';
+    const number = text.match(/Your Ratings for Wordle No\.\s*([\d,]+)/i);
+    const population = text.match(/Based on my analysis of\s*[\d,]+\s*(hard\s+mode\s*)?Wordles/i);
+    if (!results || !number || !population) return;
+    const gameNumber = Number(number[1]!.replace(/,/g, ''));
+    if (!Number.isSafeInteger(gameNumber) || gameNumber < 0 || gameNumber > 100000) return;
+    const words = this.extractBoardVisual(results)?.pattern?.map(row =>
+      row.map(cell => cell.letter).join('').toUpperCase()
+    ).filter(word => /^[A-Z]{5}$/.test(word));
+    if (!words?.length) return;
+    const date = new Date(Date.UTC(2021, 5, 19) + gameNumber * 86400000).toISOString().slice(0, 10);
+    const hardMode = Boolean(population[1]);
+    const key = JSON.stringify({ date, hardMode, words });
+    if (key === this.lastCapturedAnalysis) return;
+    this.lastCapturedAnalysis = key;
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: MessageType.GET_NYT_READER_AVERAGE, date, hardMode, words
+      });
+      if (!response?.success || !response.game) this.lastCapturedAnalysis = '';
+    } catch (error) {
+      this.lastCapturedAnalysis = '';
+      errorLog('[WordleBotScraper] Analysis reader data unavailable:', error);
+    }
   }
 
   private async checkAutoStart(): Promise<void> {
@@ -152,6 +181,7 @@ export class WordleBotScraper {
 
     const allGames = new Map<string, RawGameData>();
     try {
+      await this.captureAnalysisMode();
       // Start the recursive scraping process
       const limit = Number.isFinite(maxIterations) ? Math.max(1, Math.floor(maxIterations)) : 200;
       await this.scrapeWithRetry(stopAtDate, limit, 0, allGames);
@@ -1580,6 +1610,19 @@ export class WordleBotScraper {
 
 // Initialize scraper
 const scraper = new WordleBotScraper();
+
+if (location.hostname === 'www.nytimes.com') {
+  let captureTimer: ReturnType<typeof setTimeout> | undefined;
+  const observer = new MutationObserver(() => {
+    if (captureTimer !== undefined) return;
+    captureTimer = setTimeout(() => {
+      captureTimer = undefined;
+      void scraper.captureAnalysisMode();
+    }, 300);
+  });
+  observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+  void scraper.captureAnalysisMode();
+}
 
 // Auto-start if in background mode
 if (!document.hasFocus()) {

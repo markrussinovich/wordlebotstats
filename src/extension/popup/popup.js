@@ -1,5 +1,6 @@
 import '../../dashboard/theme';
 import { SOLVER_VERSION, SOLVER_DESCRIPTION } from '../../solver/solver';
+import { userTurns as getUserTurns } from '../../utils/solveComparison';
 
 // Popup script for Wordle Stats extension
 console.log('[Popup] Popup script loading...');
@@ -32,11 +33,40 @@ document.addEventListener('DOMContentLoaded', function() {
   let solverError = null;
   let showSolverSolution = false;
   let cacheWrites = Promise.resolve();
+  let readerFetchRunning = false;
+  const attemptedReaders = new Set();
   const solverCacheReady = chrome.storage.local.get(solverCacheKey)
     .then(value => { solverResults = value[solverCacheKey] || {}; })
     .catch(() => {});
 
   window.addEventListener('pagehide', () => solverWorker?.terminate());
+
+  async function calculateReaderAverages() {
+    if (readerFetchRunning) return;
+    readerFetchRunning = true;
+    try {
+      const current = allGames[currentGameIndex];
+      for (const game of [current, ...allGames]) {
+        if (!game?.solution || game.nytReaderSource === 'manual') continue;
+        const key = `${game.date}:${game.hardMode}`;
+        if (attemptedReaders.has(key)) continue;
+        attemptedReaders.add(key);
+        try {
+          const response = await chrome.runtime.sendMessage({
+            type: 'GET_NYT_READER_AVERAGE', date: game.date
+          });
+          if (response?.success && response.game) {
+            allGames = allGames.map(item => item.date === game.date ? response.game : item);
+            render();
+          }
+        } catch (error) {
+          console.warn('[Popup] Reader average unavailable:', error);
+        }
+      }
+    } finally {
+      readerFetchRunning = false;
+    }
+  }
 
   async function calculateSolverResults() {
     await solverCacheReady;
@@ -343,6 +373,7 @@ document.addEventListener('DOMContentLoaded', function() {
       // isLoading = false;
       render();
       calculateSolverResults();
+      calculateReaderAverages();
     }
   }
   
@@ -383,6 +414,7 @@ document.addEventListener('DOMContentLoaded', function() {
       // Reset to most recent game if new games were found
       if (message.newGames > 0) {
         currentGameIndex = 0;
+        showSolverSolution = false;
         saveCurrentGameIndex();
         console.log('[Popup] Reset to newest game due to new games found');
       }
@@ -638,14 +670,7 @@ document.addEventListener('DOMContentLoaded', function() {
       year: 'numeric'
     });
 
-    const attempts = currentGame.attempts || currentGame.guesses || 0;
-    const resultText = currentGame.won ? 'Won' : 'Lost';
-    const resultClass = currentGame.won ? 'won' : 'lost';
     const word = currentGame.solution || '\u2014';
-    const wordClass = currentGame.won ? '' : ' lost';
-
-    // Create game board grid
-    const gameBoard = renderGameBoard(currentGame);
 
     const hasScores = currentGame.skillScore !== undefined && currentGame.luckScore !== undefined;
     const readerAverage = currentGame.nytReaderAverage;
@@ -656,6 +681,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const solverTitle = escapeHtml(solverError || (solver?.status === 'unavailable'
       ? 'This answer is outside the bundled solver dictionary.'
       : SOLVER_DESCRIPTION));
+    const showSolverBoard = showSolverSolution && solver?.guesses?.length > 0;
+    const userTurns = getUserTurns(currentGame);
+    const userTurnCount = userTurns === 7 ? 'X/6' : userTurns ?? 'N/A';
+    const wordClass = (showSolverBoard ? solver.status === 'solved' : currentGame.won) ? '' : ' lost';
+    const gameBoard = renderGameBoard(
+      showSolverBoard ? { guessPattern: solver.guesses.map(guess => guess.feedback) } : currentGame,
+      showSolverBoard ? 'Local solver board' : 'Your game board'
+    );
 
     return `
       <div class="game-viewer">
@@ -665,6 +698,10 @@ document.addEventListener('DOMContentLoaded', function() {
         
         <div class="game-viewer-content">
           <div class="game-word${wordClass}">${word.toUpperCase()}</div>
+          <div class="game-board-mode" data-mode="${showSolverBoard ? 'solver' : 'user'}"
+            title="${showSolverBoard ? solverTitle : 'Your played guesses'}">
+            ${showSolverBoard ? 'Local solver (normal mode)' : 'Your game'}
+          </div>
           
           <div class="game-board-container">
             <div class="board-and-scores">
@@ -672,15 +709,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 <button class="nav-btn nav-btn-large" id="prev-game-btn" aria-label="Previous game" ${currentGameIndex >= allGames.length - 1 ? 'disabled' : ''}>
                   ‹
                 </button>
-                <div class="score-item" title="${hasReaderAverage ? 'Per-puzzle NYT reader average' : 'NYT history does not supply this figure. Enter the per-puzzle reader average in the dashboard.'}">
-                  <span class="score-label">NYT Avg</span>
-                  <span class="score-value" data-testid="popup-reader-average">${hasReaderAverage ? readerAverage.toFixed(2) : 'N/A'}</span>
-                </div>
-                <div class="score-item" title="${solverTitle}">
-                  <span class="score-label">Solver</span>
-                  <button class="score-value solver-solution-btn" id="solver-solution-btn"
-                    aria-label="Show local solver solution" aria-expanded="${showSolverSolution}"
-                    ${solver?.guesses?.length ? '' : 'disabled'}>${solverTurns}</button>
+                <div class="score-metrics">
+                  <div class="score-item" title="${hasReaderAverage ? `Per-puzzle NYT reader average${currentGame.nytReaderMode ? ` (${currentGame.nytReaderMode} mode)` : ''}` : 'NYT reader data is loading or not yet published for this puzzle. A per-puzzle figure can also be entered in the dashboard.'}">
+                    <span class="score-label">NYT Avg</span>
+                    <span class="score-value" data-testid="popup-reader-average">${hasReaderAverage ? readerAverage.toFixed(2) : 'N/A'}</span>
+                  </div>
+                  <div class="score-item" title="${showSolverBoard ? 'Return to your played guesses' : solverTitle}">
+                    <span class="score-label">${showSolverBoard ? 'User' : 'Solver'}</span>
+                    <button class="score-value solver-solution-btn" id="solver-solution-btn"
+                      aria-label="${showSolverBoard ? 'Show your game' : 'Show local solver solution'}"
+                      aria-controls="popup-game-board"
+                      ${solver?.guesses?.length ? '' : 'disabled'}>${showSolverBoard ? userTurnCount : solverTurns}</button>
+                  </div>
                 </div>
               </div>
               
@@ -691,12 +731,12 @@ document.addEventListener('DOMContentLoaded', function() {
                   <button class="nav-btn nav-btn-large" id="next-game-btn" aria-label="Next game" ${currentGameIndex <= 0 ? 'disabled' : ''}>
                     ›
                   </button>
-                  <div style="margin-top: 16px;">
+                  <div class="score-metrics" title="Your WordleBot luck and skill scores">
                     <div class="score-item">
                       <span class="score-label">Luck</span>
                       <span class="score-value">${currentGame.luckScore}</span>
                     </div>
-                    <div class="score-item" style="margin-top: 8px;">
+                    <div class="score-item">
                       <span class="score-label">Skill</span>
                       <span class="score-value">${currentGame.skillScore}</span>
                     </div>
@@ -708,19 +748,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 </button>
               `}
             </div>
-            ${showSolverSolution && solver?.guesses?.length ? `
-              <div class="popup-solver-path" role="region" aria-label="Local solver solution">
-                <div>${solver.guesses.map(guess => escapeHtml(guess.word)).join(' &rarr; ')}</div>
-                <small>Normal-mode estimate, not NYT WordleBot or guaranteed optimal.</small>
-              </div>
-            ` : ''}
           </div>
         </div>
       </div>
     `;
   }
 
-  function renderGameBoard(game) {
+  function renderGameBoard(game, label) {
     let pattern = [];
     
     // Try to use guessPattern first
@@ -756,7 +790,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     return `
-      <div class="game-board">
+      <div class="game-board" id="popup-game-board" role="group" aria-label="${label}">
         ${fullPattern.map((row, rowIndex) => `
           <div class="board-row">
             ${row.map((cell, cellIndex) => `

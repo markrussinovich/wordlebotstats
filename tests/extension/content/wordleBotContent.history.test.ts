@@ -169,6 +169,42 @@ describe('WordleBot history reconciliation', () => {
     expect((scraper as any).normalizeTileStatus('incorrect')).toBe('absent');
   });
 
+  it('captures the daily analysis mode with its puzzle and exact guesses, not recent-score aggregates', async () => {
+    document.body.innerHTML = `
+      <div id="g-wordle-results">
+        Your Average Recent Score
+        Average of 10 games in the past two weeks
+        Based on my analysis of 132,249 hard mode Wordles
+      </div>`;
+    const pattern = ['SALET', 'FROST', 'WRIST', 'GRIST'].map((word) =>
+      [...word].map((letter) => ({ letter, status: 'correct' }))
+    );
+    jest
+      .spyOn(scraper as any, 'extractBoardVisual')
+      .mockReturnValue({ pattern });
+    await scraper.captureAnalysisMode();
+    expect(messages).toHaveLength(0);
+    document.querySelector('#g-wordle-results')!.innerHTML = `
+      Your Ratings for Wordle No.<span>1,957</span>
+      Based on my analysis of<span>132,249</span><span>hard mode </span>Wordles`;
+    (chrome.runtime.sendMessage as jest.Mock).mockImplementation(
+      async (message) => {
+        messages.push(message);
+        return { success: true, game: { date: '2026-10-28' } };
+      }
+    );
+    await scraper.captureAnalysisMode();
+    await scraper.captureAnalysisMode();
+    expect(messages).toEqual([
+      {
+        type: MessageType.GET_NYT_READER_AVERAGE,
+        date: '2026-10-28',
+        hardMode: true,
+        words: ['SALET', 'FROST', 'WRIST', 'GRIST'],
+      },
+    ]);
+  });
+
   it('preserves partial history on stalled pagination and reports unreadable cards', async () => {
     document.body.innerHTML =
       card('October 27, 2026') +

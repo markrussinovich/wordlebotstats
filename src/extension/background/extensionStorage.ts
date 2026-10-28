@@ -3,6 +3,7 @@
 
 import { GameResult } from '@/types/gameTypes';
 import { mergeGames } from '@/utils/mergeGames';
+import { NytReaderAverage } from '@/utils/nytReaderAverage';
 import logger from '../utils/logger';
 const log = logger.log; const errorLog = logger.error;
 
@@ -37,6 +38,31 @@ export class ExtensionStorage {
   async saveGame(game: GameResult): Promise<void> {
     const result = await this.bulkImportGames([game]);
     if (result.errors) throw new Error('Game could not be saved');
+  }
+
+  async updateReaderAverage(
+    date: string,
+    readers: NytReaderAverage,
+    hardMode?: boolean
+  ): Promise<GameResult | null> {
+    const operation = this.writeQueue.then(async () => {
+      const games = await this.getAllGames();
+      const index = games.findIndex(game => game.date === date);
+      const game = games[index];
+      if (!game) return null;
+      if (readers.nytReaderMode !== ((hardMode ?? game.hardMode) ? 'hard' : 'normal')) {
+        return game;
+      }
+      games[index] = {
+        ...game,
+        ...(game.nytReaderSource === 'manual' ? {} : readers),
+        ...(hardMode !== undefined ? { hardMode } : {}),
+      };
+      await chrome.storage.local.set({ games });
+      return games[index]!;
+    });
+    this.writeQueue = operation.catch(() => undefined);
+    return operation;
   }
 
   async bulkImportGames(newGames: GameResult[]): Promise<{

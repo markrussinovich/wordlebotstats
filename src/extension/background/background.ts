@@ -16,6 +16,7 @@ import {
 } from '@/types/messagingTypes';
 import { GameResult } from '@/types/gameTypes';
 import { ExtensionStorage } from './extensionStorage';
+import { fetchNytReaderAverage } from '@/utils/nytReaderAverage';
 import logger from '../utils/logger';
 const log = logger.log; const errorLog = logger.error;
 
@@ -195,6 +196,8 @@ async function handleExtensionMessage(
       
     case MessageType.GET_DASHBOARD_DATA:
       return handleGetDashboardData(message as GetDashboardDataMessage);
+    case MessageType.GET_NYT_READER_AVERAGE:
+      return handleGetNytReaderAverage(message);
     case MessageType.OPEN_DASHBOARD_TAB:
       return handleOpenDashboardTab(message as OpenDashboardTabMessage);
       
@@ -229,6 +232,38 @@ async function handleExtensionMessage(
     default:
       throw new Error(`Unknown message type: ${(message as any).type}`);
   }
+}
+
+async function handleGetNytReaderAverage(message: {
+  date: string;
+  hardMode?: boolean;
+  words?: string[];
+}): Promise<{ success: boolean; game: GameResult | null }> {
+  if (!storageService) {
+    storageService = ExtensionStorage.getInstance();
+    await storageService.initialize();
+  }
+  const games = await storageService.getAllGames();
+  const game = games.find(game => game.date === message.date);
+  if (!game) return { success: true, game: null };
+  let hardMode: boolean | undefined;
+  if (typeof message.hardMode === 'boolean') {
+    const words = game.guessPattern?.map(row =>
+      row.map(cell => cell.letter).join('').toUpperCase()
+    ).filter(word => /^[A-Z]{5}$/.test(word));
+    if (!words?.length || JSON.stringify(words) !== JSON.stringify(message.words)) {
+      return { success: false, game: null };
+    }
+    hardMode = message.hardMode;
+  }
+  if (game.nytReaderSource === 'manual') return { success: true, game };
+  const readers = await fetchNytReaderAverage({
+    ...game, hardMode: hardMode ?? game.hardMode
+  });
+  return {
+    success: true,
+    game: readers ? await storageService.updateReaderAverage(game.date, readers, hardMode) : game,
+  };
 }
 
 // Handle game result import from content script

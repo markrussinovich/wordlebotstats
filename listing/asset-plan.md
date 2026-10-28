@@ -5,11 +5,11 @@ The Chrome Web Store listing relies on a cohesive set of visual assets. Use this
 | Asset | Dimensions | Format | Status | Notes |
 | --- | --- | --- | --- | --- |
 | Store icon | 128 × 128 px (PNG) | Transparent PNG | ☐ To capture | Use the existing extension icon, ensure crisp edges, no screenshots or small text. Export at 128×128 and 48×48 for internal testing. |
-| Screenshot 1 | 1280 × 800 px | PNG | ☐ To capture | Dashboard overview with win rate, streak, and WordleBot comparison visible. Use light mode with authentic data; crop to remove browser UI. |
-| Screenshot 2 | 1280 × 800 px | PNG | ☐ To capture | Auto-import flow showing spinner and NYT login guidance. Demonstrate the popup collecting data. |
-| Screenshot 3 | 1280 × 800 px | PNG | ☐ To capture | Trend timeline showcasing performance over time with tooltips. Highlight comparison to national average. |
-| Screenshot 4 | 1280 × 800 px | PNG | ☐ Optional | Optional stager showing benchmarking view or preferences panel. |
-| Screenshot 5 | 1280 × 800 px | PNG | ☐ Optional | Optional advanced analytics (guess distribution chart) once available. |
+| Screenshot 1 | 1280 × 800 px | PNG | ☑ Complete (1.1.0) | `assets/screenshot-01-overview.png`: dashboard totals, head-to-head stats, and timeline vs solver and NYT readers. |
+| Screenshot 2 | 1280 × 800 px | PNG | ☑ Complete (1.1.0) | `assets/screenshot-02-comparisons.png`: narrowed timeline range with updated comparisons and turn distribution. |
+| Screenshot 3 | 1280 × 800 px | PNG | ☑ Complete (1.1.0) | `assets/screenshot-03-solver-games.png`: individual game tiles with an expanded solver path. |
+| Screenshot 4 | 1280 × 800 px | PNG | ☑ Complete (1.1.0) | `assets/screenshot-04-popup.png`: popup showing the user's board and the solver's board side by side. |
+| Screenshot 5 | 1280 × 800 px | PNG | ☐ Optional | Optional dark-mode variant. |
 | Promo tile (small) | 440 × 280 px | PNG | ☐ To design | Bold gradient background with logo and short tagline: “Understand your Wordle streak”. Minimal text, align with icon palette. |
 | Marquee image | 1400 × 560 px | PNG | ☐ Optional | Wide-format hero; include product mockup and CTA “Compare with WordleBot”. Keep margins, avoid clutter. |
 
@@ -22,7 +22,7 @@ The Chrome Web Store listing relies on a cohesive set of visual assets. Use this
 
 ## Workflow
 
-1. Stage representative data by running the extension locally and importing sample games (`tests/fixtures/sample-wordle-data.json` if needed).
+1. Stage representative synthetic data (never personal game history). The 1.1.0 screenshots use deterministic demo games rendered from `dist/` with stubbed extension APIs.
 2. Capture PNGs using a high-DPI display. Verify they remain sharp when viewed at 50% scale.
 3. Optimize files (ImageOptim or `pnpm imagemin` equivalent) before committing to keep repository size manageable.
 4. Place final assets in `listing/assets/` and mark the table above as complete.

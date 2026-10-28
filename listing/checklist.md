@@ -23,6 +23,12 @@ Use this checklist before submitting **Wordle Stat Explorer** to the Chrome Web 
 - Mention any onboarding tweaks (e.g., improved NYT login detection).
 - Link back to docs or GitHub for detailed changelog if desired.
 
+### 1.1.0
+
+- New local WordleBot-style solver: see its optimal turn count and guess path for every game, in the dashboard and the popup.
+- Compare every game and your trend with NYT reader averages, including "vs Solver" and "vs NYT Readers" stats for any date range.
+- Reliable backfill of missed games, a refreshed NYT Wordle look, and popup navigation that jumps back to the latest game.
+
 ## Support & Contact
 
 - Primary support: <https://github.com/markrussinovich/wordlebotstats/issues>

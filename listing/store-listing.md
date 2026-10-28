@@ -6,18 +6,21 @@ Wordle Stat Explorer
 
 ## Summary (≤132 characters)
 
-Import your Wordle games and view win rate, streaks, guesses, and WordleBot skill/luck scores in one clean dashboard.
+Track your Wordle history and compare every game with NYT readers and a local WordleBot-style solver, plus skill and luck trends.
 
 ## Description
 
-Turn your daily Wordle habit into actionable insight. Wordle Stat Explorer automatically imports your game history (including WordleBot skill and luck scores) and presents it in an elegant dashboard so you can spot trends, celebrate streaks, and track your progress over time. View detailed performance metrics and analyze your solving patterns week to week.
+Turn your daily Wordle habit into actionable insight. Wordle Stat Explorer imports your full game history (including WordleBot skill and luck scores), fills in games you missed, and compares every puzzle with the NYT reader average and a local WordleBot-style solver. Spot trends, celebrate streaks, and see exactly where you beat—or trail—the benchmarks.
 
 ### Key features
 
-- **One-click import**: Automatically grabs your latest games from Wordle without leaving the puzzle page.
-- **Comprehensive stats**: View win rate, average guesses, current or longest streak, and total games at a glance.
-- **WordleBot insights**: See skill and luck scores for each game to understand your solving performance.
-- **Timeline and trend charts**: Visualize streaks, guess counts, and score trends over time to spot patterns.
+- **Complete history import**: Imports your WordleBot history and automatically backfills games you missed.
+- **Local optimal solver**: A built-in entropy-based solver plays every puzzle so you can see the optimal turn count and its full guess path.
+- **NYT reader comparison**: See the NYT reader average turns for each puzzle alongside your own result.
+- **Head-to-head stats**: "vs Solver" and "vs NYT Readers" averages update as you drag the timeline range.
+- **Timeline and trend charts**: Plot your turns, solver turns, reader averages, skill, and luck as rolling averages, cumulative averages, or individual games.
+- **Game tiles and popup boards**: Wordle-colored tiles show who won each day; flip the popup between your board and the solver's board.
+- **Comprehensive stats**: Win rate, average turns, streaks, and turn distribution at a glance.
 
 ### Why users love it
 

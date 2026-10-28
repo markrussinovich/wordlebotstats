@@ -12,21 +12,26 @@ COMPREHENSIVE STATISTICS
 • Guess Distribution: Visualize how often you solve in 1, 2, 3, 4, 5, or 6 guesses
 • Time Period Analysis: View stats for the last 7 days, 30 days, 90 days, or all time
 
+SOLVER & NYT READER COMPARISONS
+• Local Optimal Solver: A built-in WordleBot-style solver plays every puzzle and shows its optimal turn count and full guess path
+• NYT Reader Averages: See how many turns NYT readers took on each puzzle
+• Head-to-Head Stats: "vs Solver" and "vs NYT Readers" averages for any date range you select
+• Wordle-Colored Results: Green when you beat the benchmark, yellow for a tie, gray when the benchmark wins
+
 WORDLEBOT INTEGRATION
 • Skill & Luck Scores: Automatically captures your WordleBot ratings when available
-• Performance Comparison: See how your results compare to WordleBot's analysis
 • Historical Tracking: Watch your skill improve over months of play
 
 BEAUTIFUL VISUALIZATIONS
-• Timeline Charts: See your performance trends with interactive graphs
-• Running Averages: Track your improvement with skill and luck averages over time
+• Timeline Charts: Plot your turns against the solver and NYT readers with an adjustable date range
+• Rolling, Cumulative, or Per-Game Views: Track improvement in turns, skill, and luck over time
 • Game Board History: Review the actual letter grids from your past games
 • Performance Insights: Discover patterns in your solving approach
 
 EFFORTLESS SETUP
 • One-Click Import: Automatically captures your game history from the NYTimes WordleBot page
 • Instant Stats: View quick statistics right from the extension popup
-• Smart Updates: Checks for new games and updates your stats automatically
+• Smart Updates: Checks for new games and backfills any you missed automatically
 • No Manual Entry: Never type in results manually - everything is captured automatically
 
 PERFECT FOR
@@ -57,22 +62,24 @@ WHAT YOU'LL SEE
 
 POPUP QUICK STATS
 • Current win rate and average guesses
-• Today's game result with skill/luck scores
-• Current and longest streak information
+• Today's game result with skill/luck scores, NYT reader average, and solver turns
+• Toggle between your board and the solver's board
+• Browse earlier games and jump back to the most recent one
+• Current streak and games played
 • Easy access to the full dashboard
 
 FULL DASHBOARD
-• Interactive timeline showing all your games
-• Trend analysis with running averages
-• Detailed game viewer with board reconstruction
-• Performance comparison charts
+• Interactive timeline comparing you, the solver, and NYT readers
+• Trend analysis with rolling and cumulative averages
+• Game tiles that reveal the answer and the solver's guess path
+• Turn distribution for the selected range
 • Comprehensive statistics breakdown
 
 BENEFITS
 
 • Motivation: See your improvement over time and celebrate achievements
 • Insights: Understand your solving patterns and identify areas to improve
-• Competition: Compare your performance to national averages and WordleBot
+• Competition: Compare your performance to NYT readers and an optimal solver
 • Memory: Revisit challenging words and remember great solving moments
 • Progress: Track your Wordle journey with beautiful, meaningful data
 

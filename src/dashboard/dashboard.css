@@ -101,6 +101,7 @@ html[data-theme="dark"] {
 .metric-toggle[aria-pressed="true"] { border-color: var(--cp-text); color: var(--cp-text); }
 .metric-toggle:hover { border-color: var(--cp-border-strong); }
 .metric-toggle:focus-visible { outline: 2px solid var(--cp-accent); outline-offset: 2px; }
+.metric-toggle.metric-fixed, .metric-toggle.metric-fixed:hover { border-color: transparent; padding-left: 0; color: var(--cp-text); font-weight: 800; cursor: default; }
 .metric-swatch { flex: none; overflow: visible; }
 .metric-toggle[aria-pressed="false"] .metric-swatch { opacity: 0.4; }
 .timeline-chart .recharts-brush > rect:first-child { fill: var(--cp-surface-soft); stroke: var(--cp-border-strong); }

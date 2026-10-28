@@ -183,10 +183,15 @@ test('real solver worker, chart, tiles, reader persistence and cached reload wor
     name: 'Local solver',
     exact: true,
   });
+  await expect(page.getByRole('button', { name: 'Your turns' })).toHaveCount(0);
   await solverToggle.hover();
   await expect(page.locator('.metric-user .recharts-line-curve')).toHaveCSS(
     'stroke-opacity',
-    '0.2'
+    '1'
+  );
+  await expect(page.locator('.metric-user .recharts-line-curve')).toHaveCSS(
+    'stroke-width',
+    '4.5px'
   );
   await expect(page.locator('.metric-solver .recharts-line-curve')).toHaveCSS(
     'stroke-width',

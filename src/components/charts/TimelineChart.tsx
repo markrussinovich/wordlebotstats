@@ -635,7 +635,15 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
         {[
           ...METRICS,
           { key: 'games' as const, label: 'Game results', color: 'var(--cp-success)' },
-        ].map(metric => (
+        ].map(metric => metric.key === 'user' ? (
+          <span key={metric.key} className="metric-toggle metric-fixed"
+            style={{ '--metric-color': metric.color } as CSSProperties}>
+            <svg className="metric-swatch" width="20" height="10" viewBox="0 0 20 10" aria-hidden="true">
+              <line x1="1" x2="19" y1="5" y2="5" stroke="var(--metric-color)" strokeWidth="4.5" />
+            </svg>
+            {metric.label}
+          </span>
+        ) : (
           <button key={metric.key} type="button" className="metric-toggle"
             aria-pressed={metrics[metric.key]} aria-describedby="timeline-metric-help"
             onClick={() => {
@@ -667,9 +675,8 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
         </label>
       </div>
       <p className="section-subtitle" id="timeline-metric-help">
-        Toggle metrics to show or hide them; hover or focus to highlight. Failures count as 7 turns; lines connect across missing games.
+        Your turns are always shown. Toggle other metrics to show or hide them; hover or focus to highlight. Failures count as 7 turns; lines connect across missing games.
       </p>
-      {!Object.values(metrics).some(Boolean) && <p role="status">Select a metric to plot.</p>}
 
       <ResponsiveContainer width="100%" height={400}>
         <ComposedChart data={chartDataWithZoomedAverages} margin={CHART_MARGINS}>
@@ -715,8 +722,8 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
             <Line key={metric.key} className={`metric-${metric.key}`}
               type="monotone" dataKey={metric.key} name={metric.label} connectNulls
               stroke={metric.color} strokeDasharray={metric.dash}
-              strokeWidth={highlighted === metric.key ? 4.5 : 3}
-              strokeOpacity={highlighted && highlighted !== metric.key ? 0.2 : 1}
+              strokeWidth={metric.key === 'user' || highlighted === metric.key ? 4.5 : 3}
+              strokeOpacity={metric.key !== 'user' && highlighted && highlighted !== metric.key ? 0.2 : 1}
               hide={!metrics[metric.key]} yAxisId={metric.axis}
               dot={plot === 'daily' || chartDataWithZoomedAverages.filter(point => typeof point[metric.key] === 'number').length === 1
                 ? { r: 3, stroke: 'var(--cp-surface)' }

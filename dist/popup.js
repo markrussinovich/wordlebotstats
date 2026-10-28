@@ -7,8 +7,8 @@
   })();
 
   // src/solver/solver.ts
-  var SOLVER_VERSION = "2-dwyl-20f5cc9-slate-probes-exact8";
-  var SOLVER_DESCRIPTION = "Normal mode, fixed SLATE opener, equal word probabilities. Minimizes expected remaining candidates using candidate guesses and informative probes; exact expected-turn search over the bundled guess dictionary when 8 or fewer remain. Not NYT WordleBot or a globally optimal solver. The public-domain dictionary includes words NYT may not accept.";
+  var SOLVER_VERSION = "3-12dicts-5ef55f9-wordfreq-372f6db-raise";
+  var SOLVER_DESCRIPTION = "Normal mode, fixed RAISE opener, common answers from public-domain 12Dicts and probabilities from wordfreq. Uses entropy-based expected-turn estimates and exact search when 8 or fewer candidates remain or two turns are left, prioritizing solving within six turns. Falls back to the wider dictionary when feedback rules out common answers. Not NYT WordleBot or a globally optimal solver; results may differ.";
 
   // src/utils/solveComparison.ts
   function userTurns(game) {

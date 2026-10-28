@@ -1,7 +1,8 @@
 import words from './data/words.json';
+import frequencies from './data/frequencies.json';
 import { WordleSolver } from './solver';
 
-const solver = new WordleSolver(words);
+const solver = new WordleSolver(words, frequencies.zipf, frequencies.answers);
 self.onmessage = (event: MessageEvent<string[]>) => {
   try {
     for (const solution of event.data) {

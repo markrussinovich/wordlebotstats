@@ -74,7 +74,7 @@ test('real solver worker, chart, tiles, reader persistence and cached reload wor
         attempts: 7,
         won: false,
         hardMode: true,
-        solution: 'SLATE',
+        solution: 'PENNY',
         skillScore: 90,
         luckScore: 0,
       },
@@ -93,7 +93,13 @@ test('real solver worker, chart, tiles, reader persistence and cached reload wor
         'test-extension-storage',
         JSON.stringify({ ...get(), ...values })
       );
-    if (!get().games) set({ games: initial });
+    if (!get().games)
+      set({
+        games: initial,
+        'solver-2-dwyl-20f5cc9-slate-probes-exact8': {
+          PENNY: { status: 'failed', turns: null, guesses: [] },
+        },
+      });
     (window as any).chrome = {
       runtime: {
         sendMessage: async (message: any) => {
@@ -147,7 +153,7 @@ test('real solver worker, chart, tiles, reader persistence and cached reload wor
   ).toBeVisible();
   await expect(apple.locator('.solve-feedback').first()).toHaveAttribute(
     'aria-label',
-    /^SLATE:/
+    /^RAISE:/
   );
   await expect(apple.locator('.solve-feedback').last()).toHaveAttribute(
     'aria-label',
@@ -156,6 +162,7 @@ test('real solver worker, chart, tiles, reader persistence and cached reload wor
   const failed = page.locator('details').filter({ hasText: '2026-10-25' });
   await expect(failed.locator('summary')).toContainText('X/6');
   await expect(failed.locator('summary')).toContainText('N/A');
+  await expect(failed.locator('.solve-turns strong').nth(1)).toHaveText('3');
   await failed.locator('summary').click();
   await failed.getByLabel("NYT readers' average for 2026-10-25").fill('3.75');
   await failed.getByRole('button', { name: 'Save reader average' }).click();
@@ -418,7 +425,7 @@ test('popup fits browser bounds, provides colored comparison buttons and keeps p
               [...'APPLE'].map((letter) => ({ letter, status: 'correct' })),
             ],
           },
-          { date: '2026-10-27', guesses: 1, won: true, solution: 'SLATE' },
+          { date: '2026-10-27', guesses: 1, won: true, solution: 'RAISE' },
           { date: '2026-10-26', attempts: 4, won: true, solution: 'ZZZZZ' },
           { date: '2026-10-25', attempts: 4, won: true },
         ],
@@ -557,7 +564,7 @@ test('popup fits browser bounds, provides colored comparison buttons and keeps p
         .locator('.board-cell')
         .allTextContents()
     ).map((text) => text.trim())
-  ).toEqual(['S', 'L', 'A', 'T', 'E']);
+  ).toEqual(['R', 'A', 'I', 'S', 'E']);
   const lastGuess = solverBoard.locator('.board-row').nth(Number(turns) - 1);
   expect(
     (await lastGuess.locator('.board-cell').allTextContents()).map((text) =>
@@ -653,7 +660,7 @@ test('popup fits browser bounds, provides colored comparison buttons and keeps p
       ([key, value]) =>
         key.startsWith('solver-') &&
         (value as any).APPLE &&
-        (value as any).SLATE &&
+        (value as any).RAISE &&
         (value as any).ZZZZZ
     );
   });
@@ -798,7 +805,7 @@ test('real extension routes imports and dashboard replies correctly while its po
       popup
         .getByRole('button', { name: 'Show local solver solution' })
         .locator('.score-value')
-    ).toHaveText('1');
+    ).toHaveText('3');
     await background.evaluate(() => {
       globalThis.fetch = async () =>
         new Response(

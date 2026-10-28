@@ -5,9 +5,12 @@ import {
   pairedComparison,
 } from '@/utils/solveComparison';
 import { GameResult } from '@/types/gameTypes';
+import dictionary from '@/solver/data/words.json';
+import frequencies from '@/solver/data/frequencies.json';
 
 describe('local feedback solver', () => {
   const words = [
+    'RAISE',
     'SLATE',
     'APPLE',
     'AMPLE',
@@ -27,13 +30,23 @@ describe('local feedback solver', () => {
       )
     ).toEqual(['correct', 'present', 'absent', 'present', 'absent']);
     expect(scoreGuess('APPLE', 'APPLE')).toBe(242);
+    expect(
+      feedbackCells('EAGLE', scoreGuess('EAGLE', 'APPLE')).map(
+        (cell) => cell.status
+      )
+    ).toEqual(['absent', 'present', 'absent', 'correct', 'correct']);
+    expect(
+      feedbackCells('EERIE', scoreGuess('EERIE', 'SHEEP')).map(
+        (cell) => cell.status
+      )
+    ).toEqual(['present', 'present', 'absent', 'absent', 'absent']);
   });
 
   it('uses only feedback to choose guesses, solves candidates, and does not inject unknown answers', () => {
     for (const word of words) {
       const result = solver.solve(word);
       expect(result.status).toBe('solved');
-      expect(result.guesses[0].word).toBe('SLATE');
+      expect(result.guesses[0].word).toBe('RAISE');
       expect(result.guesses[result.guesses.length - 1].word).toBe(word);
       let candidates = words;
       for (const guess of result.guesses) {
@@ -49,19 +62,19 @@ describe('local feedback solver', () => {
       turns: null,
       guesses: [],
     });
-    expect(solver.solve('SLATE').turns).toBe(1);
+    expect(solver.solve('RAISE').turns).toBe(1);
   });
 
   it('chooses the same next guess for indistinguishable histories', () => {
     const a = solver.solve('APPLE');
     const b = solver.solve('AMPLE');
-    expect(scoreGuess('SLATE', 'APPLE')).toBe(scoreGuess('SLATE', 'AMPLE'));
+    expect(scoreGuess('RAISE', 'APPLE')).toBe(scoreGuess('RAISE', 'AMPLE'));
     expect(a.guesses[1].word).toBe(b.guesses[1].word);
   });
 
   it('uses an information probe to minimize expected turns for an ambiguous endgame', () => {
     const answers = ['CATCH', 'HATCH', 'MATCH', 'PATCH', 'WATCH'];
-    const probing = new WordleSolver([...answers, 'CHAMP', 'SLATE']);
+    const probing = new WordleSolver([...answers, 'CHAMP', 'RAISE']);
     const paths = answers.map((answer) => probing.solve(answer));
     expect(paths.every((result) => result.status === 'solved')).toBe(true);
     // CHAMP separates this family; sequentially guessing its members costs more.
@@ -73,6 +86,51 @@ describe('local feedback solver', () => {
     expect(paths.reduce((sum, result) => sum + result.turns!, 0)).toBeLessThan(
       20
     );
+  });
+
+  it('solves PENNY in three with the production vocabulary, without choosing guesses from the known answer', () => {
+    const production = new WordleSolver(
+      dictionary,
+      frequencies.zipf,
+      frequencies.answers
+    );
+    const penny = production.solve('PENNY');
+    expect(penny.status).toBe('solved');
+    expect(penny.guesses.map((guess) => guess.word)).toEqual([
+      'RAISE',
+      'MONTH',
+      'PENNY',
+    ]);
+    expect(penny.turns).toBe(3);
+    const seen = new Map<string, string>();
+    for (const answer of ['PENNY', 'HONEY', 'TEENY', 'BENCH', 'JENNY']) {
+      let history = '';
+      for (const guess of production.solve(answer).guesses) {
+        const previous = seen.get(history);
+        if (previous) expect(guess.word).toBe(previous);
+        seen.set(history, guess.word);
+        history += `${guess.word}:${scoreGuess(guess.word, answer)};`;
+      }
+    }
+  });
+
+  it('prefers probable answers over alphabetical rare alternatives and falls back only from feedback', () => {
+    const family = ['RAISE', 'FENNY', 'JENNY', 'PENNY'];
+    const weighted = new WordleSolver(family, {
+      PENNY: 4.07,
+      JENNY: 1,
+      FENNY: 1,
+    });
+    expect(weighted.solve('PENNY').turns).toBe(2);
+    const fallback = new WordleSolver(family, undefined, ['RAISE', 'PENNY']);
+    expect(fallback.solve('FENNY').status).toBe('solved');
+    expect(
+      fallback
+        .solve('FENNY')
+        .guesses.slice(0, 2)
+        .map((guess) => guess.word)
+    ).toEqual(['RAISE', 'PENNY']);
+    expect(fallback.solve('ZZZZZ').status).toBe('unavailable');
   });
 });
 

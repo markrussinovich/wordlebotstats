@@ -612,15 +612,23 @@
         showSolverBoard ? { guessPattern: solver.guesses.map((guess) => guess.feedback) } : currentGame,
         showSolverBoard ? "Local solver board" : "Your game board"
       );
+      const nextNav = `
+      <div class="next-nav">
+        <button class="nav-btn nav-btn-large" id="next-game-btn" aria-label="Next game" ${currentGameIndex <= 0 ? "disabled" : ""}>
+          \u203A
+        </button>
+        ${currentGameIndex > 0 ? `
+          <button class="nav-btn latest-game-btn" id="latest-game-btn" aria-label="Jump to most recent game" title="Jump to most recent game">
+            \xBB
+          </button>
+        ` : ""}
+      </div>
+    `;
       return `
       <div class="game-viewer">
         <div class="game-info">
           <div class="game-date">${formattedDate}</div>
-          ${currentGameIndex > 0 ? `
-            <button class="latest-game-btn" id="latest-game-btn" aria-label="Jump to most recent game" title="Jump to most recent game">
-              Latest \xBB
-            </button>
-          ` : ""}
+
         </div>
         
         <div class="game-viewer-content">
@@ -657,9 +665,7 @@
               
               ${hasScores ? `
                 <div class="score-right-stacked">
-                  <button class="nav-btn nav-btn-large" id="next-game-btn" aria-label="Next game" ${currentGameIndex <= 0 ? "disabled" : ""}>
-                    \u203A
-                  </button>
+                  ${nextNav}
                   <div class="score-metrics" title="Your WordleBot luck and skill scores">
                     <div class="score-item">
                       <span class="score-label">Luck</span>
@@ -672,9 +678,7 @@
                   </div>
                 </div>
               ` : `
-                <button class="nav-btn nav-btn-large" id="next-game-btn" aria-label="Next game" ${currentGameIndex <= 0 ? "disabled" : ""}>
-                  \u203A
-                </button>
+                ${nextNav}
               `}
             </div>
           </div>

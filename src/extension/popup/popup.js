@@ -711,15 +711,24 @@ document.addEventListener('DOMContentLoaded', function() {
       showSolverBoard ? 'Local solver board' : 'Your game board'
     );
 
+    const nextNav = `
+      <div class="next-nav">
+        <button class="nav-btn nav-btn-large" id="next-game-btn" aria-label="Next game" ${currentGameIndex <= 0 ? 'disabled' : ''}>
+          ›
+        </button>
+        ${currentGameIndex > 0 ? `
+          <button class="nav-btn latest-game-btn" id="latest-game-btn" aria-label="Jump to most recent game" title="Jump to most recent game">
+            »
+          </button>
+        ` : ''}
+      </div>
+    `;
+
     return `
       <div class="game-viewer">
         <div class="game-info">
           <div class="game-date">${formattedDate}</div>
-          ${currentGameIndex > 0 ? `
-            <button class="latest-game-btn" id="latest-game-btn" aria-label="Jump to most recent game" title="Jump to most recent game">
-              Latest »
-            </button>
-          ` : ''}
+
         </div>
         
         <div class="game-viewer-content">
@@ -756,9 +765,7 @@ document.addEventListener('DOMContentLoaded', function() {
               
               ${hasScores ? `
                 <div class="score-right-stacked">
-                  <button class="nav-btn nav-btn-large" id="next-game-btn" aria-label="Next game" ${currentGameIndex <= 0 ? 'disabled' : ''}>
-                    ›
-                  </button>
+                  ${nextNav}
                   <div class="score-metrics" title="Your WordleBot luck and skill scores">
                     <div class="score-item">
                       <span class="score-label">Luck</span>
@@ -771,9 +778,7 @@ document.addEventListener('DOMContentLoaded', function() {
                   </div>
                 </div>
               ` : `
-                <button class="nav-btn nav-btn-large" id="next-game-btn" aria-label="Next game" ${currentGameIndex <= 0 ? 'disabled' : ''}>
-                  ›
-                </button>
+                ${nextNav}
               `}
             </div>
           </div>

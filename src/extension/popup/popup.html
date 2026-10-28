@@ -225,27 +225,29 @@
       margin-bottom: 2px;
     }
 
-    .latest-game-btn {
-      position: absolute;
-      right: 0;
-      top: 50%;
-      transform: translateY(-50%);
-      padding: 2px 8px;
-      border: none;
-      border-radius: 4px;
-      background: var(--cp-accent-strong);
-      color: var(--cp-accent-fg);
-      font: inherit;
-      font-size: 11px;
-      font-weight: 800;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      line-height: 16px;
-      cursor: pointer;
+    /* Arrows hug the board; the jump-to-latest button sits just right of the next arrow. */
+    #prev-game-btn { align-self: flex-end; }
+
+    .next-nav {
+      position: relative;
+      align-self: flex-start;
+      justify-self: start;
+      margin-top: 20px;
     }
 
-    .latest-game-btn:hover { background: var(--cp-accent); }
-    .latest-game-btn:focus-visible { outline: 2px solid var(--cp-text); outline-offset: 2px; }
+    .next-nav .nav-btn-large { margin-top: 0; }
+
+    .nav-btn.latest-game-btn {
+      position: absolute;
+      left: calc(100% + 3px);
+      top: 0;
+      width: 26px;
+      height: 30px;
+      font-size: 18px;
+    }
+
+    .latest-game-btn:focus-visible,
+    .nav-btn:focus-visible { outline: 2px solid var(--cp-text); outline-offset: 2px; }
 
     .score-right-stacked {
       display: flex;

@@ -215,6 +215,8 @@ test('real solver worker, chart, tiles, reader persistence and cached reload wor
   await page.getByLabel('Timeline averaging').selectOption('trend');
   const selectRange = async (fraction: number) => {
     const endHandle = page.locator('.recharts-brush-traveller').last();
+    await expect(endHandle.locator('.brush-grip-handle')).toHaveCSS('fill', 'rgb(106, 170, 100)');
+    await expect(page.locator('.recharts-brush-slide')).not.toHaveCSS('fill', 'rgb(246, 247, 248)');
     await page
       .locator('.recharts-responsive-container')
       .scrollIntoViewIfNeeded();

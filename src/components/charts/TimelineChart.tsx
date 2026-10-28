@@ -67,6 +67,28 @@ const METRICS = [
 ] as const;
 type MetricKey = typeof METRICS[number]['key'] | 'games';
 
+const BRUSH_TRAVELLER_WIDTH = 14;
+
+const BrushGrip = ({ x = 0, y = 0, width = 0, height = 0 }: { x?: number; y?: number; width?: number; height?: number }) => {
+  const centerX = x + width / 2;
+  const centerY = y + height / 2;
+  return (
+    <g className="brush-grip">
+      <rect className="brush-grip-handle" x={x} y={y - 3} width={width} height={height + 6} rx={3} />
+      {[-3, 0, 3].map((offset) => (
+        <line
+          key={offset}
+          className="brush-grip-line"
+          x1={centerX + offset}
+          x2={centerX + offset}
+          y1={centerY - 6}
+          y2={centerY + 6}
+        />
+      ))}
+    </g>
+  );
+};
+
 const normalizeGuessStatus = (rawStatus: string | undefined): GuessResult['status'] => {
   if (!rawStatus) {
     return 'absent';
@@ -626,7 +648,12 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
             onBlur={() => setHighlighted(null)}
             style={{ '--metric-color': metric.color } as CSSProperties}
           >
-            <span className="metric-swatch" aria-hidden="true" />
+            <svg className="metric-swatch" width="20" height="10" viewBox="0 0 20 10" aria-hidden="true">
+              {metric.key === 'games'
+                ? <circle cx="10" cy="5" r="4.5" fill="var(--metric-color)" />
+                : <line x1="1" x2="19" y1="5" y2="5" stroke="var(--metric-color)" strokeWidth="3.5"
+                    strokeDasharray={'dash' in metric ? metric.dash || undefined : undefined} />}
+            </svg>
             {metric.label}
           </button>
         ))}
@@ -666,7 +693,8 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
             stroke="var(--cp-text-muted)"
             tick={{ fill: 'var(--cp-text-muted)' }}
             style={{ fontSize: '12px', fontWeight: 700 }}
-            label={{ value: 'Turns', angle: -90, position: 'insideLeft' }}
+            width={34}
+            label={{ value: 'Turns', angle: -90, position: 'insideLeft', offset: 0 }}
           />
           <YAxis
             yAxisId="score"
@@ -677,7 +705,8 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
             stroke="var(--cp-text-muted)"
             tick={{ fill: 'var(--cp-text-muted)' }}
             style={{ fontSize: '12px', fontWeight: 700 }}
-            label={{ value: 'Score', angle: 90, position: 'insideRight' }}
+            width={40}
+            label={{ value: 'Score', angle: 90, position: 'insideRight', offset: 0 }}
           />
 
           <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'var(--cp-border-strong)' }} />
@@ -710,7 +739,9 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
           <Brush
             dataKey="date"
             height={30}
-            stroke="var(--cp-accent)"
+            travellerWidth={BRUSH_TRAVELLER_WIDTH}
+            traveller={<BrushGrip />}
+            stroke="var(--cp-wordle-green)"
             fill="var(--cp-surface-soft)"
             tickFormatter={formatXAxis}
             onChange={handleBrushChange}

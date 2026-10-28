@@ -13,7 +13,7 @@ import {
 } from 'recharts';
 import { GameResult, GuessResult } from '@/types/gameTypes';
 import { SolverResult } from '@/solver/solver';
-import { buildSolveComparison, comparisonTrend, userTurns } from '@/utils/solveComparison';
+import { buildSolveComparison, comparisonTrend, pairedComparison, userTurns } from '@/utils/solveComparison';
 
 interface TimelineChartProps {
   games: GameResult[];
@@ -352,12 +352,21 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
     return chartData.slice(committedRange.start, committedRange.end + 1);
   }, [chartData, committedRange]);
 
+  const visiblePoints = useMemo(() => {
+    const dates = new Set(visibleData.map(point => point.date));
+    return buildSolveComparison(games.filter(game => dates.has(game.date)), solverResults);
+  }, [visibleData, games, solverResults]);
+
+  const headToHead = useMemo(() => ([
+    { key: 'solver', label: 'vs Solver', name: 'Local solver' },
+    { key: 'readers', label: 'vs NYT Readers', name: 'NYT readers' },
+  ] as const).map(item => ({ ...item, pair: pairedComparison(visiblePoints, item.key) })), [visiblePoints]);
+
   // Create chart data with zoomed running averages
   // This maintains the full dataset for Brush navigation,
   // but updates running average lines to reflect only the committed range
   const chartDataWithZoomedAverages = useMemo(() => {
-    const dates = new Set(visibleData.map(point => point.date));
-    const points = buildSolveComparison(games.filter(game => dates.has(game.date)), solverResults);
+    const points = visiblePoints;
     const values = plot === 'daily' ? points : comparisonTrend(points, plot === 'cumulative' ? points.length : 20);
     const byDate = new Map(values.map(point => [point.date, point]));
     return chartData.map(point => {
@@ -371,7 +380,7 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
         luck: comparison?.luck ?? null,
       };
     });
-  }, [chartData, visibleData, games, solverResults, plot]);
+  }, [chartData, visiblePoints, plot]);
 
   const averageTurns = useMemo(() => {
     const wonGames = visibleData.filter(d => d.won === true);
@@ -613,6 +622,17 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
             {averageTurns > 0 ? averageTurns.toFixed(2) : '—'}
             </span>
         </div>
+        {headToHead.map(({ key, label, name, pair }) => (
+          <div className="chart-stat" key={key}
+            title={pair
+              ? `You ${pair.user.toFixed(2)} vs ${name} ${pair.benchmark.toFixed(2)} over ${pair.count} matched games (failures count as 7). Negative is better.`
+              : `No games matched with ${name}.`}>
+            <span className="chart-stat-label">{label}</span>
+            <span className="chart-stat-value">
+              {pair ? `${pair.delta > 0 ? '+' : ''}${pair.delta.toFixed(2)}` : '—'}
+            </span>
+          </div>
+        ))}
         <div className="chart-stat">
           <span className="chart-stat-label">Longest Streak</span>
           <span className="chart-stat-value">{streakData?.max ?? '—'}</span>

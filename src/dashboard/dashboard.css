@@ -57,9 +57,8 @@ html[data-theme="dark"] {
 .solve-analytics p:not(.section-subtitle) { margin: 4px 0 8px; font-size: 12px; color: var(--cp-text-muted); }
 .solve-methodology { margin-bottom: 12px; font-size: 12px; color: var(--cp-text-muted); }
 .solve-methodology summary { cursor: pointer; }
-.solve-summary, .solve-games { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 12px; margin: 12px 0; }
+.solve-games { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 12px; margin: 12px 0; }
 .solve-tile { min-width: 0; }
-.solve-summary .stat-value { display: block; }
 .solve-games .solve-tile { text-align: center; }
 .solve-games h4 { margin: 12px 0 4px; font-size: 14px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; }
 .solve-tile summary { cursor: pointer; font-size: 13px; font-weight: 700; }
@@ -71,7 +70,7 @@ html[data-theme="dark"] {
 [data-comparison="benchmark-better"] { color: var(--cp-danger) !important; }
 [data-comparison="tie"] { color: var(--cp-success) !important; }
 [data-comparison="user-better"] { color: var(--cp-link) !important; }
-.solve-controls, .solve-reader-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0; font-size: 12px; font-weight: 700; }
+.solve-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0; font-size: 12px; font-weight: 700; }
 .solve-controls select, .solve-analytics input, .solve-analytics button {
   padding: 6px 8px; border: 2px solid var(--cp-border); border-radius: 4px;
   background: var(--cp-surface); color: var(--cp-text); font: inherit; max-width: 100%;
@@ -109,7 +108,7 @@ html[data-theme="dark"] {
 .timeline-chart .brush-grip-handle { fill: var(--cp-wordle-green); stroke: var(--cp-accent-hover); stroke-width: 1; }
 .timeline-chart .brush-grip-line { stroke: var(--cp-wordle-fg); stroke-width: 1.5; stroke-linecap: round; }
 .timeline-chart .recharts-brush-traveller:hover .brush-grip-handle,
-.timeline-chart .recharts-brush-traveller:focus .brush-grip-handle { fill: var(--cp-accent-hover); }
+.timeline-chart .recharts-brush-traveller:focus-visible .brush-grip-handle { fill: var(--cp-accent-hover); }
 .timeline-chart .recharts-brush-traveller:focus { outline: none; }
 .timeline-chart .recharts-brush-traveller:focus-visible .brush-grip-handle { stroke: var(--cp-text); stroke-width: 2; }
 .timeline-chart .recharts-brush text { fill: var(--cp-text-muted); }
@@ -438,7 +437,7 @@ a {
 
 .chart-stats {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(8, minmax(0, 1fr));
   align-items: center;
   gap: 12px;
   margin-bottom: 16px;
@@ -450,14 +449,17 @@ a {
   margin-right: var(--chart-padding-right);
 }
 
+/* Subgrid gives every stat the same label row height so all values line up. */
 .chart-stat {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  align-items: center;
+  display: grid;
+  grid-row: span 2;
+  grid-template-rows: subgrid;
+  row-gap: 4px;
+  justify-items: center;
 }
 
 .chart-stat-label {
+  align-self: center;
   font-size: 11px;
   font-weight: 700;
   color: var(--cp-wordle-fg);
@@ -472,6 +474,10 @@ a {
   font-weight: 800;
   color: var(--cp-wordle-fg);
   text-align: center;
+}
+
+.chart-stat[title] {
+  cursor: help;
 }
 
 .chart-empty {
@@ -695,7 +701,7 @@ a {
   }
 
   .chart-stats {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 8px;
   }
 

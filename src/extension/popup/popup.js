@@ -736,7 +736,7 @@ document.addEventListener('DOMContentLoaded', function() {
                   ‹
                 </button>
                 <div class="score-metrics">
-                  <div class="score-item" title="${hasReaderAverage ? `Per-puzzle NYT reader average${currentGame.nytReaderMode ? ` (${currentGame.nytReaderMode} mode)` : ''}` : 'NYT reader data is loading or not yet published for this puzzle. A per-puzzle figure can also be entered in the dashboard.'}">
+                  <div class="score-item" title="${hasReaderAverage ? `Per-puzzle NYT reader average${currentGame.nytReaderMode ? ` (${currentGame.nytReaderMode} mode)` : ''}` : 'NYT reader data is loading or not yet published for this puzzle.'}">
                     <span class="score-label">NYT Avg</span>
                     <span class="score-value" data-testid="popup-reader-average">${hasReaderAverage ? readerAverage.toFixed(2) : 'N/A'}</span>
                   </div>

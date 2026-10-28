@@ -140,7 +140,7 @@ test('real solver worker, chart, tiles, reader persistence and cached reload wor
   });
   await page.goto(`${origin}/dashboard.html#/analytics`);
   await expect(
-    page.getByRole('heading', { name: /Solve analytics:/ })
+    page.getByRole('heading', { name: /Individual games:/ })
   ).toBeVisible();
   await expect(
     page.getByText('Calculating solver paths in the background...')
@@ -164,11 +164,19 @@ test('real solver worker, chart, tiles, reader persistence and cached reload wor
   await expect(failed.locator('summary')).toContainText('N/A');
   await expect(failed.locator('.solve-turns strong').nth(1)).toHaveText('3');
   await failed.locator('summary').click();
-  await failed.getByLabel("NYT readers' average for 2026-10-25").fill('3.75');
-  await failed.getByRole('button', { name: 'Save reader average' }).click();
-  await expect(failed.locator('summary')).toContainText('3.75');
-  await expect(failed.getByText(/user-entered from WordleBot/)).toBeVisible();
-  await expect(page.locator('.solve-summary')).toContainText('2 matched games');
+  await expect(failed.locator('input, form')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: /Solve analytics/ })).toHaveCount(0);
+  const solverStat = page.locator('.chart-stat').filter({ hasText: 'vs Solver' });
+  await expect(solverStat).toHaveAttribute('title', /over 2 matched games/);
+  await expect(solverStat.locator('.chart-stat-value')).toHaveText(/^[+-]?\d\.\d\d$/);
+  const readerStat = page.locator('.chart-stat').filter({ hasText: 'vs NYT Readers' });
+  await expect(readerStat).toHaveAttribute('title', /You 4\.00 vs NYT readers 4\.20 over 1 matched games/);
+  await expect(readerStat.locator('.chart-stat-value')).toHaveText('-0.20');
+  await expect(readerStat.locator('.chart-stat-value')).toHaveCSS('color', 'rgb(255, 255, 255)');
+  const valueTops = await page
+    .locator('.chart-stats .chart-stat-value')
+    .evaluateAll((items) => items.map((item) => Math.round(item.getBoundingClientRect().top)));
+  expect(new Set(valueTops).size).toBe(1);
   const unknown = page.locator('details').filter({ hasText: '2026-10-26' });
   await unknown.locator('summary').click();
   await expect(
@@ -219,6 +227,7 @@ test('real solver worker, chart, tiles, reader persistence and cached reload wor
   await page.getByLabel('Timeline averaging').selectOption('cumulative');
   await page.getByLabel('Timeline averaging').selectOption('trend');
   const selectRange = async (fraction: number) => {
+    await page.mouse.move(0, 0);
     const endHandle = page.locator('.recharts-brush-traveller').last();
     await expect(endHandle.locator('.brush-grip-handle')).toHaveCSS('fill', 'rgb(106, 170, 100)');
     await expect(page.locator('.recharts-brush-slide')).not.toHaveCSS('fill', 'rgb(246, 247, 248)');
@@ -242,9 +251,7 @@ test('real solver worker, chart, tiles, reader persistence and cached reload wor
   };
   await selectRange(0.5);
   await expect(page.locator('.solve-games details')).toHaveCount(2);
-  await failed.getByRole('button', { name: 'Save reader average' }).click();
-  await expect(page.locator('.solve-games details')).toHaveCount(2);
-  await expect(page.locator('.solve-summary')).toContainText('2 matched games');
+  await expect(solverStat).toHaveAttribute('title', /over \d matched games/);
   await selectRange(0);
   await expect(page.locator('.solve-games details')).toHaveCount(1);
   await expect(
@@ -263,7 +270,7 @@ test('real solver worker, chart, tiles, reader persistence and cached reload wor
   await page.reload();
   await expect(
     page.locator('details').filter({ hasText: '2026-10-25' }).locator('summary')
-  ).toContainText('3.75');
+  ).toContainText('X/6');
   await expect(
     page.getByText('Calculating solver paths in the background...')
   ).toBeHidden();
@@ -273,9 +280,6 @@ test('real solver worker, chart, tiles, reader persistence and cached reload wor
   ).toBeVisible();
   await expect(page.locator('.solve-games details')).toHaveCount(3);
   await selectRange(0.5);
-  await expect(page.locator('.solve-games details')).toHaveCount(2);
-  await failed.locator('summary').click();
-  await failed.getByRole('button', { name: 'Save reader average' }).click();
   await expect(page.locator('.solve-games details')).toHaveCount(2);
   await expect(
     page.locator('.chart-stats .chart-stat-value').first()
@@ -321,7 +325,6 @@ test('real solver worker, chart, tiles, reader persistence and cached reload wor
         timeline: read('.chart-section:not(.solve-analytics)'),
         analytics: read('.solve-analytics'),
         overviewTile: read('.stats-panel .stat-item'),
-        comparisonTile: read('.solve-summary .solve-tile'),
         gameTile: read('.solve-games .solve-tile'),
         tokens: {
           surface: token('--cp-surface'),
@@ -344,7 +347,6 @@ test('real solver worker, chart, tiles, reader persistence and cached reload wor
       };
     });
     expect(styles.analytics).toEqual(styles.timeline);
-    expect(styles.comparisonTile).toEqual(styles.overviewTile);
     expect(styles.gameTile).toEqual(styles.overviewTile);
     expect(styles.overviewTile.background).toBe(styles.tokens.surface);
     expect(styles.overviewTile.font).toContain('Franklin');
@@ -785,7 +787,7 @@ test('real extension routes imports and dashboard replies correctly while its po
     const dashboard = await context.newPage();
     await dashboard.goto(`${root}/dashboard.html#/analytics`);
     await expect(
-      dashboard.getByRole('heading', { name: /Solve analytics:/ })
+      dashboard.getByRole('heading', { name: /Individual games:/ })
     ).toBeVisible();
     const response = await dashboard.evaluate(() =>
       chrome.runtime.sendMessage({

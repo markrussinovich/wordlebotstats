@@ -6,7 +6,7 @@ import type { useSolver } from '../hooks/useSolver';
 import { useGameDataStore } from '@/stores/gameData';
 import {
   buildSolveComparison,
-  pairedComparison,
+  compareTurns as comparison,
 } from '@/utils/solveComparison';
 
 interface Props {
@@ -21,16 +21,6 @@ const formatTurns = (value: number | null) =>
     : value === 7
       ? 'X/6'
       : value.toFixed(value % 1 ? 2 : 0);
-
-// Matches the popup: red when the benchmark beats you, green for a tie, blue when you win.
-const comparison = (user: number | null, benchmark: number | null) =>
-  user === null || benchmark === null
-    ? undefined
-    : Math.abs(user - benchmark) < 0.005
-      ? 'tie'
-      : benchmark < user
-        ? 'benchmark-better'
-        : 'user-better';
 
 const SolveAnalytics: React.FC<Props> = ({
   games,
@@ -71,57 +61,15 @@ const SolveAnalytics: React.FC<Props> = ({
     };
   }, [allGames, addGame]);
   const [page, setPage] = useState(0);
-  const [drafts, setDrafts] = useState<Record<string, string>>({});
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [saving, setSaving] = useState<string | null>(null);
   const points = useMemo(
     () => buildSolveComparison(games, results),
     [games, results]
   );
-  const solverPair = pairedComparison(points, 'solver');
-  const readerPair = pairedComparison(points, 'readers');
   const pages = Math.max(1, Math.ceil(points.length / 24));
   const currentPage = Math.min(page, pages - 1);
   const tiles = [...points]
     .reverse()
     .slice(currentPage * 24, (currentPage + 1) * 24);
-
-  const saveReaders = async (event: React.FormEvent, game: GameResult) => {
-    event.preventDefault();
-    const value = Number(drafts[game.date] ?? game.nytReaderAverage ?? '');
-    if (!Number.isFinite(value) || value < 1 || value > 7) {
-      setSaveError('Enter the per-puzzle NYT reader average between 1 and 7.');
-      return;
-    }
-    setSaving(game.date);
-    setSaveError(null);
-    try {
-      const updated: GameResult = {
-        ...game,
-        nytReaderAverage: value,
-        nytReaderSource: 'manual',
-      };
-      const response = await chrome.runtime.sendMessage({
-        type: MessageType.IMPORT_GAME_RESULT,
-        gameResult: updated,
-        source: 'manual',
-        timestamp: Date.now(),
-      });
-      if (!response?.success)
-        throw new Error(
-          response?.error || 'Reader average could not be saved.'
-        );
-      addGame(updated);
-    } catch (err) {
-      setSaveError(
-        err instanceof Error
-          ? err.message
-          : 'Reader average could not be saved.'
-      );
-    } finally {
-      setSaving(null);
-    }
-  };
 
   return (
     <section
@@ -129,10 +77,12 @@ const SolveAnalytics: React.FC<Props> = ({
       aria-labelledby="solve-heading"
     >
       <h2 id="solve-heading" className="section-title">
-        Solve analytics: you, NYT readers, and a local solver
+        Individual games: you, NYT readers, and a local solver
       </h2>
       <p className="section-subtitle">
-        Compare your turns with NYT readers and a local normal-mode solver.
+        Expand a tile to reveal the answer and the solver&apos;s actual guess
+        sequence. Failures show as X/6; the solver uses normal mode even if you
+        played hard mode.
       </p>
       <details className="solve-methodology">
         <summary>About the solver and NYT reader data</summary>
@@ -141,56 +91,14 @@ const SolveAnalytics: React.FC<Props> = ({
           NYT reader averages load from WordleBot&apos;s per-puzzle summaries.
           Reader mode is shown in each game&apos;s details; normal mode is used
           when history does not identify a mode. Missing figures are N/A, never
-          a national estimate. You can also enter a figure in a game&apos;s
-          details.
+          a national estimate.
         </p>
       </details>
-      <p>
-        Failures count as 7 turns in comparisons (shown as X/6). Unplayed games
-        are excluded from head-to-head averages. Solver results use normal mode
-        even if you played hard mode.
-      </p>
       {running && (
         <p role="status">Calculating solver paths in the background...</p>
       )}
       {error && <p role="alert">{error}</p>}
-      {saveError && <p role="alert">{saveError}</p>}
-      <div className="solve-summary">
-        {(
-          [
-            ['Local solver', solverPair],
-            ['NYT readers', readerPair],
-          ] as const
-        ).map(([label, pair]) => (
-          <div className="stat-item solve-tile" key={label}>
-            <h3 className="stat-label">You vs {label}</h3>
-            {pair ? (
-              <>
-                <strong
-                  className="stat-value"
-                  data-comparison={comparison(pair.user, pair.benchmark)}
-                >
-                  {pair.delta > 0 ? '+' : ''}
-                  {pair.delta.toFixed(2)} turns
-                </strong>
-                <p>
-                  You {pair.user.toFixed(2)} / {label}{' '}
-                  {pair.benchmark.toFixed(2)}
-                </p>
-                <p>{pair.count} matched games; negative is better.</p>
-              </>
-            ) : (
-              <p>No matched games available.</p>
-            )}
-          </div>
-        ))}
-      </div>
       {!points.length && <p>No games in the selected range.</p>}
-      <h3 className="section-title">Individual games</h3>
-      <p>
-        Expand a tile to reveal the answer and the solver&apos;s actual guess
-        sequence.
-      </p>
       <div className="solve-games">
         {tiles.map((point) => (
           <details className="stat-item solve-tile" key={point.date}>
@@ -263,32 +171,6 @@ const SolveAnalytics: React.FC<Props> = ({
                   : 'unavailable'}
               .
             </p>
-            <form
-              onSubmit={(event) => void saveReaders(event, point.game)}
-              className="solve-reader-form"
-            >
-              <label>
-                NYT readers&apos; average for {point.date}
-                <input
-                  type="number"
-                  min="1"
-                  max="7"
-                  step="0.01"
-                  value={
-                    drafts[point.date] ??
-                    (typeof point.game.nytReaderAverage === 'number'
-                      ? Number(point.game.nytReaderAverage.toFixed(2))
-                      : '')
-                  }
-                  onChange={(event) =>
-                    setDrafts({ ...drafts, [point.date]: event.target.value })
-                  }
-                />
-              </label>
-              <button type="submit" disabled={saving === point.date}>
-                Save reader average
-              </button>
-            </form>
           </details>
         ))}
       </div>

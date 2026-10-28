@@ -37,6 +37,16 @@ export function buildSolveComparison(
 
 export type SolvePoint = ReturnType<typeof buildSolveComparison>[number];
 
+// Matches the popup: red when the benchmark beats you, green for a tie, blue when you win.
+export const compareTurns = (user: number | null, benchmark: number | null) =>
+  user === null || benchmark === null
+    ? undefined
+    : Math.abs(user - benchmark) < 0.005
+      ? 'tie'
+      : benchmark < user
+        ? 'benchmark-better'
+        : 'user-better';
+
 export function pairedComparison(
   points: SolvePoint[],
   reference: 'solver' | 'readers'

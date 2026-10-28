@@ -190,7 +190,7 @@ test('real solver worker, chart, tiles, reader persistence and cached reload wor
   );
   await expect(page.locator('.metric-solver .recharts-line-curve')).toHaveCSS(
     'stroke-width',
-    '4px'
+    '4.5px'
   );
   await solverToggle.click();
   await expect(solverToggle).toHaveAttribute('aria-pressed', 'false');
@@ -317,11 +317,16 @@ test('real solver worker, chart, tiles, reader persistence and cached reload wor
         comparisonTile: read('.solve-summary .solve-tile'),
         gameTile: read('.solve-games .solve-tile'),
         tokens: {
-          surface: token('--cp-surface-soft'),
+          surface: token('--cp-surface'),
           text: token('--cp-text'),
-          muted: token('--cp-text-muted'),
-          accent: token('--cp-accent'),
+          green: token('--cp-wordle-green'),
+          tileText: token('--cp-wordle-fg'),
         },
+        title: getComputedStyle(document.querySelector('.dashboard-header h1')!)
+          .color,
+        accent: token('--cp-accent'),
+        boldness: getComputedStyle(document.querySelector('.stat-value')!)
+          .fontWeight,
         text: getComputedStyle(document.querySelector('.stat-value')!).color,
         label: getComputedStyle(document.querySelector('.chart-stat-label')!)
           .color,
@@ -335,10 +340,14 @@ test('real solver worker, chart, tiles, reader persistence and cached reload wor
     expect(styles.comparisonTile).toEqual(styles.overviewTile);
     expect(styles.gameTile).toEqual(styles.overviewTile);
     expect(styles.overviewTile.background).toBe(styles.tokens.surface);
-    expect(styles.chartSummary.background).toBe(styles.tokens.surface);
+    expect(styles.overviewTile.font).toContain('Franklin');
+    expect(styles.chartSummary.background).toBe(styles.tokens.green);
     expect(styles.text).toBe(styles.tokens.text);
-    expect(styles.label).toBe(styles.tokens.muted);
-    expect(styles.userStroke).toBe(styles.tokens.accent);
+    expect(styles.label).toBe(styles.tokens.tileText);
+    expect(styles.userStroke).toBe(styles.tokens.green);
+    expect(styles.title).toBe(styles.accent);
+    expect(styles.accent).toBe('rgb(106, 170, 100)');
+    expect(Number(styles.boldness)).toBeGreaterThanOrEqual(800);
   }
   await page.goto(`${origin}/dashboard.html?scoutTheme=light#/`);
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
@@ -675,9 +684,9 @@ test('popup fits browser bounds, provides colored comparison buttons and keeps p
   await expect(solverValue).toHaveText(turns!);
   await expect(page.getByTestId('popup-reader-average')).toHaveText('4.20');
   for (const comparison of [
-    { attempts: 7, state: 'solver-better', color: 'rgb(220, 38, 38)' },
-    { attempts: Number(turns), state: 'tie', color: 'rgb(22, 163, 74)' },
-    { attempts: 1, state: 'user-better', color: 'rgb(0, 120, 212)' },
+    { attempts: 7, state: 'solver-better', color: 'rgb(211, 63, 73)' },
+    { attempts: Number(turns), state: 'tie', color: 'rgb(106, 170, 100)' },
+    { attempts: 1, state: 'user-better', color: 'rgb(59, 130, 196)' },
   ]) {
     await page.evaluate((attempts) => {
       const stored = JSON.parse(

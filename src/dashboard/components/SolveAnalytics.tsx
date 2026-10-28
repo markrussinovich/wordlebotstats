@@ -22,6 +22,16 @@ const formatTurns = (value: number | null) =>
       ? 'X/6'
       : value.toFixed(value % 1 ? 2 : 0);
 
+// Matches the popup: red when the benchmark beats you, green for a tie, blue when you win.
+const comparison = (user: number | null, benchmark: number | null) =>
+  user === null || benchmark === null
+    ? undefined
+    : Math.abs(user - benchmark) < 0.005
+      ? 'tie'
+      : benchmark < user
+        ? 'benchmark-better'
+        : 'user-better';
+
 const SolveAnalytics: React.FC<Props> = ({
   games,
   allGames = games,
@@ -156,7 +166,10 @@ const SolveAnalytics: React.FC<Props> = ({
             <h3 className="stat-label">You vs {label}</h3>
             {pair ? (
               <>
-                <strong className="stat-value">
+                <strong
+                  className="stat-value"
+                  data-comparison={comparison(pair.user, pair.benchmark)}
+                >
                   {pair.delta > 0 ? '+' : ''}
                   {pair.delta.toFixed(2)} turns
                 </strong>
@@ -188,18 +201,21 @@ const SolveAnalytics: React.FC<Props> = ({
               </span>
               <span className="solve-turns">
                 <span>
-                  You <strong>{formatTurns(point.user)}</strong>
+                  You <strong data-who="user">{formatTurns(point.user)}</strong>
                 </span>
                 <span>
                   Solver{' '}
-                  <strong>
+                  <strong data-comparison={comparison(point.user, point.solver)}>
                     {!point.result && running
                       ? '...'
                       : formatTurns(point.solver)}
                   </strong>
                 </span>
                 <span>
-                  NYT readers <strong>{formatTurns(point.readers)}</strong>
+                  NYT readers{' '}
+                  <strong data-comparison={comparison(point.user, point.readers)}>
+                    {formatTurns(point.readers)}
+                  </strong>
                 </span>
               </span>
             </summary>

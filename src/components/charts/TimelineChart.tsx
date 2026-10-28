@@ -59,11 +59,11 @@ interface ChartDataPoint {
 
 const CHART_MARGINS = { top: 20, right: 5, left: 5, bottom: 20 } as const;
 const METRICS = [
-  { key: 'user', label: 'Your turns', color: 'var(--cp-accent)', axis: 'turns', dash: '' },
-  { key: 'solver', label: 'Local solver', color: 'var(--cp-success)', axis: 'turns', dash: '6 3' },
-  { key: 'readers', label: 'NYT readers', color: 'var(--cp-link)', axis: 'turns', dash: '2 3' },
-  { key: 'skill', label: 'Skill', color: 'var(--cp-warning)', axis: 'score', dash: '8 3' },
-  { key: 'luck', label: 'Luck', color: 'var(--cp-text-soft)', axis: 'score', dash: '3 3' },
+  { key: 'user', label: 'Your turns', color: 'var(--cp-wordle-green)', axis: 'turns', dash: '' },
+  { key: 'solver', label: 'Local solver', color: 'var(--cp-text)', axis: 'turns', dash: '6 3' },
+  { key: 'readers', label: 'NYT readers', color: 'var(--cp-warning)', axis: 'turns', dash: '2 3' },
+  { key: 'skill', label: 'Skill', color: 'var(--cp-link)', axis: 'score', dash: '8 3' },
+  { key: 'luck', label: 'Luck', color: 'var(--cp-orange)', axis: 'score', dash: '3 3' },
 ] as const;
 type MetricKey = typeof METRICS[number]['key'] | 'games';
 
@@ -400,18 +400,6 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
 
   // Custom tooltip
   const renderGuessPattern = (pattern: GuessResult[][]) => {
-    const getTileColor = (status: GuessResult['status']) => {
-      switch (status) {
-        case 'correct':
-          return 'var(--cp-wordle-green)';
-        case 'present':
-          return 'var(--cp-wordle-yellow)';
-        case 'absent':
-        default:
-          return 'var(--cp-wordle-gray)';
-      }
-    };
-
     return (
       <div className="tooltip-grid" role="presentation" aria-hidden="true">
         {pattern.map((row, rowIndex) => (
@@ -420,14 +408,6 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
               <span
                 key={`cell-${rowIndex}-${cellIndex}`}
                 className={`tooltip-grid-cell tooltip-grid-cell-${cell.status}`}
-                style={{ 
-                  backgroundColor: getTileColor(cell.status),
-                  color: 'var(--cp-wordle-fg)',
-                  fontWeight: 'bold',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
               >
                 {cell.letter?.toUpperCase() || ''}
               </span>
@@ -521,9 +501,10 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
           )}
           <div className="tooltip-comparisons">
             {METRICS.filter(metric => metrics[metric.key]).map(metric => (
-              <div key={metric.key}>
-                {metric.label}: {typeof data[metric.key] === 'number' ? data[metric.key]!.toFixed(2) : 'N/A'}
-              </div>
+              <React.Fragment key={metric.key}>
+                <span style={{ '--metric-color': metric.color } as CSSProperties}>{metric.label}</span>
+                <span>{typeof data[metric.key] === 'number' ? data[metric.key]!.toFixed(2) : 'N/A'}</span>
+              </React.Fragment>
             ))}
           </div>
         </div>
@@ -675,7 +656,7 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
             tickFormatter={formatXAxis}
             stroke="var(--cp-text-muted)"
             tick={{ fill: 'var(--cp-text-muted)' }}
-            style={{ fontSize: '12px' }}
+            style={{ fontSize: '12px', fontWeight: 700 }}
           />
           
           <YAxis
@@ -684,7 +665,7 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
             ticks={[1, 2, 3, 4, 5, 6, 7]}
             stroke="var(--cp-text-muted)"
             tick={{ fill: 'var(--cp-text-muted)' }}
-            style={{ fontSize: '12px' }}
+            style={{ fontSize: '12px', fontWeight: 700 }}
             label={{ value: 'Turns', angle: -90, position: 'insideLeft' }}
           />
           <YAxis
@@ -695,7 +676,7 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
             ticks={[0,20,40,60,80,100]}
             stroke="var(--cp-text-muted)"
             tick={{ fill: 'var(--cp-text-muted)' }}
-            style={{ fontSize: '12px' }}
+            style={{ fontSize: '12px', fontWeight: 700 }}
             label={{ value: 'Score', angle: 90, position: 'insideRight' }}
           />
 
@@ -705,7 +686,7 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
             <Line key={metric.key} className={`metric-${metric.key}`}
               type="monotone" dataKey={metric.key} name={metric.label}
               stroke={metric.color} strokeDasharray={metric.dash}
-              strokeWidth={highlighted === metric.key ? 4 : 2.5}
+              strokeWidth={highlighted === metric.key ? 4.5 : 3}
               strokeOpacity={highlighted && highlighted !== metric.key ? 0.2 : 1}
               hide={!metrics[metric.key]} yAxisId={metric.axis}
               dot={plot === 'daily' || chartDataWithZoomedAverages.filter(point => typeof point[metric.key] === 'number').length === 1

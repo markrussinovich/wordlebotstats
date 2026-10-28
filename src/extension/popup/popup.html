@@ -5,57 +5,35 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Wordle Stat Explorer</title>
   <style>
+    /* NYT Wordle palette, shared with the dashboard. */
     :root {
       color-scheme: light;
-      --cp-bg: #f7f4ef;
-      --cp-bg-elevated: #fcfbf8;
+      --cp-font: "nyt-franklin", "Libre Franklin", "Clear Sans", "Helvetica Neue", Arial, sans-serif;
       --cp-surface: #ffffff;
-      --cp-surface-soft: #f5f5f5;
-      --cp-border: #dedede;
-      --cp-border-strong: #919191;
-      --cp-text: #242424;
-      --cp-text-muted: #5c5c5c;
-      --cp-text-soft: #6f6f6f;
-      --cp-accent: #b11f4b;
-      --cp-accent-hover: #9a1a41;
-      --cp-accent-soft: rgba(177, 31, 75, 0.08);
-      --cp-accent-fg: #ffffff;
-      --cp-success: #16a34a;
-      --cp-danger: #dc2626;
-      --cp-warning: #f59e0b;
-      --cp-link: #0078d4;
-      --cp-shadow: 0 18px 48px rgba(0, 0, 0, 0.12);
-      --cp-overlay: rgba(255, 255, 255, 0.8);
-      --cp-panel: rgba(255, 255, 255, 0.86);
-      --cp-panel-strong: rgba(255, 255, 255, 0.96);
-      --cp-sheen: rgba(255, 255, 255, 0.55);
-      --cp-highlight: rgba(177, 31, 75, 0.12);
+      --cp-border: #d3d6da;
+      --cp-border-strong: #878a8c;
+      --cp-text: #1a1a1b;
+      --cp-text-muted: #787c7e;
+      --cp-accent: #6aaa64;
+      --cp-accent-soft: rgba(106, 170, 100, 0.14);
+      --cp-success: #6aaa64;
+      --cp-danger: #d33f49;
+      --cp-warning: #c9b458;
+      --cp-link: #3b82c4;
     }
     html[data-theme="dark"] {
       color-scheme: dark;
-      --cp-bg: #3d3b3a;
-      --cp-bg-elevated: #343231;
-      --cp-surface: #292929;
-      --cp-surface-soft: #2e2e2e;
-      --cp-border: #474747;
-      --cp-border-strong: #5f5f5f;
-      --cp-text: #dedede;
-      --cp-text-muted: #919191;
-      --cp-text-soft: #b0b0b0;
-      --cp-accent: #fd8ea1;
-      --cp-accent-hover: #fb7b91;
-      --cp-accent-soft: rgba(253, 142, 161, 0.14);
-      --cp-accent-fg: #1a1a1a;
-      --cp-success: #4ade80;
-      --cp-danger: #f87171;
-      --cp-warning: #fbbf24;
-      --cp-link: #4da6ff;
-      --cp-shadow: 0 18px 48px rgba(0, 0, 0, 0.32);
-      --cp-overlay: rgba(41, 41, 41, 0.88);
-      --cp-panel: rgba(41, 41, 41, 0.72);
-      --cp-panel-strong: rgba(41, 41, 41, 0.96);
-      --cp-sheen: rgba(255, 255, 255, 0.04);
-      --cp-highlight: rgba(253, 142, 161, 0.12);
+      --cp-surface: #1a1a1b;
+      --cp-border: #3a3a3c;
+      --cp-border-strong: #565758;
+      --cp-text: #f8f8f8;
+      --cp-text-muted: #818384;
+      --cp-accent: #6aaa64;
+      --cp-accent-soft: rgba(83, 141, 78, 0.24);
+      --cp-success: #6aaa64;
+      --cp-danger: #e5605f;
+      --cp-warning: #c9b458;
+      --cp-link: #85c0f9;
     }
 
     body {
@@ -63,7 +41,7 @@
       height: auto;
       margin: 0;
       padding: 0;
-      font-family: "Segoe UI", Aptos, Calibri, -apple-system, BlinkMacSystemFont, sans-serif;
+      font-family: var(--cp-font);
       background-color: #ffffff;
       overflow-x: hidden;
       overflow-y: hidden;
@@ -91,8 +69,10 @@
 
     .popup-header h1 {
       margin: 0;
-      font-size: 18px;
-      font-weight: 600;
+      font-size: 19px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
     }
 
     .refresh-btn {
@@ -102,7 +82,7 @@
       color: white;
       border-radius: 4px;
       font-size: 12px;
-      font-weight: 500;
+      font-weight: 700;
       cursor: pointer;
       transition: all 0.2s;
       display: flex;
@@ -137,7 +117,7 @@
       color: white;
       border-radius: 4px;
       font-size: 12px;
-      font-weight: 500;
+      font-weight: 700;
       cursor: pointer;
       transition: all 0.2s;
     }
@@ -265,14 +245,15 @@
 
     .score-item .score-label {
       font-size: 9px;
-      color: #666;
+      font-weight: 700;
+      color: #787c7e;
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }
 
     .score-item .score-value {
-      font-size: 14px;
-      font-weight: 700;
+      font-size: 15px;
+      font-weight: 800;
       line-height: 20px;
       color: #6aaa64;
     }
@@ -286,7 +267,7 @@
 
     .game-result {
       font-size: 12px;
-      font-weight: 500;
+      font-weight: 700;
     }
 
     .game-result.won {
@@ -306,8 +287,8 @@
     }
 
     .game-word {
-      font-size: 18px;
-      font-weight: 700;
+      font-size: 20px;
+      font-weight: 800;
       color: #6aaa64;
       margin-bottom: 4px;
       letter-spacing: 2px;
@@ -331,17 +312,17 @@
     }
 
     .board-cell {
-      width: 28px;
-      height: 28px;
-      border: 1px solid #d3d6da;
-      border-radius: 4px;
+      width: 30px;
+      height: 30px;
+      box-sizing: border-box;
+      border: 2px solid #d3d6da;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 14px;
-      font-weight: 700;
+      font-size: 16px;
+      font-weight: 800;
+      text-transform: uppercase;
       color: white;
-      text-shadow: 0 1px 2px rgba(0,0,0,0.3);
     }
 
     .board-cell-correct {
@@ -360,8 +341,8 @@
     }
 
     .board-cell-empty {
-      background: #f0f0f0;
-      border-color: #e0e0e0;
+      background: #ffffff;
+      border-color: #d3d6da;
       color: transparent;
     }
 
@@ -642,7 +623,7 @@
 
     .last-game-label {
       color: #666;
-      font-weight: 500;
+      font-weight: 700;
     }
 
     .last-game-value {
@@ -715,7 +696,7 @@
     .stat-label {
       font-size: 12px;
       color: #666;
-      font-weight: 500;
+      font-weight: 700;
     }
 
     .help-text {
@@ -740,7 +721,7 @@
       color: white;
       border-radius: 4px;
       font-size: 14px;
-      font-weight: 500;
+      font-weight: 700;
       cursor: pointer;
       transition: all 0.2s;
     }

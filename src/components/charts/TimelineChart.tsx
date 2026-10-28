@@ -667,7 +667,7 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
         </label>
       </div>
       <p className="section-subtitle" id="timeline-metric-help">
-        Toggle metrics to show or hide them; hover or focus to highlight. Failures count as 7 turns; missing values stay blank.
+        Toggle metrics to show or hide them; hover or focus to highlight. Failures count as 7 turns; lines connect across missing games.
       </p>
       {!Object.values(metrics).some(Boolean) && <p role="status">Select a metric to plot.</p>}
 
@@ -713,7 +713,7 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
 
           {METRICS.map(metric => (
             <Line key={metric.key} className={`metric-${metric.key}`}
-              type="monotone" dataKey={metric.key} name={metric.label}
+              type="monotone" dataKey={metric.key} name={metric.label} connectNulls
               stroke={metric.color} strokeDasharray={metric.dash}
               strokeWidth={highlighted === metric.key ? 4.5 : 3}
               strokeOpacity={highlighted && highlighted !== metric.key ? 0.2 : 1}
@@ -762,10 +762,9 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
         </div>
       </div>}
       {turnDistribution && (
-        <details className="turn-distribution-wrapper">
-          <summary>Turn distribution for selected range</summary>
+        <div className="turn-distribution-wrapper">
           {turnDistribution}
-        </details>
+        </div>
       )}
     </div>
   );

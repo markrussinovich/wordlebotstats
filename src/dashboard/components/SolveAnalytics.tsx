@@ -221,7 +221,7 @@ const SolveAnalytics: React.FC<Props> = ({
             </summary>
             <h4>Answer: {point.game.solution || 'Unknown'}</h4>
             {point.result?.guesses.length ? (
-              <div aria-label={`Solver solution for ${point.date}`}>
+              <div className="solve-path" aria-label={`Solver solution for ${point.date}`}>
                 {point.result.guesses.map((guess, index) => (
                   <div className="solve-guess" key={index}>
                     <span
@@ -238,7 +238,7 @@ const SolveAnalytics: React.FC<Props> = ({
                         </span>
                       ))}
                     </span>
-                    <small>{guess.remaining} candidates</small>
+                    <small>{guess.remaining} {guess.remaining === 1 ? 'candidate' : 'candidates'}</small>
                   </div>
                 ))}
                 {point.result.status === 'failed' && (
@@ -275,7 +275,10 @@ const SolveAnalytics: React.FC<Props> = ({
                   max="7"
                   step="0.01"
                   value={
-                    drafts[point.date] ?? point.game.nytReaderAverage ?? ''
+                    drafts[point.date] ??
+                    (typeof point.game.nytReaderAverage === 'number'
+                      ? Number(point.game.nytReaderAverage.toFixed(2))
+                      : '')
                   }
                   onChange={(event) =>
                     setDrafts({ ...drafts, [point.date]: event.target.value })

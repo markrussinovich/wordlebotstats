@@ -614,8 +614,11 @@ test('popup fits browser bounds, provides colored comparison buttons and keeps p
   await expect(solverValue).toHaveText('N/A');
   await expect(solver).toBeDisabled();
   await page.getByRole('button', { name: 'Next game' }).click();
-  await page.getByRole('button', { name: 'Next game' }).click();
-  await page.getByRole('button', { name: 'Next game' }).click();
+  await page.getByRole('button', { name: 'Jump to most recent game' }).click();
+  await expect(page.getByTestId('popup-reader-average')).toHaveText('4.20');
+  await expect(
+    page.getByRole('button', { name: 'Jump to most recent game' })
+  ).toHaveCount(0);
 
   await page.evaluate(() =>
     (window as any).deliverExternalMessage({

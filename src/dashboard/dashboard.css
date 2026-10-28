@@ -81,7 +81,8 @@ html[data-theme="dark"] {
 .solve-analytics button[type="submit"] { border-color: var(--cp-accent); background: var(--cp-accent); color: var(--cp-accent-fg); }
 .solve-analytics button:disabled { opacity: 0.5; cursor: default; }
 .solve-analytics :focus-visible { outline: 2px solid var(--cp-accent); outline-offset: 3px; }
-.solve-guess { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; margin: 6px 0; }
+.solve-path { width: fit-content; max-width: 100%; margin: 0 auto; text-align: left; }
+.solve-guess { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 6px 0; }
 .solve-guess small { font-size: 11px; font-weight: 700; color: var(--cp-text-muted); }
 .solve-feedback { display: inline-flex; gap: 4px; }
 .solve-cell {
@@ -116,7 +117,6 @@ html[data-theme="dark"] {
 .tooltip-comparisons span:nth-child(odd) { display: inline-flex; align-items: center; gap: 6px; }
 .tooltip-comparisons span:nth-child(odd)::before { content: ""; width: 10px; height: 10px; background: var(--metric-color); }
 .tooltip-comparisons span:nth-child(even) { text-align: right; font-weight: 800; }
-.turn-distribution-wrapper summary { margin: 12px 0; cursor: pointer; color: var(--cp-text-muted); font-size: 12px; font-weight: 700; }
 .timeline-controls select { padding: 6px 8px; border: 2px solid var(--cp-border); border-radius: 4px; background: var(--cp-surface); color: var(--cp-text); font: inherit; font-size: 12px; font-weight: 700; }
 
 /* Wordle Stat Explorer Dashboard Styles */

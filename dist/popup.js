@@ -281,6 +281,15 @@
           }
         });
       }
+      const latestBtn = document.getElementById("latest-game-btn");
+      if (latestBtn) {
+        latestBtn.addEventListener("click", async () => {
+          currentGameIndex = 0;
+          showSolverSolution = false;
+          await saveCurrentGameIndex();
+          render();
+        });
+      }
       const dismissBtn = document.querySelector("[data-dismiss-notification]");
       if (dismissBtn) {
         dismissBtn.addEventListener("click", () => {
@@ -607,6 +616,11 @@
       <div class="game-viewer">
         <div class="game-info">
           <div class="game-date">${formattedDate}</div>
+          ${currentGameIndex > 0 ? `
+            <button class="latest-game-btn" id="latest-game-btn" aria-label="Jump to most recent game" title="Jump to most recent game">
+              Latest \xBB
+            </button>
+          ` : ""}
         </div>
         
         <div class="game-viewer-content">

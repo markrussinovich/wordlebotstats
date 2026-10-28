@@ -106,4 +106,51 @@ describe('solve comparisons', () => {
     expect(trend[1].user).toBe(5.5);
     expect(trend[1].readers).toBeNull();
   });
+  it('uses the same selected-range averaging for turns, solver, readers, skill and luck without inventing missing scores', () => {
+    const points = buildSolveComparison(
+      [
+        game('2026-10-24', {
+          solution: 'SLATE',
+          skillScore: 80,
+          luckScore: 0,
+          nytReaderAverage: 4.2,
+        }),
+        game('2026-10-25', {
+          solution: 'SLATE',
+          attempts: 7,
+          won: false,
+          skillScore: 100,
+          luckScore: NaN,
+        }),
+        game('2026-10-26', {
+          solution: 'SLATE',
+          attempts: 2,
+          skillScore: 0,
+          luckScore: 60,
+          nytReaderAverage: 3.8,
+        }),
+      ],
+      { SLATE: { status: 'solved', turns: 1, guesses: [] } }
+    );
+    const rolling = comparisonTrend(points, 2);
+    expect(rolling[1].luck).toBeNull();
+    expect(rolling[1].readers).toBeNull();
+    expect(rolling[2]).toMatchObject({
+      user: 4.5,
+      solver: 1,
+      readers: 3.8,
+      skill: 50,
+      luck: 60,
+    });
+    const cumulative = comparisonTrend(points, points.length);
+    expect(cumulative[2]).toMatchObject({ readers: 4, skill: 60, luck: 30 });
+    expect(cumulative[2].user).toBeCloseTo(13 / 3);
+    expect(comparisonTrend(points.slice(2))[0]).toMatchObject({
+      user: 2,
+      solver: 1,
+      readers: 3.8,
+      skill: 0,
+      luck: 60,
+    });
+  });
 });

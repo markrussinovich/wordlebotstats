@@ -8,7 +8,7 @@ Wordle Stat Explorer is a Chrome/Edge Manifest V3 extension that scrapes your NY
 - Local-only storage with fast de-duplication and board-image cleanup
 - Popup quick stats: win rate, average guesses, streaks, and game counts by time frame
 - React-powered dashboard with timelines, trend analysis, WordleBot skill/luck scores
-- Solve analytics: per-game tiles and daily/20-game trends comparing your turns, a local solver, and per-puzzle NYT reader averages. Expand a tile to reveal the solver's guesses and feedback.
+- Solve analytics: one theme-aware timeline comparing your turns, a local solver, NYT readers, skill, and luck. Toggle metrics, hover or focus to highlight, and choose individual games, rolling, or cumulative averages. Range handles filter comparisons and game tiles; chronological arrows browse older/newer games. Expand a tile to reveal the solver's guesses and feedback.
 
 ### Analysis branch
 

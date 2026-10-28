@@ -66,6 +66,8 @@ test('real solver worker, chart, tiles, reader persistence and cached reload wor
         solution: 'APPLE',
         nytReaderAverage: 4.2,
         nytReaderSource: 'wordlebot',
+        skillScore: 88,
+        luckScore: 51,
       },
       {
         date: '2026-10-25',
@@ -73,6 +75,8 @@ test('real solver worker, chart, tiles, reader persistence and cached reload wor
         won: false,
         hardMode: true,
         solution: 'SLATE',
+        skillScore: 90,
+        luckScore: 0,
       },
       {
         date: '2026-10-26',
@@ -163,8 +167,78 @@ test('real solver worker, chart, tiles, reader persistence and cached reload wor
   await expect(
     unknown.getByText(/outside the bundled dictionary/)
   ).toBeVisible();
-  await page.locator('.solve-controls select').last().selectOption('daily');
-  await expect(page.locator('.solve-chart .recharts-line')).toHaveCount(3);
+  await page.getByLabel('Timeline averaging').selectOption('daily');
+  await expect(page.locator('.recharts-responsive-container')).toHaveCount(1);
+  await expect(
+    page.locator('.timeline-chart .recharts-line-curve')
+  ).toHaveCount(3);
+  const solverToggle = page.getByRole('button', {
+    name: 'Local solver',
+    exact: true,
+  });
+  await solverToggle.hover();
+  await expect(page.locator('.metric-user .recharts-line-curve')).toHaveCSS(
+    'stroke-opacity',
+    '0.2'
+  );
+  await expect(page.locator('.metric-solver .recharts-line-curve')).toHaveCSS(
+    'stroke-width',
+    '4px'
+  );
+  await solverToggle.click();
+  await expect(solverToggle).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('.metric-solver .recharts-line-curve')).toHaveCount(
+    0
+  );
+  await solverToggle.click();
+  for (const name of ['Skill', 'Luck']) {
+    const toggle = page.getByRole('button', { name, exact: true });
+    await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    await toggle.focus();
+    await toggle.press('Space');
+    await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  }
+  await expect(
+    page.locator('.timeline-chart .recharts-line-curve')
+  ).toHaveCount(5);
+  await expect(page.getByText('Score', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Game results', exact: true }).click();
+  await expect(page.locator('.recharts-scatter')).toHaveCount(0);
+  await page.getByLabel('Timeline averaging').selectOption('cumulative');
+  await page.getByLabel('Timeline averaging').selectOption('trend');
+  const selectRange = async (fraction: number) => {
+    const endHandle = page.locator('.recharts-brush-traveller').last();
+    await page
+      .locator('.recharts-responsive-container')
+      .scrollIntoViewIfNeeded();
+    const start = (await page
+      .locator('.recharts-brush-traveller')
+      .first()
+      .boundingBox())!;
+    const end = (await endHandle.boundingBox())!;
+    const y = end.y + end.height / 2;
+    await page.mouse.move(end.x + end.width / 2, y);
+    await page.mouse.down();
+    await page.mouse.move(
+      start.x + (end.x - start.x) * fraction + end.width / 2,
+      y,
+      { steps: 8 }
+    );
+    await page.mouse.up();
+  };
+  await selectRange(0.5);
+  await expect(page.locator('.solve-games details')).toHaveCount(2);
+  await failed.getByRole('button', { name: 'Save reader average' }).click();
+  await expect(page.locator('.solve-games details')).toHaveCount(2);
+  await expect(page.locator('.solve-summary')).toContainText('2 matched games');
+  await selectRange(0);
+  await expect(page.locator('.solve-games details')).toHaveCount(1);
+  await expect(
+    page.locator('.chart-stats .chart-stat-value').first()
+  ).toHaveText('1');
+  await expect(
+    page.locator('.metric-solver .recharts-line-dots circle')
+  ).toHaveCount(1);
   const cached = await page.evaluate(() => {
     const storage = JSON.parse(
       localStorage.getItem('test-extension-storage') || '{}'
@@ -181,8 +255,18 @@ test('real solver worker, chart, tiles, reader persistence and cached reload wor
   ).toBeHidden();
   await page.getByRole('link', { name: 'Overview', exact: true }).click();
   await expect(
-    page.getByRole('heading', { name: 'Performance Timeline' })
+    page.getByRole('heading', { name: 'Wordle Stat Explorer', exact: true })
   ).toBeVisible();
+  await expect(page.locator('.solve-games details')).toHaveCount(3);
+  await selectRange(0.5);
+  await expect(page.locator('.solve-games details')).toHaveCount(2);
+  await failed.locator('summary').click();
+  await failed.getByRole('button', { name: 'Save reader average' }).click();
+  await expect(page.locator('.solve-games details')).toHaveCount(2);
+  await expect(
+    page.locator('.chart-stats .chart-stat-value').first()
+  ).toHaveText('2');
+  await page.reload();
   await expect(page.locator('.solve-games details')).toHaveCount(3);
   const overviewStats = page.locator('.stats-panel > .stat-item');
   await expect(overviewStats).toHaveCount(6);
@@ -198,9 +282,17 @@ test('real solver worker, chart, tiles, reader persistence and cached reload wor
   ).toBeLessThan(90);
   for (const scheme of ['light', 'dark'] as const) {
     await page.emulateMedia({ colorScheme: scheme });
-    await page.reload();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', scheme);
     await expect(page.locator('.solve-games details')).toHaveCount(3);
     const styles = await page.evaluate(() => {
+      const token = (name: string) => {
+        const probe = document.createElement('span');
+        probe.style.color = `var(${name})`;
+        document.body.appendChild(probe);
+        const value = getComputedStyle(probe).color;
+        probe.remove();
+        return value;
+      };
       const read = (selector: string) => {
         const style = getComputedStyle(document.querySelector(selector)!);
         return {
@@ -217,12 +309,32 @@ test('real solver worker, chart, tiles, reader persistence and cached reload wor
         overviewTile: read('.stats-panel .stat-item'),
         comparisonTile: read('.solve-summary .solve-tile'),
         gameTile: read('.solve-games .solve-tile'),
+        tokens: {
+          surface: token('--cp-surface-soft'),
+          text: token('--cp-text'),
+          muted: token('--cp-text-muted'),
+          accent: token('--cp-accent'),
+        },
+        text: getComputedStyle(document.querySelector('.stat-value')!).color,
+        label: getComputedStyle(document.querySelector('.chart-stat-label')!)
+          .color,
+        chartSummary: read('.chart-stats'),
+        userStroke: getComputedStyle(
+          document.querySelector('.metric-user .recharts-line-curve')!
+        ).stroke,
       };
     });
     expect(styles.analytics).toEqual(styles.timeline);
     expect(styles.comparisonTile).toEqual(styles.overviewTile);
     expect(styles.gameTile).toEqual(styles.overviewTile);
+    expect(styles.overviewTile.background).toBe(styles.tokens.surface);
+    expect(styles.chartSummary.background).toBe(styles.tokens.surface);
+    expect(styles.text).toBe(styles.tokens.text);
+    expect(styles.label).toBe(styles.tokens.muted);
+    expect(styles.userStroke).toBe(styles.tokens.accent);
   }
+  await page.goto(`${origin}/dashboard.html?scoutTheme=light#/`);
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(overviewStats).toHaveCount(6);
   const mobileSize = await page.evaluate(() => ({
@@ -233,6 +345,44 @@ test('real solver worker, chart, tiles, reader persistence and cached reload wor
   expect(
     (await page.locator('.stats-panel').boundingBox())!.height
   ).toBeLessThan(260);
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.evaluate(() => {
+    const stored = JSON.parse(
+      localStorage.getItem('test-extension-storage') || '{}'
+    );
+    stored.games = Array.from({ length: 25 }, (_, day) => ({
+      date: `2026-09-${String(day + 1).padStart(2, '0')}`,
+      attempts: 4,
+      won: true,
+      hardMode: false,
+      solution: 'SLATE',
+    }));
+    localStorage.setItem('test-extension-storage', JSON.stringify(stored));
+  });
+  await page.reload();
+  await expect(page.locator('.solve-games details')).toHaveCount(24);
+  const older = page.getByRole('button', { name: 'Older games', exact: true });
+  const newer = page.getByRole('button', { name: 'Newer games', exact: true });
+  await expect(older).toHaveText('‹');
+  await expect(newer).toHaveText('›');
+  await expect(newer).toBeDisabled();
+  await older.click();
+  await expect(page.getByLabel('Game history pages')).toContainText(
+    'Page 2 of 2'
+  );
+  await expect(page.locator('.solve-games details')).toHaveCount(1);
+  await expect(page.locator('.solve-games summary')).toContainText(
+    '2026-09-01'
+  );
+  await expect(older).toBeDisabled();
+  expect((await older.boundingBox())!.x).toBeLessThan(
+    (await newer.boundingBox())!.x
+  );
+  await newer.click();
+  await expect(page.locator('.solve-games details')).toHaveCount(24);
+  await expect(page.locator('.solve-games summary').first()).toContainText(
+    '2026-09-25'
+  );
   expect(errors).toEqual([]);
 });
 

@@ -12,13 +12,15 @@ import {
   Brush
 } from 'recharts';
 import { GameResult, GuessResult } from '@/types/gameTypes';
-import { isGameWon } from '@/utils/streakCalculation';
+import { SolverResult } from '@/solver/solver';
+import { buildSolveComparison, comparisonTrend, userTurns } from '@/utils/solveComparison';
 
 interface TimelineChartProps {
   games: GameResult[];
   onRangeChange?: (startDate: Date, endDate: Date) => void;
   turnDistribution?: React.ReactNode;
   streakData?: { current: number; max: number } | null;
+  solverResults?: Record<string, SolverResult>;
 }
 
 type LegacyGuessCell =
@@ -48,9 +50,22 @@ interface ChartDataPoint {
   guessPattern?: GuessResult[][];
   skillScore?: number;
   luckScore?: number;
+  user?: number | null;
+  solver?: number | null;
+  readers?: number | null;
+  skill?: number | null;
+  luck?: number | null;
 }
 
 const CHART_MARGINS = { top: 20, right: 5, left: 5, bottom: 20 } as const;
+const METRICS = [
+  { key: 'user', label: 'Your turns', color: 'var(--cp-accent)', axis: 'turns', dash: '' },
+  { key: 'solver', label: 'Local solver', color: 'var(--cp-success)', axis: 'turns', dash: '6 3' },
+  { key: 'readers', label: 'NYT readers', color: 'var(--cp-link)', axis: 'turns', dash: '2 3' },
+  { key: 'skill', label: 'Skill', color: 'var(--cp-warning)', axis: 'score', dash: '8 3' },
+  { key: 'luck', label: 'Luck', color: 'var(--cp-text-soft)', axis: 'score', dash: '3 3' },
+] as const;
+type MetricKey = typeof METRICS[number]['key'] | 'games';
 
 const normalizeGuessStatus = (rawStatus: string | undefined): GuessResult['status'] => {
   if (!rawStatus) {
@@ -160,7 +175,12 @@ const normalizeGuessPattern = (rawPattern: LegacyGuessRow[] | GuessResult[][] | 
     .filter((row): row is GuessResult[] => Array.isArray(row) && row.length > 0);
 };
 
-const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, turnDistribution, streakData }) => {
+const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, turnDistribution, streakData, solverResults = {} }) => {
+  const [plot, setPlot] = useState('trend');
+  const [metrics, setMetrics] = useState<Record<MetricKey, boolean>>({
+    user: true, solver: true, readers: true, skill: false, luck: false, games: true
+  });
+  const [highlighted, setHighlighted] = useState<MetricKey | null>(null);
   // Track the "live" range during dragging (updates continuously)
   const [selectedRange, setSelectedRange] = useState<{ start: number; end: number } | null>(null);
   
@@ -192,9 +212,6 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
     };
   }, []);
   
-  // Detect dark mode
-  const isDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-
   const chartContainerStyle = useMemo(
     () =>
       ({
@@ -212,10 +229,10 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
       // Parse date safely to avoid timezone shifts
       const dateParts = game.date.split('-');
       const dateObj = new Date(parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2]));
-      const actualAttempts = game.attempts || game.guesses || 0;
+      const actualAttempts = userTurns(game) ?? 0;
       
       // Use shared utility functions to determine game status
-  const isWin = isGameWon(game);
+      const isWin = actualAttempts === 0 ? null : actualAttempts <= 6;
       
       const point: ChartDataPoint = {
         date: game.date,
@@ -301,128 +318,38 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
       filledData.push(...data);
     }
 
-    // Calculate cumulative running averages (turns, skill, luck)
-    let sumTurns = 0;
-    let countTurns = 0;
-    let sumSkill = 0; let countSkill = 0;
-    let sumLuck = 0; let countLuck = 0;
-
-    const dataWithRunningAvg = filledData.map((point) => {
-      // Turns (won games only with >0 turns)
-      if (point.won === true && point.turns > 0) {
-        sumTurns += point.turns;
-        countTurns += 1;
-      }
-      const runningAverage = countTurns > 0 ? sumTurns / countTurns : undefined;
-
-      // Skill score
-      if (typeof point.skillScore === 'number') {
-        sumSkill += point.skillScore;
-        countSkill += 1;
-      }
-      const runningSkillAvg = countSkill > 0 ? sumSkill / countSkill : undefined;
-
-      // Luck score
-      if (typeof point.luckScore === 'number') {
-        sumLuck += point.luckScore;
-        countLuck += 1;
-      }
-      const runningLuckAvg = countLuck > 0 ? sumLuck / countLuck : undefined;
-
-      return { ...point, runningAverage, runningSkillAvg, runningLuckAvg };
-    });
-
-    return dataWithRunningAvg;
+    return filledData;
   }, [games]);
 
   // Get visible data based on committed range (only updates after dragging stops)
   const visibleData = useMemo(() => {
-    if (!committedRange || committedRange.start === committedRange.end) {
+    if (!committedRange) {
       return chartData;
     }
     
-    // Get the sliced data
-    const slicedData = chartData.slice(committedRange.start, committedRange.end + 1);
-    
-    // Recalculate running averages for ONLY the visible range
-    let sumTurns = 0;
-    let countTurns = 0;
-    let sumSkill = 0;
-    let countSkill = 0;
-    let sumLuck = 0;
-    let countLuck = 0;
-    
-    return slicedData.map((point) => {
-      // Turns (won games only with >0 turns)
-      if (point.won === true && point.turns > 0) {
-        sumTurns += point.turns;
-        countTurns += 1;
-      }
-      const runningAverage = countTurns > 0 ? sumTurns / countTurns : undefined;
-
-      // Skill score
-      if (typeof point.skillScore === 'number') {
-        sumSkill += point.skillScore;
-        countSkill += 1;
-      }
-      const runningSkillAvg = countSkill > 0 ? sumSkill / countSkill : undefined;
-
-      // Luck score
-      if (typeof point.luckScore === 'number') {
-        sumLuck += point.luckScore;
-        countLuck += 1;
-      }
-      const runningLuckAvg = countLuck > 0 ? sumLuck / countLuck : undefined;
-
-      return { ...point, runningAverage, runningSkillAvg, runningLuckAvg };
-    });
+    return chartData.slice(committedRange.start, committedRange.end + 1);
   }, [chartData, committedRange]);
 
   // Create chart data with zoomed running averages
   // This maintains the full dataset for Brush navigation,
   // but updates running average lines to reflect only the committed range
   const chartDataWithZoomedAverages = useMemo(() => {
-    if (!committedRange || committedRange.start === committedRange.end) {
-      // No zoom - use original chartData with cumulative running averages
-      return chartData;
-    }
-    
-    // Build a map of dates to their zoomed running averages
-    const zoomedAveragesMap = new Map<string, { 
-      runningAverage?: number; 
-      runningSkillAvg?: number; 
-      runningLuckAvg?: number; 
-    }>();
-    
-    visibleData.forEach(point => {
-      zoomedAveragesMap.set(point.date, {
-        runningAverage: point.runningAverage,
-        runningSkillAvg: point.runningSkillAvg,
-        runningLuckAvg: point.runningLuckAvg
-      });
-    });
-    
-    // Return full chartData but with running averages only for visible range
-    // Points outside the range will have undefined averages (won't show on chart)
+    const dates = new Set(visibleData.map(point => point.date));
+    const points = buildSolveComparison(games.filter(game => dates.has(game.date)), solverResults);
+    const values = plot === 'daily' ? points : comparisonTrend(points, plot === 'cumulative' ? points.length : 20);
+    const byDate = new Map(values.map(point => [point.date, point]));
     return chartData.map(point => {
-      const zoomedAvg = zoomedAveragesMap.get(point.date);
-      if (zoomedAvg) {
-        return {
-          ...point,
-          runningAverage: zoomedAvg.runningAverage,
-          runningSkillAvg: zoomedAvg.runningSkillAvg,
-          runningLuckAvg: zoomedAvg.runningLuckAvg
-        };
-      }
-      // Outside visible range - clear running averages
+      const comparison = byDate.get(point.date);
       return {
         ...point,
-        runningAverage: undefined,
-        runningSkillAvg: undefined,
-        runningLuckAvg: undefined
+        user: comparison?.user ?? null,
+        solver: comparison?.solver ?? null,
+        readers: comparison?.readers ?? null,
+        skill: comparison?.skill ?? null,
+        luck: comparison?.luck ?? null,
       };
     });
-  }, [chartData, committedRange, visibleData]);
+  }, [chartData, visibleData, games, solverResults, plot]);
 
   const averageTurns = useMemo(() => {
     const wonGames = visibleData.filter(d => d.won === true);
@@ -433,16 +360,16 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
   }, [visibleData]);
 
   const averageSkill = useMemo(() => {
-    const gamesWithSkill = visibleData.filter(d => typeof d.skillScore === 'number');
-    if (gamesWithSkill.length === 0) return 0;
+    const gamesWithSkill = visibleData.filter(d => Number.isFinite(d.skillScore));
+    if (gamesWithSkill.length === 0) return null;
     
     const sum = gamesWithSkill.reduce((acc, game) => acc + (game.skillScore || 0), 0);
     return sum / gamesWithSkill.length;
   }, [visibleData]);
 
   const averageLuck = useMemo(() => {
-    const gamesWithLuck = visibleData.filter(d => typeof d.luckScore === 'number');
-    if (gamesWithLuck.length === 0) return 0;
+    const gamesWithLuck = visibleData.filter(d => Number.isFinite(d.luckScore));
+    if (gamesWithLuck.length === 0) return null;
     
     const sum = gamesWithLuck.reduce((acc, game) => acc + (game.luckScore || 0), 0);
     return sum / gamesWithLuck.length;
@@ -476,12 +403,12 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
     const getTileColor = (status: GuessResult['status']) => {
       switch (status) {
         case 'correct':
-          return '#6aaa64';
+          return 'var(--cp-wordle-green)';
         case 'present':
-          return '#c9b458';
-            case 'absent':
-            default:
-              return '#787c7e';
+          return 'var(--cp-wordle-yellow)';
+        case 'absent':
+        default:
+          return 'var(--cp-wordle-gray)';
       }
     };
 
@@ -495,7 +422,7 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
                 className={`tooltip-grid-cell tooltip-grid-cell-${cell.status}`}
                 style={{ 
                   backgroundColor: getTileColor(cell.status),
-                  color: '#ffffff',
+                  color: 'var(--cp-wordle-fg)',
                   fontWeight: 'bold',
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -592,6 +519,13 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
               {resultText}
             </div>
           )}
+          <div className="tooltip-comparisons">
+            {METRICS.filter(metric => metrics[metric.key]).map(metric => (
+              <div key={metric.key}>
+                {metric.label}: {typeof data[metric.key] === 'number' ? data[metric.key]!.toFixed(2) : 'N/A'}
+              </div>
+            ))}
+          </div>
         </div>
       );
     }
@@ -606,11 +540,11 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
     // Determine color based on won field (green for won, red for loss, grey for unplayed)
     let color;
     if (!payload.turns || payload.turns === 0 || payload.won === null) {
-            color = '#d3d6da'; // Grey for unplayed
+      color = 'var(--cp-border-strong)';
     } else if (payload.won === false || payload.turns >= 7) {
-      color = '#d73a49'; // Red for losses
+      color = 'var(--cp-danger)';
     } else {
-      color = '#6aaa64'; // Green for wins
+      color = 'var(--cp-success)';
     }
     
     return (
@@ -619,8 +553,9 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
         cy={cy}
         r={4}
         fill={color}
-        stroke="white"
+        stroke="var(--cp-surface)"
         strokeWidth={1.5}
+        opacity={highlighted && highlighted !== 'games' ? 0.2 : 1}
         style={{ cursor: 'pointer' }}
       />
     );
@@ -670,7 +605,7 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
           </span>
         </div>
         <div className="chart-stat">
-            <span className="chart-stat-label">Average Turns</span>
+            <span className="chart-stat-label">Avg Turns (wins)</span>
             <span className="chart-stat-value">
             {averageTurns > 0 ? averageTurns.toFixed(2) : '—'}
             </span>
@@ -682,36 +617,64 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
         <div className="chart-stat">
           <span className="chart-stat-label">Avg Skill</span>
           <span className="chart-stat-value">
-            {averageSkill > 0 ? averageSkill.toFixed(1) : '—'}
+            {averageSkill !== null ? averageSkill.toFixed(1) : '—'}
           </span>
         </div>
         <div className="chart-stat">
           <span className="chart-stat-label">Avg Luck</span>
           <span className="chart-stat-value">
-            {averageLuck > 0 ? averageLuck.toFixed(1) : '—'}
+            {averageLuck !== null ? averageLuck.toFixed(1) : '—'}
           </span>
         </div>
       </div>
 
-      {/* Turn Distribution */}
-      {turnDistribution && (
-        <div className="turn-distribution-wrapper">
-          {turnDistribution}
-        </div>
-      )}
+      <div className="timeline-controls" role="group" aria-label="Chart metrics">
+        {[
+          ...METRICS,
+          { key: 'games' as const, label: 'Game results', color: 'var(--cp-success)' },
+        ].map(metric => (
+          <button key={metric.key} type="button" className="metric-toggle"
+            aria-pressed={metrics[metric.key]} aria-describedby="timeline-metric-help"
+            onClick={() => {
+              setMetrics(current => ({ ...current, [metric.key]: !current[metric.key] }));
+              setHighlighted(null);
+            }}
+            onMouseEnter={() => setHighlighted(metrics[metric.key] ? metric.key : null)}
+            onMouseLeave={() => setHighlighted(null)}
+            onFocus={() => setHighlighted(metrics[metric.key] ? metric.key : null)}
+            onBlur={() => setHighlighted(null)}
+            style={{ '--metric-color': metric.color } as CSSProperties}
+          >
+            <span className="metric-swatch" aria-hidden="true" />
+            {metric.label}
+          </button>
+        ))}
+        <label className="solve-controls">
+          Plot:
+          <select aria-label="Timeline averaging" value={plot} onChange={event => setPlot(event.target.value)}>
+            <option value="trend">20-game rolling average</option>
+            <option value="cumulative">Cumulative average in selected range</option>
+            <option value="daily">Individual games</option>
+          </select>
+        </label>
+      </div>
+      <p className="section-subtitle" id="timeline-metric-help">
+        Toggle metrics to show or hide them; hover or focus to highlight. Failures count as 7 turns; missing values stay blank.
+      </p>
+      {!Object.values(metrics).some(Boolean) && <p role="status">Select a metric to plot.</p>}
 
       <ResponsiveContainer width="100%" height={400}>
         <ComposedChart data={chartDataWithZoomedAverages} margin={CHART_MARGINS}>
           <CartesianGrid 
             strokeDasharray="3 3" 
-            stroke={isDarkMode ? "#4a4a4a" : "#e5e7eb"} 
-            strokeOpacity={isDarkMode ? 0.5 : 1}
+            stroke="var(--cp-border)"
           />
           
           <XAxis
             dataKey="date"
             tickFormatter={formatXAxis}
-            stroke={isDarkMode ? "#9ca3af" : "#6b7280"}
+            stroke="var(--cp-text-muted)"
+            tick={{ fill: 'var(--cp-text-muted)' }}
             style={{ fontSize: '12px' }}
           />
           
@@ -719,70 +682,55 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
             yAxisId="turns"
             domain={[0, 8]}
             ticks={[1, 2, 3, 4, 5, 6, 7]}
-            stroke={isDarkMode ? "#9ca3af" : "#6b7280"}
+            stroke="var(--cp-text-muted)"
+            tick={{ fill: 'var(--cp-text-muted)' }}
             style={{ fontSize: '12px' }}
             label={{ value: 'Turns', angle: -90, position: 'insideLeft' }}
           />
           <YAxis
             yAxisId="score"
+            hide={!metrics.skill && !metrics.luck}
             orientation="right"
             domain={[0, 100]}
             ticks={[0,20,40,60,80,100]}
-            stroke={isDarkMode ? "#9ca3af" : "#64748b"}
+            stroke="var(--cp-text-muted)"
+            tick={{ fill: 'var(--cp-text-muted)' }}
             style={{ fontSize: '12px' }}
             label={{ value: 'Score', angle: 90, position: 'insideRight' }}
           />
 
-          <Tooltip content={<CustomTooltip />} />
+          <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'var(--cp-border-strong)' }} />
 
-          {/* Running averages - recalculated for zoomed range via chartDataWithZoomedAverages */}
-          <Line
-            type="monotone"
-            dataKey="runningAverage"
-            stroke={isDarkMode ? "#f0ad4e" : "#c9b458"}
-            strokeWidth={isDarkMode ? 3.5 : 3}
-            dot={false}
-            name="Avg Turns"
-            yAxisId="turns"
-            connectNulls
-          />
-          <Line
-            type="monotone"
-            dataKey="runningSkillAvg"
-            stroke={isDarkMode ? "rgba(59,130,246,0.85)" : "rgba(29,78,216,0.55)"}
-            strokeWidth={isDarkMode ? 2.5 : 2}
-            strokeOpacity={1}
-            dot={false}
-            name="Avg Skill"
-            yAxisId="score"
-            connectNulls
-          />
-          <Line
-            type="monotone"
-            dataKey="runningLuckAvg"
-            stroke={isDarkMode ? "rgba(168,85,247,0.85)" : "rgba(147,51,234,0.55)"}
-            strokeWidth={isDarkMode ? 2.5 : 2}
-            strokeOpacity={1}
-            dot={false}
-            name="Avg Luck"
-            yAxisId="score"
-            connectNulls
-          />
+          {METRICS.map(metric => (
+            <Line key={metric.key} className={`metric-${metric.key}`}
+              type="monotone" dataKey={metric.key} name={metric.label}
+              stroke={metric.color} strokeDasharray={metric.dash}
+              strokeWidth={highlighted === metric.key ? 4 : 2.5}
+              strokeOpacity={highlighted && highlighted !== metric.key ? 0.2 : 1}
+              hide={!metrics[metric.key]} yAxisId={metric.axis}
+              dot={plot === 'daily' || chartDataWithZoomedAverages.filter(point => typeof point[metric.key] === 'number').length === 1
+                ? { r: 3, stroke: 'var(--cp-surface)' }
+                : false}
+              activeDot={{ r: 5, stroke: 'var(--cp-surface)', strokeWidth: 2 }}
+              isAnimationActive={false}
+            />
+          ))}
 
           {/* Scatter plot for individual games */}
-          <Scatter
+          {metrics.games && <Scatter
             name="Games"
             dataKey="turns"
-            fill="#6aaa64"
+            fill="var(--cp-success)"
             shape={<CustomDot />}
             yAxisId="turns"
-          />
+          />}
 
           {/* Brush for range selection */}
           <Brush
             dataKey="date"
             height={30}
-            stroke="#6aaa64"
+            stroke="var(--cp-accent)"
+            fill="var(--cp-surface-soft)"
             tickFormatter={formatXAxis}
             onChange={handleBrushChange}
             startIndex={selectedRange?.start}
@@ -791,7 +739,7 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
         </ComposedChart>
       </ResponsiveContainer>
 
-      <div className="chart-legend-custom">
+      {metrics.games && <div className="chart-legend-custom">
         <div className="legend-item">
           <span className="legend-dot legend-dot-win"></span>
           <span>Won</span>
@@ -800,19 +748,13 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
           <span className="legend-dot legend-dot-loss"></span>
           <span>Lost</span>
         </div>
-        <div className="legend-item">
-          <span className="legend-line legend-line-avg"></span>
-          <span>Avg Turns</span>
-        </div>
-        <div className="legend-item">
-          <span className="legend-line legend-line-skill"></span>
-          <span>Avg Skill</span>
-        </div>
-        <div className="legend-item">
-          <span className="legend-line legend-line-luck"></span>
-          <span>Avg Luck</span>
-        </div>
-      </div>
+      </div>}
+      {turnDistribution && (
+        <details className="turn-distribution-wrapper">
+          <summary>Turn distribution for selected range</summary>
+          {turnDistribution}
+        </details>
+      )}
     </div>
   );
 };

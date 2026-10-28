@@ -1,27 +1,18 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from 'recharts';
 import { GameResult } from '@/types/gameTypes';
 import { MessageType } from '@/types/messagingTypes';
 import { SOLVER_DESCRIPTION } from '@/solver/solver';
-import { useSolver } from '../hooks/useSolver';
+import type { useSolver } from '../hooks/useSolver';
 import { useGameDataStore } from '@/stores/gameData';
 import {
   buildSolveComparison,
-  comparisonTrend,
   pairedComparison,
 } from '@/utils/solveComparison';
 
 interface Props {
   games: GameResult[];
   allGames?: GameResult[];
+  solver: ReturnType<typeof useSolver>;
 }
 
 const formatTurns = (value: number | null) =>
@@ -31,8 +22,12 @@ const formatTurns = (value: number | null) =>
       ? 'X/6'
       : value.toFixed(value % 1 ? 2 : 0);
 
-const SolveAnalytics: React.FC<Props> = ({ games, allGames = games }) => {
-  const { results, running, error } = useSolver(allGames);
+const SolveAnalytics: React.FC<Props> = ({
+  games,
+  allGames = games,
+  solver,
+}) => {
+  const { results, running, error } = solver;
   const addGame = useGameDataStore((state) => state.addGame);
   const attemptedReaders = useRef(new Set<string>());
   useEffect(() => {
@@ -65,7 +60,6 @@ const SolveAnalytics: React.FC<Props> = ({ games, allGames = games }) => {
       cancelled = true;
     };
   }, [allGames, addGame]);
-  const [trend, setTrend] = useState(true);
   const [page, setPage] = useState(0);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -73,10 +67,6 @@ const SolveAnalytics: React.FC<Props> = ({ games, allGames = games }) => {
   const points = useMemo(
     () => buildSolveComparison(games, results),
     [games, results]
-  );
-  const chart = useMemo(
-    () => (trend ? comparisonTrend(points) : points),
-    [points, trend]
   );
   const solverPair = pairedComparison(points, 'solver');
   const readerPair = pairedComparison(points, 'readers');
@@ -182,111 +172,7 @@ const SolveAnalytics: React.FC<Props> = ({ games, allGames = games }) => {
           </div>
         ))}
       </div>
-      <label className="solve-controls">
-        Plot:
-        <select
-          value={trend ? 'trend' : 'daily'}
-          onChange={(event) => setTrend(event.target.value === 'trend')}
-        >
-          <option value="trend">
-            20-game rolling average (available observations)
-          </option>
-          <option value="daily">Individual games</option>
-        </select>
-      </label>
-      {points.length ? (
-        <div className="solve-chart" aria-label="Solve turns comparison chart">
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart
-              data={chart}
-              margin={{ top: 20, right: 5, left: 5, bottom: 20 }}
-            >
-              <CartesianGrid
-                stroke="var(--cp-chart-grid)"
-                strokeDasharray="3 3"
-              />
-              <XAxis
-                dataKey="date"
-                stroke="var(--cp-chart-axis)"
-                style={{ fontSize: '12px' }}
-                tickFormatter={(date: string) =>
-                  new Date(`${date}T00:00:00`).toLocaleDateString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                  })
-                }
-                minTickGap={60}
-              />
-              <YAxis
-                domain={[1, 7]}
-                ticks={[1, 2, 3, 4, 5, 6, 7]}
-                stroke="var(--cp-chart-axis)"
-                style={{ fontSize: '12px' }}
-                label={{ value: 'Turns', angle: -90, position: 'insideLeft' }}
-              />
-              <Tooltip
-                content={({ active, payload, label }) =>
-                  active && payload?.length ? (
-                    <div className="chart-tooltip">
-                      <div className="tooltip-date">{label}</div>
-                      {payload.map((entry) => (
-                        <p key={String(entry.dataKey)}>
-                          {entry.name}: {formatTurns(Number(entry.value))}
-                        </p>
-                      ))}
-                    </div>
-                  ) : null
-                }
-              />
-              <Line
-                type="monotone"
-                dataKey="user"
-                name="You"
-                stroke="var(--cp-chart-turns)"
-                strokeWidth={3}
-                dot={!trend}
-                isAnimationActive={false}
-              />
-              <Line
-                type="monotone"
-                dataKey="solver"
-                name="Local solver"
-                stroke="var(--cp-wordle-green)"
-                strokeWidth={2}
-                strokeDasharray="6 3"
-                dot={!trend}
-                isAnimationActive={false}
-              />
-              <Line
-                type="monotone"
-                dataKey="readers"
-                name="NYT readers"
-                stroke="var(--cp-chart-readers)"
-                strokeWidth={2}
-                strokeDasharray="2 3"
-                dot={!trend}
-                isAnimationActive={false}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-          <div className="chart-legend-custom" aria-label="Chart legend">
-            <span className="legend-item">
-              <span className="legend-line solve-legend-user" />
-              You
-            </span>
-            <span className="legend-item">
-              <span className="legend-line solve-legend-solver" />
-              Local solver
-            </span>
-            <span className="legend-item">
-              <span className="legend-line solve-legend-readers" />
-              NYT readers
-            </span>
-          </div>
-        </div>
-      ) : (
-        <p>No games in the selected range.</p>
-      )}
+      {!points.length && <p>No games in the selected range.</p>}
       <h3 className="section-title">Individual games</h3>
       <p>
         Expand a tile to reveal the answer and the solver&apos;s actual guess
@@ -388,23 +274,29 @@ const SolveAnalytics: React.FC<Props> = ({ games, allGames = games }) => {
         ))}
       </div>
       {pages > 1 && (
-        <div className="solve-controls">
+        <nav className="solve-pagination" aria-label="Game history pages">
           <button
-            disabled={currentPage === 0}
-            onClick={() => setPage(currentPage - 1)}
-          >
-            Newer games
-          </button>
-          <span>
-            Page {currentPage + 1} of {pages}
-          </span>
-          <button
+            className="time-nav-btn"
+            aria-label="Older games"
+            title="Older games"
             disabled={currentPage === pages - 1}
             onClick={() => setPage(currentPage + 1)}
           >
-            Older games
+            &#8249;
           </button>
-        </div>
+          <span aria-live="polite">
+            Page {currentPage + 1} of {pages}
+          </span>
+          <button
+            className="time-nav-btn"
+            aria-label="Newer games"
+            title="Newer games"
+            disabled={currentPage === 0}
+            onClick={() => setPage(currentPage - 1)}
+          >
+            &#8250;
+          </button>
+        </nav>
       )}
     </section>
   );

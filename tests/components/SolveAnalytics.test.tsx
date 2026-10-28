@@ -2,24 +2,6 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import SolveAnalytics from '@/dashboard/components/SolveAnalytics';
 import { useGameDataStore } from '@/stores/gameData';
 
-jest.mock('@/dashboard/hooks/useSolver', () => ({
-  useSolver: () => ({
-    running: false,
-    error: null,
-    results: { SLATE: { status: 'solved', turns: 1, guesses: [] } },
-  }),
-}));
-jest.mock('recharts', () => ({
-  ResponsiveContainer: ({ children }: any) => children,
-  LineChart: () => null,
-  Line: () => null,
-  XAxis: () => null,
-  YAxis: () => null,
-  CartesianGrid: () => null,
-  Tooltip: () => null,
-  Legend: () => null,
-}));
-
 it('shows missing readers honestly and saves a per-puzzle reader mean only after storage acknowledges it', async () => {
   const game = {
     date: '2026-10-25',
@@ -33,7 +15,16 @@ it('shows missing readers honestly and saves a per-puzzle reader mean only after
   (chrome.runtime.sendMessage as jest.Mock).mockResolvedValue({
     success: true,
   });
-  render(<SolveAnalytics games={[game]} />);
+  render(
+    <SolveAnalytics
+      games={[game]}
+      solver={{
+        running: false,
+        error: null,
+        results: { SLATE: { status: 'solved', turns: 1, guesses: [] } },
+      }}
+    />
+  );
   const tile = screen.getByText('2026-10-25').closest('details')!;
   expect(within(tile).getByText('N/A')).toBeInTheDocument();
   fireEvent.change(

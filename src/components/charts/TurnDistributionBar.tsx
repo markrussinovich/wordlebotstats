@@ -33,9 +33,7 @@ const TurnDistributionBar: React.FC<TurnDistributionBarProps> = ({ games, classN
   }
 
   const getColor = (index: number): string => {
-    if (index === 6) return '#d73027'; // red for losses
-    const colors = ['#1a5f3f', '#2d7d4f', '#4a9d5f', '#6aaa64', '#87bc76', '#a3ce88'];
-    return colors[index];
+    return index === 6 ? 'var(--cp-danger)' : 'var(--cp-accent)';
   };
 
   return (

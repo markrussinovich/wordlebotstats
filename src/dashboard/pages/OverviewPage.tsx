@@ -6,11 +6,13 @@ import { useGameDataStore } from '@/stores/gameData';
 import { calculateStreakStats } from '@/utils/streakCalculation';
 import SolveAnalytics from '../components/SolveAnalytics';
 import { GameResult } from '@/types/gameTypes';
+import { useSolver } from '../hooks/useSolver';
 
 const OverviewPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [rangeStreaks, setRangeStreaks] = useState<{ current: number; max: number } | null>(null);
   const [filteredGames, setFilteredGames] = useState<GameResult[]>([]);
+  const [selectedDates, setSelectedDates] = useState<{ start: Date; end: Date } | null>(null);
 
   // Store hooks
   const { 
@@ -18,6 +20,7 @@ const OverviewPage: React.FC = () => {
     getStatisticsForTimeFrame, 
     isLoading: gamesLoading 
   } = useGameDataStore();
+  const solver = useSolver(games);
 
   // Load data on component mount
   useEffect(() => {
@@ -40,26 +43,7 @@ const OverviewPage: React.FC = () => {
 
   // Handle timeline range selection
   const handleRangeChange = (startDate: Date, endDate: Date) => {
-    // Recalculate streaks for the selected range
-    // This uses all games but with the endDate as the right edge of the range
-    const streaks = calculateStreakStats(games, startDate, endDate);
-    setRangeStreaks({ current: streaks.currentStreak, max: streaks.maxStreak });
-    
-    // Filter games by selected date range
-    const filtered = games.filter(game => {
-      const start = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-${String(startDate.getDate()).padStart(2, '0')}`;
-      const end = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`;
-      return game.date >= start && game.date <= end;
-    });
-    setFilteredGames(filtered);
-    
-    console.log('[OverviewPage] Range selected:', {
-      start: startDate.toISOString(),
-      end: endDate.toISOString(),
-      currentStreak: streaks.currentStreak,
-      maxStreak: streaks.maxStreak,
-      filteredGames: filtered.length
-    });
+    setSelectedDates({ start: startDate, end: endDate });
   };
 
   // Initialize streak data for all games on mount
@@ -67,29 +51,17 @@ const OverviewPage: React.FC = () => {
     if (games.length > 0) {
       // Calculate initial streaks for all games - need to provide date range
       const sortedGames = [...games].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-      const startDate = new Date(sortedGames[0].date);
-      const endDate = new Date(sortedGames[sortedGames.length - 1].date);
+      const startDate = selectedDates?.start ?? new Date(`${sortedGames[0].date}T00:00:00`);
+      const endDate = selectedDates?.end ?? new Date(`${sortedGames[sortedGames.length - 1].date}T00:00:00`);
       const allStreaks = calculateStreakStats(games, startDate, endDate);
       setRangeStreaks({ current: allStreaks.currentStreak, max: allStreaks.maxStreak });
       
-      // Initialize filtered games with all games
-      setFilteredGames(games);
-      
-      console.log('[OverviewPage] Sample games:', games.slice(0, 5));
-      console.log('[OverviewPage] Statistics:', statistics);
-      
-      // Correct categorization: 0=unplayed, 1-6=win, 7+=loss
-      const unplayed = games.filter(g => !g.attempts || g.attempts === 0).length;
-      const wins = games.filter(g => g.attempts && g.attempts >= 1 && g.attempts <= 6).length;
-      const losses = games.filter(g => g.attempts && g.attempts >= 7).length;
-      
-      console.log('[OverviewPage] Total games:', games.length);
-      console.log('[OverviewPage] Unplayed (0 attempts):', unplayed);
-      console.log('[OverviewPage] Wins (1-6 attempts):', wins);
-      console.log('[OverviewPage] Losses (7+ attempts):', losses);
-      console.log('[OverviewPage] Played games:', wins + losses);
+      const dateKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+      const start = dateKey(startDate);
+      const end = dateKey(endDate);
+      setFilteredGames(games.filter(game => game.date >= start && game.date <= end));
     }
-  }, [games, statistics]);
+  }, [games, selectedDates]);
 
   if (isLoading || gamesLoading) {
     return (
@@ -161,17 +133,18 @@ const OverviewPage: React.FC = () => {
       <div className="chart-section">
         <h2 className="section-title">Performance Timeline</h2>
         <p className="section-subtitle">
-          Click and drag to select a date range and zoom in. Streaks and turn distribution update based on selected range.
+          Compare turns, solver results, NYT readers, skill, and luck. Drag the range handles to update all comparisons and game tiles.
         </p>
         
         <TimelineChart 
           games={games} 
+          solverResults={solver.results}
           onRangeChange={handleRangeChange}
           turnDistribution={<TurnDistributionBar games={filteredGames} />}
           streakData={rangeStreaks}
         />
       </div>
-      <SolveAnalytics games={filteredGames} allGames={games} />
+      <SolveAnalytics games={filteredGames} allGames={games} solver={solver} />
     </div>
   );
 };

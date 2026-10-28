@@ -99,6 +99,10 @@ function applyThemeToDocument(theme: ThemePreference) {
   if (typeof document === 'undefined') return;
 
   const root = document.documentElement;
+  const override = new URLSearchParams(window.location.search).get('scoutTheme');
+  if (override === 'light' || override === 'dark') {
+    theme = override;
+  }
 
   if (theme === 'system') {
     const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;

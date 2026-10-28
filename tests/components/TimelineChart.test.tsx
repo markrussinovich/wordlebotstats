@@ -8,6 +8,19 @@ import TimelineChart, {
 import { GameResult } from '../../src/types/gameTypes';
 
 describe('TimelineChart', () => {
+  it('shows valid zero skill and luck averages rather than missing scores', () => {
+    const { getByText } = render(<TimelineChart games={[{
+      date: '2026-10-25',
+      attempts: 4,
+      won: true,
+      hardMode: false,
+      skillScore: 0,
+      luckScore: 0
+    }]} />);
+    expect(getByText('Avg Skill').parentElement).toHaveTextContent('0.0');
+    expect(getByText('Avg Luck').parentElement).toHaveTextContent('0.0');
+  });
+
   describe('Lost Games Display', () => {
     it('should correctly identify and display lost games with won=false', () => {
       const gamesWithLoss: GameResult[] = [

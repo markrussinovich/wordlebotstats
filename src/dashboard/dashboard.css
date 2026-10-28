@@ -27,12 +27,6 @@
   --cp-wordle-yellow: #c9b458;
   --cp-wordle-gray: #787c7e;
   --cp-wordle-fg: #ffffff;
-  --cp-dashboard-text: #212529;
-  --cp-dashboard-muted: #6d716e;
-  --cp-chart-grid: #e5e7eb;
-  --cp-chart-axis: #6b7280;
-  --cp-chart-turns: #c9b458;
-  --cp-chart-readers: rgba(29, 78, 216, 0.55);
 }
 html[data-theme="dark"] {
   color-scheme: dark;
@@ -59,17 +53,11 @@ html[data-theme="dark"] {
   --cp-panel-strong: rgba(41, 41, 41, 0.96);
   --cp-sheen: rgba(255, 255, 255, 0.04);
   --cp-highlight: rgba(253, 142, 161, 0.12);
-  --cp-dashboard-text: #cccccc;
-  --cp-dashboard-muted: #858585;
-  --cp-chart-grid: #4a4a4a;
-  --cp-chart-axis: #9ca3af;
-  --cp-chart-turns: #f0ad4e;
-  --cp-chart-readers: rgba(59, 130, 246, 0.85);
 }
 
 .solve-analytics { font: inherit; color: inherit; }
-.solve-analytics p:not(.section-subtitle) { margin: 4px 0 8px; font-size: 12px; color: var(--cp-dashboard-muted); }
-.solve-methodology { margin-bottom: 12px; font-size: 12px; color: var(--cp-dashboard-muted); }
+.solve-analytics p:not(.section-subtitle) { margin: 4px 0 8px; font-size: 12px; color: var(--cp-text-muted); }
+.solve-methodology { margin-bottom: 12px; font-size: 12px; color: var(--cp-text-muted); }
 .solve-methodology summary { cursor: pointer; }
 .solve-summary, .solve-games { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 12px; margin: 12px 0; }
 .solve-tile { min-width: 0; }
@@ -78,12 +66,12 @@ html[data-theme="dark"] {
 .solve-games h4 { margin: 12px 0 4px; font-size: 14px; }
 .solve-tile summary { cursor: pointer; font-size: 13px; font-weight: 600; }
 .solve-turns { display: flex; flex-wrap: wrap; gap: 16px; padding-top: 4px; }
-.solve-turns span { display: grid; font-size: 12px; color: var(--cp-dashboard-muted); }
-.solve-turns strong { font-size: 20px; color: var(--cp-dashboard-text); }
+.solve-turns span { display: grid; font-size: 12px; color: var(--cp-text-muted); }
+.solve-turns strong { font-size: 20px; color: var(--cp-text); }
 .solve-controls, .solve-reader-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0; font-size: 12px; }
 .solve-controls select, .solve-analytics input, .solve-analytics button {
   padding: 6px 8px; border: 1px solid var(--cp-border-strong); border-radius: 6px;
-  background: var(--cp-surface); color: var(--cp-dashboard-text); font: inherit; max-width: 100%;
+  background: var(--cp-surface); color: var(--cp-text); font: inherit; max-width: 100%;
 }
 .solve-analytics input { width: 100%; }
 .solve-analytics button { cursor: pointer; }
@@ -98,15 +86,23 @@ html[data-theme="dark"] {
 .solve-cell-correct { background: var(--cp-wordle-green); }
 .solve-cell-present { background: var(--cp-wordle-yellow); }
 .solve-cell-absent { background: var(--cp-wordle-gray); }
-.solve-chart { min-width: 0; }
-.solve-chart .chart-tooltip p { margin: 2px 0; }
-.solve-chart .chart-legend-custom { margin: 0 0 16px; padding-top: 8px; flex-wrap: wrap; }
-.solve-legend-user { border-color: var(--cp-chart-turns); border-top-width: 3px; }
-.solve-legend-solver { border-color: var(--cp-wordle-green); border-top-style: dashed; }
-.solve-legend-readers { border-color: var(--cp-chart-readers); border-top-style: dotted; }
+.solve-pagination { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 16px; font-size: 12px; }
+.solve-pagination .time-nav-btn { width: 36px; height: 36px; padding: 0; font-size: 24px; line-height: 1; }
+.timeline-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.metric-toggle { display: inline-flex; align-items: center; gap: 6px; padding: 6px 8px; border: 1px solid var(--cp-border-strong); border-radius: 0.625rem; background: var(--cp-surface); color: var(--cp-text-muted); font: inherit; font-size: 12px; cursor: pointer; }
+.metric-toggle[aria-pressed="true"] { border-color: var(--cp-accent); background: var(--cp-accent-soft); color: var(--cp-text); }
+.metric-toggle:hover { border-color: var(--cp-accent); }
+.metric-toggle:focus-visible { outline: 2px solid var(--cp-accent); outline-offset: 2px; }
+.metric-swatch { width: 16px; border-top: 3px solid var(--metric-color); }
+.metric-toggle[aria-pressed="false"] .metric-swatch { opacity: 0.4; }
+.timeline-chart .recharts-brush rect { fill: var(--cp-surface-soft); stroke: var(--cp-border-strong); }
+.timeline-chart .recharts-brush text { fill: var(--cp-text-muted); }
+.timeline-chart .recharts-label { fill: var(--cp-text-muted); }
+.tooltip-comparisons { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--cp-border); font-size: 12px; color: var(--cp-text); }
+.turn-distribution-wrapper summary { margin: 12px 0; cursor: pointer; color: var(--cp-text-muted); font-size: 12px; }
 
 /* Wordle Stat Explorer Dashboard Styles */
-/* Authentic Wordle theme: Clean, minimal, with Wordle's signature colors */
+/* Shared application theme; Wordle feedback colors are reserved for game boards. */
 
 * {
   box-sizing: border-box;
@@ -115,10 +111,14 @@ html[data-theme="dark"] {
 }
 
 body {
-  font-family: 'Clear Sans', 'Helvetica Neue', Arial, sans-serif;
-  background: #f7f6f2;
-  color: #212529;
+  font-family: "Segoe UI", Aptos, Calibri, -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--cp-bg);
+  color: var(--cp-text);
   line-height: 1.6;
+}
+
+a {
+  color: var(--cp-link);
 }
 
 /* Loading States */
@@ -134,8 +134,8 @@ body {
 .loading-spinner {
   width: 40px;
   height: 40px;
-  border: 3px solid #d3d6da;
-  border-top: 3px solid #6aaa64;
+  border: 3px solid var(--cp-border);
+  border-top: 3px solid var(--cp-accent);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -146,7 +146,7 @@ body {
 }
 
 .loading-text {
-  color: #6b7280;
+  color: var(--cp-text-muted);
   font-size: 16px;
 }
 
@@ -163,13 +163,13 @@ body {
 
 .dashboard-empty h2 {
   font-size: 24px;
-  color: #1e293b;
+  color: var(--cp-text);
   margin-bottom: 12px;
 }
 
 .dashboard-empty p {
   font-size: 16px;
-  color: #64748b;
+  color: var(--cp-text-muted);
 }
 
 /* Dashboard Container */
@@ -177,9 +177,9 @@ body {
   max-width: 1200px;
   margin: 0 auto;
   padding: 16px 18px;
-  background: #ffffff;
-  border-radius: 14px;
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.06);
+  background: var(--cp-surface);
+  border-radius: 16px;
+  border: 1px solid var(--cp-border);
 }
 
 /* Header */
@@ -187,13 +187,13 @@ body {
   text-align: center;
   margin-bottom: 12px;
   padding: 8px 0;
-  border-bottom: 1px solid #d3d6da;
+  border-bottom: 1px solid var(--cp-border);
 }
 
 .dashboard-header h1 {
   font-size: 24px;
   font-weight: 700;
-  color: #6aaa64;
+  color: var(--cp-accent);
   margin-bottom: 4px;
   letter-spacing: 0.5px;
   text-transform: uppercase;
@@ -201,7 +201,7 @@ body {
 
 .dashboard-header .subtitle {
   font-size: 12px;
-  color: #666c73;
+  color: var(--cp-text-muted);
   font-weight: 400;
 }
 
@@ -217,9 +217,9 @@ body {
 }
 
 .stat-item {
-  background: #e6e7e8;
-  border: 1px solid #d3d6da;
-  border-radius: 8px;
+  background: var(--cp-surface-soft);
+  border: 1px solid var(--cp-border);
+  border-radius: 10px;
   padding: 12px 8px;
   text-align: center;
   transition: none;
@@ -248,7 +248,7 @@ body {
 .stat-label {
   font-size: 10px;
   font-weight: 600;
-  color: #787c7e;
+  color: var(--cp-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.8px;
   margin-bottom: 4px;
@@ -257,44 +257,44 @@ body {
 .stat-value {
   font-size: 24px;
   font-weight: 700;
-  color: #1a1a1b;
+  color: var(--cp-text);
   line-height: 1;
 }
 
 .stat-value-small {
   font-size: 14px;
   font-weight: 500;
-  color: #1a1a1b;
+  color: var(--cp-text);
   line-height: 1.3;
 }
 
 .stat-wins {
-  color: #4a9a46;
+  color: var(--cp-success);
 }
 
 .stat-losses {
-  color: #c14646;
+  color: var(--cp-danger);
 }
 
 .stat-streak {
-  color: #c9b458;
+  color: var(--cp-warning);
 }
 
 .game-won {
-  color: #10b981;
+  color: var(--cp-success);
   font-weight: 600;
 }
 
 .game-lost {
-  color: #ef4444;
+  color: var(--cp-danger);
   font-weight: 600;
 }
 
 /* Chart Section */
 .chart-section {
-  background: #ffffff;
-  border: 1px solid #d3d6da;
-  border-radius: 12px;
+  background: var(--cp-surface);
+  border: 1px solid var(--cp-border);
+  border-radius: 16px;
   padding: 20px;
   margin-bottom: 24px;
   max-width: 1000px;
@@ -310,7 +310,7 @@ body {
 .turn-distribution-wrapper {
   margin-bottom: 32px;
   padding-bottom: 24px;
-  border-bottom: 1px solid #d3d6da;
+  border-bottom: 1px solid var(--cp-border);
 }
 
 .turn-distribution-bar {
@@ -327,14 +327,14 @@ body {
 .turn-distribution-header h3 {
   font-size: 18px;
   font-weight: 700;
-  color: #2f3c32;
+  color: var(--cp-text);
   text-transform: uppercase;
   letter-spacing: 0.4px;
 }
 
 .turn-distribution-header .total-games {
   font-size: 13px;
-  color: #6d716e;
+  color: var(--cp-text-muted);
   font-weight: 500;
 }
 
@@ -353,7 +353,7 @@ body {
 .turn-label {
   font-size: 14px;
   font-weight: 700;
-  color: #1a1a1b;
+  color: var(--cp-text);
   width: 24px;
   text-align: center;
   flex-shrink: 0;
@@ -361,7 +361,7 @@ body {
 
 .bar-container {
   flex: 1;
-  background: #f0f0f0;
+  background: var(--cp-surface-soft);
   border-radius: 4px;
   height: 32px;
   overflow: hidden;
@@ -381,9 +381,8 @@ body {
 .bar-text {
   font-size: 12px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--cp-accent-fg);
   white-space: nowrap;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 .bar-text .percentage {
@@ -395,7 +394,7 @@ body {
 .section-title {
   font-size: 16px;
   font-weight: 700;
-  color: #2f3c32;
+  color: var(--cp-text);
   margin-bottom: 6px;
   text-transform: uppercase;
   letter-spacing: 0.4px;
@@ -404,7 +403,7 @@ body {
 
 .section-subtitle {
   font-size: 12px;
-  color: #6d716e;
+  color: var(--cp-text-muted);
   margin-bottom: 12px;
   font-weight: 400;
   text-align: center;
@@ -424,9 +423,9 @@ body {
   gap: 12px;
   margin-bottom: 16px;
   padding: 10px 12px;
-  background: #6aaa64;
+  background: var(--cp-surface-soft);
   border-radius: 10px;
-  border: 1px solid #5b9456;
+  border: 1px solid var(--cp-border);
   margin-left: var(--chart-padding-left);
   margin-right: var(--chart-padding-right);
 }
@@ -441,7 +440,7 @@ body {
 .chart-stat-label {
   font-size: 10px;
   font-weight: 600;
-  color: #e2f1dd;
+  color: var(--cp-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.7px;
   text-align: center;
@@ -450,7 +449,7 @@ body {
 .chart-stat-value {
   font-size: 20px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--cp-text);
   text-align: center;
 }
 
@@ -459,29 +458,29 @@ body {
   align-items: center;
   justify-content: center;
   padding: 60px 20px;
-  color: #6b7280;
+  color: var(--cp-text-muted);
   font-size: 16px;
 }
 
 /* Chart Tooltip */
 .chart-tooltip {
-  background: #ffffff;
-  border: 1px solid #d3d6da;
+  background: var(--cp-surface);
+  border: 1px solid var(--cp-border);
   border-radius: 10px;
   padding: 12px 16px;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 1px 2px var(--cp-highlight);
 }
 
 .tooltip-date {
   font-size: 12px;
   font-weight: 600;
-  color: #1a1a1b;
+  color: var(--cp-text);
   margin-bottom: 3px;
 }
 
 .tooltip-game {
   font-size: 10px;
-  color: #787c7e;
+  color: var(--cp-text-muted);
   margin-bottom: 3px;
   font-weight: 500;
 }
@@ -489,7 +488,7 @@ body {
 .tooltip-word {
   font-size: 16px;
   font-weight: 700;
-  color: #6aaa64;
+  color: var(--cp-accent);
   margin: 6px 0 2px 0;
   letter-spacing: 0.05em;
   text-align: center;
@@ -497,7 +496,7 @@ body {
 }
 
 .tooltip-word.lost {
-  color: #d73027;
+  color: var(--cp-danger);
 }
 
 .tooltip-board {
@@ -513,7 +512,7 @@ body {
   margin: 0 auto;
   border-radius: 4px;
   max-width: 160px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 1px 2px var(--cp-highlight);
 }
 
 .tooltip-result {
@@ -525,15 +524,15 @@ body {
 }
 
 .tooltip-result.won {
-  color: #4a9a46;
+  color: var(--cp-success);
 }
 
 .tooltip-result.lost {
-  color: #c14646;
+  color: var(--cp-danger);
 }
 
 .tooltip-result.unplayed {
-  color: #787c7e;
+  color: var(--cp-text-muted);
 }
 
 .tooltip-grid {
@@ -542,10 +541,9 @@ body {
   gap: 4px;
   margin: 4px auto 12px auto;
   padding: 5px;
-  background: #ffffff;
+  background: var(--cp-surface);
   border-radius: 6px;
-  border: 1px solid #d3d6da;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  border: 1px solid var(--cp-border);
 }
 
 .tooltip-grid-row {
@@ -558,21 +556,20 @@ body {
   width: 18px;
   height: 18px;
   border-radius: 4px;
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  background: #ffffff;
-  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--cp-border);
+  background: var(--cp-surface);
 }
 
 .tooltip-grid-cell-correct {
-  background: #6aaa64;
+  background: var(--cp-wordle-green);
 }
 
 .tooltip-grid-cell-present {
-  background: #c9b458;
+  background: var(--cp-wordle-yellow);
 }
 
 .tooltip-grid-cell-absent {
-  background: #787c7e;
+  background: var(--cp-wordle-gray);
 }
 
 .tooltip-metrics {
@@ -589,8 +586,8 @@ body {
   letter-spacing: 0.5px;
   padding: 4px 8px;
   border-radius: 999px;
-  background: #eef1e9;
-  color: #31402f;
+  background: var(--cp-surface-soft);
+  color: var(--cp-text);
 }
 
 /* Custom Legend */
@@ -601,7 +598,7 @@ body {
   justify-content: center;
   margin-top: 20px;
   padding-top: 16px;
-  border-top: 1px solid #e0dfd9;
+  border-top: 1px solid var(--cp-border);
 }
 
 .legend-item {
@@ -609,42 +606,42 @@ body {
   align-items: center;
   gap: 8px;
   font-size: 13px;
-  color: #616664;
+  color: var(--cp-text-muted);
 }
 
 .legend-dot {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  border: 1px solid #f1f1f1;
+  border: 1px solid var(--cp-border);
   box-shadow: none;
 }
 
 .legend-dot-win {
-  background: #6aaa64;
+  background: var(--cp-success);
 }
 
 .legend-dot-loss {
-  background: #c14646;
+  background: var(--cp-danger);
 }
 
 .legend-line {
   width: 24px;
   height: 2px;
-  border-top: 2px solid #c9b458;
+  border-top: 2px solid var(--cp-accent);
 }
 
 .legend-line-avg {
-  border-color: #c9b458;
+  border-color: var(--cp-accent);
   border-top-width: 3px;
 }
 
 .legend-line-skill {
-  border-top: 2px solid rgba(29,78,216,0.55);
+  border-top: 2px solid var(--cp-warning);
 }
 
 .legend-line-luck {
-  border-top: 2px solid rgba(147,51,234,0.55);
+  border-top: 2px solid var(--cp-text-soft);
 }
 
 /* Responsive Design */
@@ -705,154 +702,6 @@ body {
   }
 }
 
-/* Dark Mode Support */
-@media (prefers-color-scheme: dark) {
-  body {
-    background: #1e1e1e;
-    color: #cccccc;
-  }
-
-  .dashboard-header h1 {
-    color: #6aaa64;
-  }
-
-  .dashboard-header .subtitle {
-    color: #858585;
-  }
-
-  .dashboard-container {
-    background: #1e1e1e;
-  }
-
-  .stat-item {
-    background: #252526;
-    border-color: #3e3e42;
-  }
-
-  .stat-label {
-    color: #858585;
-  }
-
-  .stat-value,
-  .stat-value-small {
-    color: #cccccc;
-  }
-
-  /* Colored stats in dark mode */
-  .stat-wins {
-    color: #5cb85c;
-  }
-
-  .stat-losses {
-    color: #d9534f;
-  }
-
-  .stat-streak {
-    color: #f0ad4e;
-  }
-
-  .game-won {
-    color: #5cb85c;
-  }
-
-  .game-lost {
-    color: #d9534f;
-  }
-
-  .chart-section {
-    background: #252526;
-    border-color: #3e3e42;
-  }
-
-  .section-title {
-    color: #cccccc;
-  }
-
-  .section-subtitle {
-    color: #858585;
-  }
-
-  .chart-stats {
-    background: #3a5f38;
-    border-color: #2d4a2b;
-  }
-
-  .chart-stat-label {
-    color: #d6e9d0;
-  }
-
-  .chart-stat-value {
-    color: #ffffff;
-  }
-
-  .chart-tooltip {
-    background: #252526;
-    border-color: #3e3e42;
-  }
-
-  .tooltip-date {
-    color: #cccccc;
-  }
-
-  .tooltip-game {
-    color: #858585;
-  }
-
-  .chart-legend-custom {
-    border-color: #3e3e42;
-  }
-
-  .legend-item {
-    color: #858585;
-  }
-
-  /* Turn Distribution Dark Mode */
-  .turn-distribution-wrapper {
-    border-bottom-color: #3e3e42;
-  }
-
-  .turn-distribution-header h3 {
-    color: #cccccc;
-  }
-
-  .turn-distribution-header .total-games {
-    color: #858585;
-  }
-
-  .turn-label {
-    color: #cccccc;
-  }
-
-  .bar-container {
-    background: #3e3e42;
-  }
-
-  /* More vibrant chart elements in dark mode */
-  .recharts-cartesian-grid-horizontal line,
-  .recharts-cartesian-grid-vertical line {
-    stroke: #4a4a4a !important;
-    stroke-opacity: 0.5;
-  }
-
-  .recharts-xaxis .recharts-cartesian-axis-line,
-  .recharts-yaxis .recharts-cartesian-axis-line {
-    stroke: #6b7280 !important;
-  }
-
-  .recharts-xaxis .recharts-cartesian-axis-tick-value,
-  .recharts-yaxis .recharts-cartesian-axis-tick-value {
-    fill: #9ca3af !important;
-  }
-
-  .dashboard-empty h2 {
-    color: #cccccc;
-  }
-
-  .dashboard-empty p {
-    color: #858585;
-  }
-}
-
 /* Accessibility */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -866,7 +715,7 @@ body {
 
 /* Focus Styles */
 .stat-item:focus-visible {
-  outline: 2px solid #3b82f6;
+  outline: 2px solid var(--cp-accent);
   outline-offset: 2px;
 }
 

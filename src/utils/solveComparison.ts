@@ -28,6 +28,8 @@ export function buildSolveComparison(
           readers <= 7
             ? readers
             : null,
+        skill: Number.isFinite(game.skillScore) ? game.skillScore! : null,
+        luck: Number.isFinite(game.luckScore) ? game.luckScore! : null,
         result,
       };
     });
@@ -53,7 +55,7 @@ export function pairedComparison(
 export function comparisonTrend(points: SolvePoint[], windowSize = 20) {
   return points.map((point, index) => {
     const window = points.slice(Math.max(0, index - windowSize + 1), index + 1);
-    const mean = (key: 'user' | 'solver' | 'readers') => {
+    const mean = (key: 'user' | 'solver' | 'readers' | 'skill' | 'luck') => {
       const available = window.filter((item) => item[key] !== null);
       return point[key] === null || !available.length
         ? null
@@ -65,6 +67,8 @@ export function comparisonTrend(points: SolvePoint[], windowSize = 20) {
       user: mean('user'),
       solver: mean('solver'),
       readers: mean('readers'),
+      skill: mean('skill'),
+      luck: mean('luck'),
     };
   });
 }

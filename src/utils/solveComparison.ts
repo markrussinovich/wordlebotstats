@@ -37,7 +37,7 @@ export function buildSolveComparison(
 
 export type SolvePoint = ReturnType<typeof buildSolveComparison>[number];
 
-// Matches the popup: red when the benchmark beats you, green for a tie, blue when you win.
+// Wordle tile semantics (matches the popup): green when you win, yellow for a tie, gray when the benchmark wins.
 export const compareTurns = (user: number | null, benchmark: number | null) =>
   user === null || benchmark === null
     ? undefined

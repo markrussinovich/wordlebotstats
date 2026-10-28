@@ -163,6 +163,7 @@ test('real solver worker, chart, tiles, reader persistence and cached reload wor
   await expect(failed.locator('summary')).toContainText('X/6');
   await expect(failed.locator('summary')).toContainText('N/A');
   await expect(failed.locator('.solve-turns strong').nth(1)).toHaveText('3');
+  await expect(failed.locator('.solve-turns strong').nth(1)).toHaveCSS('color', 'rgb(120, 124, 126)');
   await failed.locator('summary').click();
   await expect(failed.locator('input, form')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: /Solve analytics/ })).toHaveCount(0);
@@ -696,9 +697,9 @@ test('popup fits browser bounds, provides colored comparison buttons and keeps p
   await expect(solverValue).toHaveText(turns!);
   await expect(page.getByTestId('popup-reader-average')).toHaveText('4.20');
   for (const comparison of [
-    { attempts: 7, state: 'solver-better', color: 'rgb(211, 63, 73)' },
-    { attempts: Number(turns), state: 'tie', color: 'rgb(106, 170, 100)' },
-    { attempts: 1, state: 'user-better', color: 'rgb(59, 130, 196)' },
+    { attempts: 7, state: 'solver-better', color: 'rgb(120, 124, 126)' },
+    { attempts: Number(turns), state: 'tie', color: 'rgb(181, 159, 59)' },
+    { attempts: 1, state: 'user-better', color: 'rgb(106, 170, 100)' },
   ]) {
     await page.evaluate((attempts) => {
       const stored = JSON.parse(

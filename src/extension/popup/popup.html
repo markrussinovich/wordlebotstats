@@ -22,6 +22,10 @@
       --cp-danger: #d33f49;
       --cp-warning: #c9b458;
       --cp-link: #3b82c4;
+      /* Head-to-head text: Wordle correct/present/absent hues, tuned for text contrast. */
+      --cp-compare-win: #6aaa64;
+      --cp-compare-tie: #b59f3b;
+      --cp-compare-loss: #787c7e;
     }
     html[data-theme="dark"] {
       color-scheme: dark;
@@ -36,6 +40,9 @@
       --cp-danger: #e5605f;
       --cp-warning: #c9b458;
       --cp-link: #85c0f9;
+      --cp-compare-win: #6aaa64;
+      --cp-compare-tie: #c9b458;
+      --cp-compare-loss: #818384;
     }
 
     body {
@@ -459,15 +466,15 @@
     }
 
     .solver-solution-btn .score-value[data-comparison="solver-better"] {
-      color: var(--cp-danger);
+      color: var(--cp-compare-loss);
     }
 
     .solver-solution-btn .score-value[data-comparison="tie"] {
-      color: var(--cp-success);
+      color: var(--cp-compare-tie);
     }
 
     .solver-solution-btn .score-value[data-comparison="user-better"] {
-      color: var(--cp-link);
+      color: var(--cp-compare-win);
     }
 
     .solver-solution-btn:disabled {

@@ -10,11 +10,12 @@ The Chrome Web Store listing relies on a cohesive set of visual assets. Use this
 | Screenshot 3 | 1280 × 800 px | PNG | ☑ Complete (1.1.0) | `assets/screenshot-03-solver-games.png`: individual game tiles with an expanded solver path. |
 | Screenshot 4 | 1280 × 800 px | PNG | ☑ Complete (1.1.0) | `assets/screenshot-04-popup.png`: popup showing the user's board and the solver's board side by side. |
 | Screenshot 5 | 1280 × 800 px | PNG | ☐ Optional | Optional dark-mode variant. |
-| Promo tile (small) | 440 × 280 px | PNG | ☐ To design | Bold gradient background with logo and short tagline: “Understand your Wordle streak”. Minimal text, align with icon palette. |
-| Marquee image | 1400 × 560 px | PNG | ☐ Optional | Wide-format hero; include product mockup and CTA “Compare with WordleBot”. Keep margins, avoid clutter. |
+| Promo tile (small) | 440 × 280 px | PNG | ☑ Complete (1.1.0) | `assets/promo-tile-440x280.png`: Wordle tiles, name, and "You vs. NYT readers vs. a solver". 24-bit, no alpha. |
+| Marquee image | 1400 × 560 px | PNG | ☑ Complete (1.1.0) | `assets/marquee-1400x560.png`: tagline with dashboard and popup mockups. 24-bit, no alpha. |
 
 ## Capture guidelines
 
+- **No alpha channel**: The store accepts JPEG or 24-bit PNG only. Playwright output can be RGBA, so flatten to RGB (e.g. Pillow `convert("RGB")`) before uploading.
 - **Keep screenshots full-bleed**: No borders or rounded corners. Use square corners, true 1280×800 layout.
 - **Stay current**: Re-capture whenever UI or styling changes significantly.
 - **Consistent theming**: Use the brand gradient (#6AAA64 → #538D4E) for promo graphics. Align fonts with the in-product typography where legally permissible.

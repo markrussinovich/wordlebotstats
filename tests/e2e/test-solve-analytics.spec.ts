@@ -742,6 +742,94 @@ test('popup fits browser bounds, provides colored comparison buttons and keeps p
   expect(errors).toEqual([]);
 });
 
+test('popup navigation stays immediate and stable while background work runs', async ({
+  page,
+}) => {
+  test.setTimeout(60000);
+  await page.setViewportSize({ width: 380, height: 600 });
+  await page.addInitScript(() => {
+    const words =
+      'CRANE APPLE PENNY BRAVE CHORD DWELL FLAME GHOST HONEY IVORY JOKER KNEEL LEMON MANGO NOBLE OCEAN PIANO QUEEN RIVER SNAKE TIGER WHALE YACHT ZEBRA'.split(
+        ' '
+      );
+    const games = words.map((solution, index) => ({
+      date: `2025-09-${String(28 - index).padStart(2, '0')}`,
+      attempts: 4,
+      won: true,
+      hardMode: false,
+      solution,
+      ...(index === 5
+        ? {}
+        : {
+            nytReaderAverage: 4,
+            nytReaderMode: 'normal',
+            nytReaderSource: 'wordlebot',
+          }),
+    }));
+    const values: Record<string, unknown> = { games };
+    (window as any).readerRequests = [];
+    (window as any).chrome = {
+      runtime: {
+        getURL: (file: string) => `${location.origin}/${file}`,
+        sendMessage: async (message: any) => {
+          if (message.type === 'GET_DASHBOARD_DATA')
+            return { success: true, games };
+          if (message.type === 'GET_NYT_READER_AVERAGE') {
+            (window as any).readerRequests.push(message.date);
+            return { success: true, game: null };
+          }
+          if (message.type === 'GET_QUICK_STATS')
+            return {
+              success: true,
+              statistics: {
+                winRate: 100,
+                averageGuesses: 4,
+                currentStreak: games.length,
+                maxStreak: games.length,
+                gameCount: games.length,
+              },
+            };
+          return { success: true };
+        },
+        onMessage: { addListener() {} },
+      },
+      storage: {
+        local: {
+          get: async () => values,
+          // A busy extension storage queue must not hold up navigation.
+          set: (update: Record<string, unknown>) =>
+            new Promise((resolve) =>
+              setTimeout(() => resolve(Object.assign(values, update)), 3000)
+            ),
+        },
+      },
+    };
+  });
+  await page.goto(`${origin}/popup.html`);
+  const date = page.locator('.game-date');
+  await expect(date).toHaveText('Sun, Sep 28, 2025');
+  const rebuilds = await page.evaluate(
+    () =>
+      new Promise<number>((resolve) => {
+        let count = 0;
+        new MutationObserver(() => count++).observe(
+          document.getElementById('popup-root')!,
+          { childList: true }
+        );
+        setTimeout(() => resolve(count), 2500);
+      })
+  );
+  // Results for games that are not on screen must not rebuild the popup.
+  expect(rebuilds).toBeLessThanOrEqual(1);
+  await page.locator('#prev-game-btn').click();
+  await expect(date).toHaveText('Sat, Sep 27, 2025', { timeout: 500 });
+  await page.locator('#prev-game-btn').click();
+  await expect(date).toHaveText('Fri, Sep 26, 2025', { timeout: 500 });
+  expect(await page.evaluate(() => (window as any).readerRequests)).toEqual([
+    '2025-09-23',
+  ]);
+});
+
 test('real extension routes imports and dashboard replies correctly while its popup is open', async ({
   browserName,
 }, testInfo) => {

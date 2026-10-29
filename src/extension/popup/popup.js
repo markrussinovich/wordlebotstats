@@ -39,7 +39,39 @@ document.addEventListener('DOMContentLoaded', function() {
     .then(value => { solverResults = value[solverCacheKey] || {}; })
     .catch(() => {});
 
-  window.addEventListener('pagehide', () => solverWorker?.terminate());
+  let cacheWriteTimer = null;
+  window.addEventListener('pagehide', () => {
+    solverWorker?.terminate();
+    flushSolverCache();
+  });
+
+  // Batch cache writes: rewriting the whole cache per result floods storage and delays the UI.
+  function flushSolverCache() {
+    clearTimeout(cacheWriteTimer);
+    cacheWriteTimer = null;
+    const results = { ...solverResults };
+    cacheWrites = cacheWrites.then(async () => {
+      const stored = await chrome.storage.local.get(solverCacheKey);
+      await chrome.storage.local.set({
+        [solverCacheKey]: { ...stored[solverCacheKey], ...results }
+      });
+    }).catch(error => console.warn('[Popup] Solver cache could not be saved:', error));
+  }
+
+  function scheduleSolverCacheWrite() {
+    if (!cacheWriteTimer) cacheWriteTimer = setTimeout(flushSolverCache, 2000);
+  }
+
+  // Published reader averages for older puzzles are final; only recent ones keep changing.
+  function needsReaderAverage(game) {
+    const average = game.nytReaderAverage;
+    if (!(Number.isFinite(average) && average >= 1 && average <= 7)) return true;
+    if (game.nytReaderMode !== (game.hardMode ? 'hard' : 'normal')) return true;
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 2);
+    const recent = `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, '0')}-${String(cutoff.getDate()).padStart(2, '0')}`;
+    return game.date >= recent;
+  }
 
   async function calculateReaderAverages() {
     if (readerFetchRunning) return;
@@ -47,7 +79,7 @@ document.addEventListener('DOMContentLoaded', function() {
     try {
       const current = allGames[currentGameIndex];
       for (const game of [current, ...allGames]) {
-        if (!game?.solution || game.nytReaderSource === 'manual') continue;
+        if (!game?.solution || game.nytReaderSource === 'manual' || !needsReaderAverage(game)) continue;
         const key = `${game.date}:${game.hardMode}`;
         if (attemptedReaders.has(key)) continue;
         attemptedReaders.add(key);
@@ -91,17 +123,12 @@ document.addEventListener('DOMContentLoaded', function() {
       solverWorker.onmessage = ({ data }) => {
         if (data.solution && data.result) {
           solverResults[data.solution] = data.result;
-          // Save each result so closing the popup does not discard finished games.
-          cacheWrites = cacheWrites.then(async () => {
-            const stored = await chrome.storage.local.get(solverCacheKey);
-            await chrome.storage.local.set({
-              [solverCacheKey]: { ...stored[solverCacheKey], ...solverResults }
-            });
-          }).catch(error => console.warn('[Popup] Solver cache could not be saved:', error));
+          scheduleSolverCacheWrite();
           render();
         }
         if (data.error) fail(data.error);
         else if (data.complete) {
+          flushSolverCache();
           solverWorker.terminate();
           solverWorker = null;
           calculateSolverResults();
@@ -123,11 +150,13 @@ document.addEventListener('DOMContentLoaded', function() {
     LAST_GAMES_COUNT: 'popup_last_games_count'
   };
   
+  let renderedHtml = '';
+
   // Render popup
   function render() {
     const timeFrames = ['7d', '30d', '90d', 'all'];
     
-    container.innerHTML = `
+    const html = `
       <div class="popup-container">
         <header class="popup-header">
           <div class="popup-header-top">
@@ -162,6 +191,12 @@ document.addEventListener('DOMContentLoaded', function() {
         </footer>
       </div>
     `;
+
+    // Background results for other games produce identical markup; skipping the rebuild
+    // avoids flicker and keeps in-progress clicks from landing on replaced buttons.
+    if (html === renderedHtml && container.firstElementChild) return;
+    renderedHtml = html;
+    container.innerHTML = html;
     
     // Add event listeners
     attachEventListeners();
@@ -276,36 +311,18 @@ document.addEventListener('DOMContentLoaded', function() {
     const nextBtn = document.getElementById('next-game-btn');
     
     if (prevBtn) {
-      prevBtn.addEventListener('click', async () => {
-        if (currentGameIndex < allGames.length - 1) {
-          currentGameIndex++;
-          showSolverSolution = false;
-          await saveCurrentGameIndex();
-          render();
-        }
+      prevBtn.addEventListener('click', () => {
+        if (currentGameIndex < allGames.length - 1) showGame(currentGameIndex + 1);
       });
     }
     
     if (nextBtn) {
-      nextBtn.addEventListener('click', async () => {
-        if (currentGameIndex > 0) {
-          currentGameIndex--;
-          showSolverSolution = false;
-          await saveCurrentGameIndex();
-          render();
-        }
+      nextBtn.addEventListener('click', () => {
+        if (currentGameIndex > 0) showGame(currentGameIndex - 1);
       });
     }
 
-    const latestBtn = document.getElementById('latest-game-btn');
-    if (latestBtn) {
-      latestBtn.addEventListener('click', async () => {
-        currentGameIndex = 0;
-        showSolverSolution = false;
-        await saveCurrentGameIndex();
-        render();
-      });
-    }
+    document.getElementById('latest-game-btn')?.addEventListener('click', () => showGame(0));
 
     const dismissBtn = document.querySelector('[data-dismiss-notification]');
     if (dismissBtn) {
@@ -321,6 +338,14 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
   
+  // Update the view first; persisting the index must not delay navigation.
+  function showGame(index) {
+    currentGameIndex = index;
+    showSolverSolution = false;
+    render();
+    saveCurrentGameIndex();
+  }
+
   async function loadStatistics() {
     try {
       // Don't show loading state for quick time frame switches

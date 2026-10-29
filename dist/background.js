@@ -120,6 +120,9 @@ var _ExtensionStorage = class _ExtensionStorage {
       if (readers.nytReaderMode !== (hardMode ?? game.hardMode ? "hard" : "normal")) {
         return game;
       }
+      const unchanged = (game.nytReaderSource === "manual" || game.nytReaderAverage === readers.nytReaderAverage && game.nytReaderMode === readers.nytReaderMode && game.nytReaderSource === readers.nytReaderSource) && (hardMode === void 0 || game.hardMode === hardMode);
+      if (unchanged)
+        return game;
       games[index] = {
         ...game,
         ...game.nytReaderSource === "manual" ? {} : readers,

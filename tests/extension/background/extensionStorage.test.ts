@@ -134,6 +134,20 @@ describe('history persistence', () => {
     });
   });
 
+  it('skips the storage write when a reader average is unchanged', async () => {
+    const readers = {
+      nytReaderAverage: 3.9,
+      nytReaderMode: 'normal' as const,
+      nytReaderSource: 'wordlebot' as const,
+    };
+    stored = [game('2026-10-28', readers)];
+    await storage.updateReaderAverage('2026-10-28', readers);
+    expect(chrome.storage.local.set).not.toHaveBeenCalled();
+    await storage.updateReaderAverage('2026-10-28', { ...readers, nytReaderAverage: 3.95 });
+    expect(chrome.storage.local.set).toHaveBeenCalledTimes(1);
+    expect(stored[0].nytReaderAverage).toBe(3.95);
+  });
+
   it('keeps distinct games without optional IDs and enriches existing store entries', () => {
     useGameDataStore.getState().clearAllGames();
     useGameDataStore.getState().addGame(game('2026-10-24'));

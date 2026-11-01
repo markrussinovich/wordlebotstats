@@ -457,6 +457,19 @@ test('played and unplayed popup boards keep the same geometry and navigation pos
       'data-date',
       dates[0]
     );
+    await expect(popup.locator('.stats-grid')).toBeVisible();
+    const footerGap = await popup.evaluate(() => {
+      const cards = document.querySelectorAll('.stat-card');
+      const last = cards[cards.length - 1]?.getBoundingClientRect();
+      const footer = document
+        .querySelector('.popup-footer')
+        ?.getBoundingClientRect();
+      return last && footer
+        ? footer.top - last.bottom
+        : Number.POSITIVE_INFINITY;
+    });
+    expect(footerGap).toBeGreaterThanOrEqual(0);
+    expect(footerGap).toBeLessThanOrEqual(4);
     const geometry = () =>
       popup.evaluate(() => {
         return [

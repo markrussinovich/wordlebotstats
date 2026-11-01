@@ -29,7 +29,7 @@ History, play sessions, preferences, and caches stay on your device. There is no
 
 Historical replays do not update your NYT account or official history. Their dictionary is not NYT's official guess list. Existing imported games remain read-only. Today's answer is not fetched or scored locally; keep the NYT tab available, and open it for login or site dialogs when needed. NYT controls account persistence; signed-in synchronization is not guaranteed.
 
-WordleBot history and analysis require appropriate NYT access, and NYT may limit available history. Review the [source](https://github.com/markrussinovich/wordlecompanion) and [privacy policy](https://raw.githubusercontent.com/markrussinovich/wordlecompanion/analysis/PRIVACY.md).
+WordleBot history and analysis require appropriate NYT access, and NYT may limit available history. Review the [source](https://github.com/markrussinovich/wordlecompanion) and [privacy policy](https://raw.githubusercontent.com/markrussinovich/wordlecompanion/main/PRIVACY.md).
 
 ### Support & feedback
 
@@ -38,7 +38,7 @@ Questions or feature ideas? Visit the GitHub issues page at <https://github.com/
 ### Additional links for the dashboard
 
 - Website / Documentation: <https://github.com/markrussinovich/wordlecompanion>
-- Privacy policy: <https://raw.githubusercontent.com/markrussinovich/wordlecompanion/analysis/PRIVACY.md>
+- Privacy policy: <https://raw.githubusercontent.com/markrussinovich/wordlecompanion/main/PRIVACY.md>
 - Support URL: <https://github.com/markrussinovich/wordlecompanion/issues>
 
 Keep this document updated as new features ship so the Chrome Web Store description stays accurate.

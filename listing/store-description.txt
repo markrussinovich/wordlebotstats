@@ -20,5 +20,5 @@ Historical replays do not update your NYT account or official history. Their dic
 WordleBot history and analysis require appropriate NYT access, and NYT may limit available history.
 
 Source and documentation: https://github.com/markrussinovich/wordlecompanion
-Privacy policy: https://raw.githubusercontent.com/markrussinovich/wordlecompanion/analysis/PRIVACY.md
+Privacy policy: https://raw.githubusercontent.com/markrussinovich/wordlecompanion/main/PRIVACY.md
 Support: https://github.com/markrussinovich/wordlecompanion/issues

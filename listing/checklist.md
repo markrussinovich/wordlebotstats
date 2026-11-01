@@ -14,8 +14,8 @@ Use this checklist before submitting **Wordle Companion — Play & Stats** to th
 | Confirm privacy statement matches data usage                        | ☐      |       | Update if data practices change                                       |
 | Provide support URL and contact method                              | ☐      |       | e.g., GitHub issues or support email                                  |
 | Double-check policies (spam, metadata, impersonation)               | ☐      |       | See Chrome Web Store Program Policies                                 |
-| Upload zip to developer dashboard, save draft                       | ☐      |       | Use `listing/latest-build/wordle-companion-<version>.zip`             |
-| Submit for review                                                   | ☐      |       | Include release notes in dashboard                                    |
+| Upload zip to developer dashboard, save draft                       | ☑     |       | Uploaded `wordle-companion-1.1.1.zip`                                 |
+| Submit for review                                                   | ☑     |       | Submitted November 1, 2026; awaiting review decision                  |
 
 ## Release notes guidance
 

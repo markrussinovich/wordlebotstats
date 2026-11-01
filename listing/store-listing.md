@@ -1,45 +1,44 @@
-# Chrome Web Store Listing – Wordle Stat Explorer
+# Chrome Web Store Listing – Wordle Companion
 
 ## Title
 
-Wordle Stat Explorer
+Wordle Companion — Play & Stats
 
 ## Summary (≤132 characters)
 
-Track your Wordle history and compare every game with NYT readers and a local WordleBot-style solver, plus skill and luck trends.
+Play unplayed Wordle puzzles in your popup or dashboard, track stats, and compare with NYT readers and a local solver.
 
 ## Description
 
-Turn your daily Wordle habit into actionable insight. Wordle Stat Explorer imports your full game history (including WordleBot skill and luck scores), fills in games you missed, and compares every puzzle with the NYT reader average and a local WordleBot-style solver. Spot trends, celebrate streaks, and see exactly where you beat—or trail—the benchmarks.
+Wordle Companion brings Wordle gameplay and your WordleBot history together. Resume puzzles across views, track trends, and compare your results with NYT readers and a local solver.
 
 ### Key features
 
-- **Complete history import**: Imports your WordleBot history and automatically backfills games you missed.
-- **Local optimal solver**: A built-in entropy-based solver plays every puzzle so you can see the optimal turn count and its full guess path.
-- **NYT reader comparison**: See the NYT reader average turns for each puzzle alongside your own result.
-- **Head-to-head stats**: "vs Solver" and "vs NYT Readers" averages update as you drag the timeline range.
-- **Timeline and trend charts**: Plot your turns, solver turns, reader averages, skill, and luck as rolling averages, cumulative averages, or individual games.
-- **Game tiles and popup boards**: Wordle-colored tiles show who won each day; flip the popup between your board and the solver's board.
-- **Comprehensive stats**: Win rate, average turns, streaks, and turn distribution at a glance.
-
-### Why users love it
-
-- Clean, responsive interface that adapts beautifully to large monitors or compact windows.
-- Thoughtful loading states and NYT login detection keep the import flow clear and frustration-free.
-- Built by Wordle fans for Wordle fans—designed to motivate improvement without losing the fun of the puzzle.
+- **Play in place:** Unplayed boards become playable in the popup, dashboard tiles, or puzzle-picker view. Use physical or on-screen keys, with letter pops, feedback flips, invalid-word shakes, and reduced-motion support.
+- **Browse and resume:** Show unplayed includes blank records and missing dates. Browse with date arrows, Left/Right keys, or the picker. Drafts and guesses synchronize across views; a persistent pop-out stays open after the popup closes.
+- **Past and present:** Replay historical puzzles locally, or connect today's board to the actual NYT tab for official feedback.
+- **Track performance:** Win rate, average turns, distributions, streaks, and available WordleBot skill/luck scores. Completed extension games update dashboard timelines and statistics without replacing imported results.
+- **Interactive comparisons:** Toggle your turns, solver turns, NYT reader averages, skill, and luck. Choose individual games, rolling averages, or cumulative averages; drag the range to filter head-to-head stats and game tiles.
+- **Review guess paths:** Switch between feedback-colored user and solver boards. Finished games show completed comparisons. The local solver is a normal-mode heuristic, not NYT WordleBot or globally optimal; unavailable solver/reader results show N/A.
+- **Reliable imports:** Import available WordleBot history, refresh incrementally, and backfill gaps. Interrupted imports retain results already read.
+- **Your preferences and data:** Light/dark/system themes, local storage, and dashboard import/export and deletion controls.
 
 ### Permissions & privacy
 
-Wordle Stat Explorer only requests the minimal permissions required to read your Wordle game history and store statistics locally. No analytics, tracking pixels, or external data collection are used. Review the full source code and privacy note any time at <https://github.com/markrussinovich/wordlebotstats>.
+History, play sessions, preferences, and caches stay on your device. There is no telemetry, extension-operated cloud service, or separate extension account. The extension requests NYT puzzle data and reader summaries; today's guesses go through the real NYT game using your browser's NYT session.
+
+Historical replays do not update your NYT account or official history. Their dictionary is not NYT's official guess list. Existing imported games remain read-only. Today's answer is not fetched or scored locally; keep the NYT tab available, and open it for login or site dialogs when needed. NYT controls account persistence; signed-in synchronization is not guaranteed.
+
+WordleBot history and analysis require appropriate NYT access, and NYT may limit available history. Review the [source](https://github.com/markrussinovich/wordlecompanion) and [privacy policy](https://raw.githubusercontent.com/markrussinovich/wordlecompanion/analysis/PRIVACY.md).
 
 ### Support & feedback
 
-Questions or feature ideas? Visit the GitHub issues page at <https://github.com/markrussinovich/wordlebotstats/issues>.
+Questions or feature ideas? Visit the GitHub issues page at <https://github.com/markrussinovich/wordlecompanion/issues>.
 
 ### Additional links for the dashboard
 
-- Website / Documentation: <https://github.com/markrussinovich/wordlebotstats#readme>
-- Privacy policy: <https://github.com/markrussinovich/wordlebotstats/blob/main/README.md#privacy>
-- Support URL: <https://github.com/markrussinovich/wordlebotstats/issues>
+- Website / Documentation: <https://github.com/markrussinovich/wordlecompanion>
+- Privacy policy: <https://raw.githubusercontent.com/markrussinovich/wordlecompanion/analysis/PRIVACY.md>
+- Support URL: <https://github.com/markrussinovich/wordlecompanion/issues>
 
 Keep this document updated as new features ship so the Chrome Web Store description stays accurate.

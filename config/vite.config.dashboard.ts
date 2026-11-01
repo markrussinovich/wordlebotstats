@@ -18,6 +18,10 @@ export default defineConfig({
         const dest = resolve(__dirname, '../dist/dashboard.html');
         try {
           copyFileSync(src, dest);
+          copyFileSync(
+            resolve(__dirname, '../dist/src/play/play.html'),
+            resolve(__dirname, '../dist/play.html')
+          );
           console.log('✓ Moved dashboard.html to dist root');
         } catch (e) {
           console.error('Failed to move dashboard.html:', e);
@@ -39,9 +43,12 @@ export default defineConfig({
     target: 'es2020',
     
     rollupOptions: {
-      input: resolve(__dirname, '../src/dashboard/dashboard.html'),
+      input: {
+        dashboard: resolve(__dirname, '../src/dashboard/dashboard.html'),
+        play: resolve(__dirname, '../src/play/play.html'),
+      },
       output: {
-        entryFileNames: 'dashboard.js',
+        entryFileNames: '[name].js',
         assetFileNames: (assetInfo) => {
           if (assetInfo.name === 'dashboard.css') {
             return 'dashboard.css';

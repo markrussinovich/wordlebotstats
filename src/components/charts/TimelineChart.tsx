@@ -55,6 +55,7 @@ interface ChartDataPoint {
   readers?: number | null;
   skill?: number | null;
   luck?: number | null;
+  localReplay?: boolean;
 }
 
 const CHART_MARGINS = { top: 20, right: 5, left: 5, bottom: 20 } as const;
@@ -260,6 +261,7 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
         date: game.date,
         dateObj,
         turns: actualAttempts,
+        localReplay: game.metadata?.extensionPlayMode === 'replay',
         won: isWin,
         gameNumber: game.gameNumber || game.puzzleNumber,
         displayDate: dateObj.toLocaleDateString('en-US', { 
@@ -508,6 +510,7 @@ const TimelineChart: React.FC<TimelineChartProps> = ({ games, onRangeChange, tur
       return (
         <div className="chart-tooltip">
           <div className="tooltip-date">{data.displayDate}</div>
+          {data.localReplay && <div className="tooltip-game">Local replay</div>}
           {data.gameNumber && (
             <div className="tooltip-game">Wordle #{data.gameNumber}</div>
           )}

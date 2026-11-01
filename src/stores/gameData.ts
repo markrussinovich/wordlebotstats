@@ -360,7 +360,7 @@ function wait(milliseconds: number): Promise<void> {
 }
 
 // Helper function to calculate statistics from games
-function calculateStatisticsFromGames(
+export function calculateStatisticsFromGames(
   games: GameResult[], 
   timeFrame: TimeFrame, 
   startDate: Date, 

@@ -29,7 +29,7 @@ test.describe('Dashboard Deep Analysis', () => {
 
   test('should navigate between dashboard pages', async ({ page }) => {
     // Test Overview page
-    await expect(page.locator('h1')).toContainText('Wordle Stat Explorer');
+    await expect(page.locator('h1')).toContainText('Wordle Companion');
     await expect(page.locator('[data-testid="overview-content"]')).toBeVisible();
     
     // Navigate to Analytics

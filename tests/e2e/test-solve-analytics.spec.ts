@@ -43,6 +43,125 @@ test.afterAll(async () => {
   );
 });
 
+test('popup solver cache flushes only pending results and handles extension teardown', async ({
+  page,
+}) => {
+  const warnings: string[] = [];
+  page.on('console', (message) => {
+    if (
+      message.type() === 'warning' &&
+      message.text().includes('[Popup] Solver cache could not be saved:')
+    )
+      warnings.push(message.text());
+  });
+  await page.addInitScript(() => {
+    const fixture = ((window as any).cacheTest = {
+      reads: 0,
+      writes: 0,
+      invalidateDuringRead: false,
+      failure: '',
+      worker: null as any,
+      stored: {} as Record<string, any>,
+    });
+    const games = [
+      {
+        date: '2026-10-20',
+        solution: 'SLATE',
+        attempts: 3,
+        won: true,
+        nytReaderSource: 'manual',
+      },
+    ];
+    (window as any).Worker = class {
+      onmessage: any;
+      postMessage() {
+        fixture.worker = this;
+      }
+      terminate() {}
+    };
+    (window as any).chrome = {
+      runtime: {
+        id: 'test-extension',
+        getURL: (file: string) => `${location.origin}/${file}`,
+        onMessage: { addListener() {} },
+        sendMessage: async (message: any) =>
+          message.type === 'GET_DASHBOARD_DATA'
+            ? { success: true, games }
+            : {
+                success: true,
+                statistics: {
+                  winRate: 100,
+                  averageGuesses: 3,
+                  currentStreak: 1,
+                  maxStreak: 1,
+                  gameCount: 1,
+                },
+              },
+      },
+      storage: {
+        local: {
+          get: async (key: any) => {
+            if (typeof key === 'string' && key.startsWith('solver-')) {
+              fixture.reads++;
+              if (fixture.failure) throw new Error(fixture.failure);
+              if (fixture.invalidateDuringRead)
+                (window as any).chrome.runtime.id = undefined;
+            }
+            return fixture.stored;
+          },
+          set: async (values: Record<string, unknown>) => {
+            fixture.writes++;
+            Object.assign(fixture.stored, values);
+          },
+        },
+      },
+    };
+  });
+
+  for (const scenario of [
+    'valid',
+    'invalid',
+    'mid-read',
+    'context-error',
+    'storage-error',
+  ]) {
+    await page.goto(`${origin}/popup.html`);
+    await page.waitForFunction(() => (window as any).cacheTest.worker);
+    const result = await page.evaluate(async (scenario) => {
+      const fixture = (window as any).cacheTest;
+      const initialReads = fixture.reads;
+      const initialWrites = fixture.writes;
+      if (scenario === 'invalid') (window as any).chrome.runtime.id = undefined;
+      if (scenario === 'mid-read') fixture.invalidateDuringRead = true;
+      if (scenario === 'context-error')
+        fixture.failure = 'Extension context invalidated.';
+      if (scenario === 'storage-error') fixture.failure = 'Cache unavailable.';
+      fixture.worker.onmessage({
+        data: {
+          solution: 'SLATE',
+          result: { status: 'solved', turns: 2, guesses: [] },
+        },
+      });
+      window.dispatchEvent(new Event('pagehide'));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      window.dispatchEvent(new Event('pagehide'));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      return {
+        reads: fixture.reads - initialReads,
+        writes: fixture.writes - initialWrites,
+        cached: Object.values(fixture.stored).some(
+          (value: any) => value?.SLATE?.turns === 2
+        ),
+      };
+    }, scenario);
+    expect(result.reads).toBe(scenario === 'invalid' ? 0 : 1);
+    expect(result.writes).toBe(scenario === 'valid' ? 1 : 0);
+    expect(result.cached).toBe(scenario === 'valid');
+    expect(warnings).toHaveLength(scenario === 'storage-error' ? 1 : 0);
+  }
+  expect(warnings[0]).toContain('Cache unavailable.');
+});
+
 test('real solver worker, chart, tiles, reader persistence and cached reload work under extension CSP', async ({
   page,
 }) => {
@@ -81,6 +200,7 @@ test('real solver worker, chart, tiles, reader persistence and cached reload wor
       {
         date: '2026-10-26',
         attempts: null,
+        completed: true,
         won: false,
         hardMode: false,
         solution: 'ZZZZZ',
@@ -163,20 +283,39 @@ test('real solver worker, chart, tiles, reader persistence and cached reload wor
   await expect(failed.locator('summary')).toContainText('X/6');
   await expect(failed.locator('summary')).toContainText('N/A');
   await expect(failed.locator('.solve-turns strong').nth(1)).toHaveText('3');
-  await expect(failed.locator('.solve-turns strong').nth(1)).toHaveCSS('color', 'rgb(120, 124, 126)');
+  await expect(failed.locator('.solve-turns strong').nth(1)).toHaveCSS(
+    'color',
+    'rgb(120, 124, 126)'
+  );
   await failed.locator('summary').click();
   await expect(failed.locator('input, form')).toHaveCount(0);
-  await expect(page.getByRole('heading', { name: /Solve analytics/ })).toHaveCount(0);
-  const solverStat = page.locator('.chart-stat').filter({ hasText: 'vs Solver' });
+  await expect(
+    page.getByRole('heading', { name: /Solve analytics/ })
+  ).toHaveCount(0);
+  const solverStat = page
+    .locator('.chart-stat')
+    .filter({ hasText: 'vs Solver' });
   await expect(solverStat).toHaveAttribute('title', /over 2 matched games/);
-  await expect(solverStat.locator('.chart-stat-value')).toHaveText(/^[+-]?\d\.\d\d$/);
-  const readerStat = page.locator('.chart-stat').filter({ hasText: 'vs NYT Readers' });
-  await expect(readerStat).toHaveAttribute('title', /You 4\.00 vs NYT readers 4\.20 over 1 matched games/);
+  await expect(solverStat.locator('.chart-stat-value')).toHaveText(
+    /^[+-]?\d\.\d\d$/
+  );
+  const readerStat = page
+    .locator('.chart-stat')
+    .filter({ hasText: 'vs NYT Readers' });
+  await expect(readerStat).toHaveAttribute(
+    'title',
+    /You 4\.00 vs NYT readers 4\.20 over 1 matched games/
+  );
   await expect(readerStat.locator('.chart-stat-value')).toHaveText('-0.20');
-  await expect(readerStat.locator('.chart-stat-value')).toHaveCSS('color', 'rgb(255, 255, 255)');
+  await expect(readerStat.locator('.chart-stat-value')).toHaveCSS(
+    'color',
+    'rgb(255, 255, 255)'
+  );
   const valueTops = await page
     .locator('.chart-stats .chart-stat-value')
-    .evaluateAll((items) => items.map((item) => Math.round(item.getBoundingClientRect().top)));
+    .evaluateAll((items) =>
+      items.map((item) => Math.round(item.getBoundingClientRect().top))
+    );
   expect(new Set(valueTops).size).toBe(1);
   const unknown = page.locator('details').filter({ hasText: '2026-10-26' });
   await unknown.locator('summary').click();
@@ -230,8 +369,14 @@ test('real solver worker, chart, tiles, reader persistence and cached reload wor
   const selectRange = async (fraction: number) => {
     await page.mouse.move(0, 0);
     const endHandle = page.locator('.recharts-brush-traveller').last();
-    await expect(endHandle.locator('.brush-grip-handle')).toHaveCSS('fill', 'rgb(106, 170, 100)');
-    await expect(page.locator('.recharts-brush-slide')).not.toHaveCSS('fill', 'rgb(246, 247, 248)');
+    await expect(endHandle.locator('.brush-grip-handle')).toHaveCSS(
+      'fill',
+      'rgb(106, 170, 100)'
+    );
+    await expect(page.locator('.recharts-brush-slide')).not.toHaveCSS(
+      'fill',
+      'rgb(246, 247, 248)'
+    );
     await page
       .locator('.recharts-responsive-container')
       .scrollIntoViewIfNeeded();
@@ -277,7 +422,7 @@ test('real solver worker, chart, tiles, reader persistence and cached reload wor
   ).toBeHidden();
   await page.getByRole('link', { name: 'Overview', exact: true }).click();
   await expect(
-    page.getByRole('heading', { name: 'Wordle Stat Explorer', exact: true })
+    page.getByRole('heading', { name: 'Wordle Companion', exact: true })
   ).toBeVisible();
   await expect(page.locator('.solve-games details')).toHaveCount(3);
   await selectRange(0.5);
@@ -502,6 +647,28 @@ test('popup fits browser bounds, provides colored comparison buttons and keeps p
   });
   await page.goto(`${origin}/popup.html`);
   await expect(page.getByTestId('popup-reader-average')).toHaveText('4.20');
+  const { unplayedToggle, gameDate, gameWord } = await page.evaluate(() => ({
+    unplayedToggle: document
+      .querySelector('.unplayed-toggle')!
+      .getBoundingClientRect()
+      .toJSON(),
+    gameDate: document
+      .querySelector('.game-date')!
+      .getBoundingClientRect()
+      .toJSON(),
+    gameWord: document
+      .querySelector('.game-word')!
+      .getBoundingClientRect()
+      .toJSON(),
+  }));
+  expect(unplayedToggle.y).toBeGreaterThan(gameDate.y + gameDate.height);
+  expect(
+    Math.abs(
+      unplayedToggle.y +
+        unplayedToggle.height / 2 -
+        (gameWord.y + gameWord.height / 2)
+    )
+  ).toBeLessThan(4);
   const solver = page.getByRole('button', {
     name: 'Show local solver solution',
   });
@@ -623,7 +790,9 @@ test('popup fits browser bounds, provides colored comparison buttons and keeps p
   await expect(solver).toBeDisabled();
   await page.getByRole('button', { name: 'Next game' }).click();
   const latest = page.getByRole('button', { name: 'Jump to most recent game' });
-  const nextBox = (await page.getByRole('button', { name: 'Next game' }).boundingBox())!;
+  const nextBox = (await page
+    .getByRole('button', { name: 'Next game' })
+    .boundingBox())!;
   const latestBox = (await latest.boundingBox())!;
   expect(latestBox.x).toBeGreaterThan(nextBox.x + nextBox.width);
   expect(Math.abs(latestBox.y - nextBox.y)).toBeLessThan(1);
@@ -741,6 +910,104 @@ test('popup fits browser bounds, provides colored comparison buttons and keeps p
   }
   expect(errors).toEqual([]);
 });
+
+for (const fillGaps of [false, true]) {
+  test(`popup height stays stable during ${fillGaps ? 'gap-fill' : 'incremental'} refresh`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 380, height: 600 });
+    await page.addInitScript((fillGaps) => {
+      const listeners: any[] = [];
+      const games = [
+        { date: '2026-10-28', attempts: 4, won: true },
+        {
+          date: fillGaps ? '2026-10-26' : '2026-10-27',
+          attempts: 3,
+          won: true,
+        },
+      ];
+      (window as any).chrome = {
+        runtime: {
+          sendMessage: async (message: any) => {
+            if (message.type === 'GET_DASHBOARD_DATA')
+              return { success: true, games };
+            if (message.type === 'GET_QUICK_STATS')
+              return {
+                success: true,
+                statistics: {
+                  winRate: 100,
+                  averageGuesses: 3.5,
+                  currentStreak: 2,
+                  maxStreak: 2,
+                  gameCount: 2,
+                },
+              };
+            return { success: true };
+          },
+          onMessage: {
+            addListener: (listener: any) => listeners.push(listener),
+          },
+        },
+        storage: {
+          local: {
+            get: async () => ({ games }),
+            set: async () => {},
+          },
+        },
+      };
+      (window as any).deliverScrapeMessage = (message: any) => {
+        for (const listener of listeners) listener(message);
+      };
+    }, fillGaps);
+    await page.goto(`${origin}/popup.html`);
+    await expect(page.locator('.stats-grid')).toBeVisible();
+    const measure = () =>
+      page.evaluate(() => {
+        const main = document.querySelector('.popup-main')!;
+        return {
+          height: document.body.getBoundingClientRect().height,
+          footerY: document
+            .querySelector('.popup-footer')!
+            .getBoundingClientRect().y,
+          overflow: main.scrollHeight - main.clientHeight,
+        };
+      });
+    const before = await measure();
+    expect(before.overflow).toBe(0);
+    await page.getByRole('button', { name: /Refresh/ }).click();
+    await expect(page.locator('.loading-message')).toHaveText(
+      fillGaps ? 'Filling gaps in game history...' : 'Checking for new games...'
+    );
+    await expect(page.locator('.stats-grid')).toBeHidden();
+    await expect(
+      page.getByRole('button', { name: 'Dashboard', exact: true })
+    ).toBeDisabled();
+    expect(await measure()).toEqual(before);
+    await page.evaluate(() =>
+      (window as any).deliverScrapeMessage({
+        type: 'WORDLE_BOT_SCRAPE_PROGRESS',
+        gamesFound: 150,
+      })
+    );
+    await expect(page.locator('.loading-message')).toHaveText(
+      'Found 150 games...'
+    );
+    expect(await measure()).toEqual(before);
+    await page.evaluate(() =>
+      (window as any).deliverScrapeMessage({
+        type: 'WORDLE_BOT_SCRAPE_COMPLETE',
+        newGames: 0,
+        errors: 0,
+      })
+    );
+    await expect(page.locator('.loading-state')).toHaveCount(0);
+    await expect(page.locator('.stats-grid')).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Dashboard', exact: true })
+    ).toBeEnabled();
+    expect(await measure()).toEqual(before);
+  });
+}
 
 test('popup navigation stays immediate and stable while background work runs', async ({
   page,

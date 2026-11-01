@@ -1,8 +1,11 @@
 import '../../dashboard/theme';
 import { SOLVER_VERSION, SOLVER_DESCRIPTION } from '../../solver/solver';
 import { userTurns as getUserTurns } from '../../utils/solveComparison';
+import { buildGameHistory, gamesWithPlaySessions, hasUserGame, SHOW_UNPLAYED_KEY } from '../../utils/playHistory';
+import { PLAY_SESSIONS_KEY, PLAY_SELECTION_KEY } from '../../types/playTypes';
+import { createGuessReveal, shakeGuess } from '../../play/guessReveal';
 
-// Popup script for Wordle Stats extension
+// Popup script for Wordle Companion extension
 console.log('[Popup] Popup script loading...');
 
 // Simple popup implementation without React for now
@@ -21,6 +24,14 @@ document.addEventListener('DOMContentLoaded', function() {
   let statistics = null;
   let lastGame = null;
   let allGames = [];
+  let historyLoaded = false;
+  let recordedGames = [];
+  let playSessions = {};
+  let playSession = null;
+  let playBusy = false;
+  const revealGuesses = createGuessReveal();
+  let lastInvalidGuess = null;
+  let showUnplayed = false;
   let currentGameIndex = 0;
   let scraperStatus = {
     active: false,
@@ -34,6 +45,112 @@ document.addEventListener('DOMContentLoaded', function() {
   let showSolverSolution = false;
   let cacheWrites = Promise.resolve();
   let readerFetchRunning = false;
+  let playing = false;
+  const params = new URLSearchParams(window.location.search);
+  const popout = params.get('popout') === '1';
+  const embedded = params.get('embedded') === '1';
+  let initialDate = params.get('date');
+  if (popout) document.documentElement.dataset.popout = 'true';
+  if (embedded) document.documentElement.dataset.embedded = 'true';
+  const historyReady = chrome.storage.local.get([SHOW_UNPLAYED_KEY, PLAY_SESSIONS_KEY, PLAY_SELECTION_KEY])
+    .then(stored => {
+      showUnplayed = embedded || popout || stored[SHOW_UNPLAYED_KEY] === true;
+      playSessions = stored[PLAY_SESSIONS_KEY] || {};
+      if (popout) initialDate = stored[PLAY_SELECTION_KEY];
+    }).catch(() => {});
+  function rebuildHistory() {
+    allGames = buildGameHistory(gamesWithPlaySessions(recordedGames, playSessions), showUnplayed);
+    if (embedded) allGames = allGames.filter(game => game.date === initialDate);
+  }
+  function changeUnplayed(value) {
+    const date = allGames[currentGameIndex]?.date;
+    showUnplayed = value;
+    rebuildHistory();
+    currentGameIndex = Math.max(0, allGames.findIndex(game => game.date === date));
+    if (allGames[currentGameIndex]?.date !== date) {
+      playing = false;
+      playSession = null;
+    }
+    render();
+    saveCurrentGameIndex();
+  }
+  chrome.storage.onChanged?.addListener((changes, area) => {
+    if (area !== 'local') return;
+    if (changes[SHOW_UNPLAYED_KEY] && !embedded) changeUnplayed(changes[SHOW_UNPLAYED_KEY].newValue === true);
+    if (changes[PLAY_SESSIONS_KEY]) {
+      const date = allGames[currentGameIndex]?.date;
+      playSessions = changes[PLAY_SESSIONS_KEY].newValue || {};
+      rebuildHistory();
+      currentGameIndex = Math.max(0, allGames.findIndex(game => game.date === date));
+      render();
+      if (hasUserGame(allGames[currentGameIndex])) {
+        calculateSolverResults();
+        calculateReaderAverages();
+      }
+    }
+    if (changes.games) loadStatistics();
+    if (popout && changes[PLAY_SELECTION_KEY]) {
+      const index = allGames.findIndex(game => game.date === changes[PLAY_SELECTION_KEY].newValue);
+      if (index >= 0 && index !== currentGameIndex) showGame(index);
+    }
+  });
+  window.addEventListener('message', event => {
+    const frame = document.getElementById('popup-play-controls');
+    if (event.origin !== window.location.origin || event.source !== frame?.contentWindow) return;
+    if (event.data?.type === 'WORDLE_PLAY_SIZE') {
+      const height = event.data.height;
+      if (embedded && Number.isFinite(height) && height > 0 && height <= 600)
+        frame.parentElement.style.height = `${height}px`;
+      return;
+    }
+    if (event.data?.type === 'WORDLE_PLAY_NAV' &&
+        event.data.date === allGames[currentGameIndex]?.date &&
+        (event.data.key === 'ArrowLeft' || event.data.key === 'ArrowRight')) {
+      navigateGame(event.data.key);
+      return;
+    }
+    if (event.data?.type !== 'WORDLE_PLAY_VIEW') return;
+    if (event.data.session?.date !== allGames[currentGameIndex]?.date) {
+      if (playing && frame?.dataset.date)
+        frame.contentWindow.postMessage({ type: 'WORDLE_PLAY_DATE', date: frame.dataset.date }, window.location.origin);
+      return;
+    }
+    playSession = event.data.session;
+    playBusy = event.data.busy === true;
+    render();
+    const invalid = event.data.invalidGuess;
+    if (!playBusy && playing && invalid?.date === playSession.date &&
+        Number.isInteger(invalid.row) && invalid.row === playSession.rows.length &&
+        invalid.row < 6 && typeof invalid.token === 'string' &&
+        invalid.token !== lastInvalidGuess) {
+      lastInvalidGuess = invalid.token;
+      shakeGuess(document.getElementById('popup-game-board'), invalid.row);
+    }
+    if (!playBusy && (!embedded || document.hasFocus()))
+      document.getElementById('popup-game-board')?.focus({ preventScroll: true });
+  });
+  document.addEventListener('keydown', event => {
+    if (event.defaultPrevented || event.isComposing ||
+        event.ctrlKey || event.metaKey || event.altKey) return;
+    const target = event.target;
+    if (target.isContentEditable ||
+        target.closest?.('textarea, select, input:not([type="checkbox"]):not([type="radio"]), [role="textbox"]')) return;
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+      if (!historyLoaded || !allGames.length || target.closest?.('input[type="radio"]')) return;
+      event.preventDefault();
+      navigateGame(event.key);
+      return;
+    }
+    if (!playing) return;
+    if (event.key === 'Enter' && target.closest?.('button, a[href], input')) return;
+    if (!(/^[a-z]$/i.test(event.key) || event.key === 'Backspace' || event.key === 'Enter')) return;
+    const frame = document.getElementById('popup-play-controls');
+    if (!frame?.contentWindow) return;
+    event.preventDefault();
+    frame.contentWindow.postMessage({
+      type: 'WORDLE_PLAY_KEY', date: allGames[currentGameIndex]?.date, key: event.key
+    }, window.location.origin);
+  });
   const attemptedReaders = new Set();
   const solverCacheReady = chrome.storage.local.get(solverCacheKey)
     .then(value => { solverResults = value[solverCacheKey] || {}; })
@@ -47,15 +164,21 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Batch cache writes: rewriting the whole cache per result floods storage and delays the UI.
   function flushSolverCache() {
+    if (cacheWriteTimer === null) return;
     clearTimeout(cacheWriteTimer);
     cacheWriteTimer = null;
     const results = { ...solverResults };
     cacheWrites = cacheWrites.then(async () => {
+      if (!chrome.runtime || ('id' in chrome.runtime && !chrome.runtime.id)) return;
       const stored = await chrome.storage.local.get(solverCacheKey);
+      if (!chrome.runtime || ('id' in chrome.runtime && !chrome.runtime.id)) return;
       await chrome.storage.local.set({
         [solverCacheKey]: { ...stored[solverCacheKey], ...results }
       });
-    }).catch(error => console.warn('[Popup] Solver cache could not be saved:', error));
+    }).catch(error => {
+      if (!/Extension context invalidated/i.test(error?.message || String(error)))
+        console.warn('[Popup] Solver cache could not be saved:', error);
+    });
   }
 
   function scheduleSolverCacheWrite() {
@@ -88,6 +211,7 @@ document.addEventListener('DOMContentLoaded', function() {
             type: 'GET_NYT_READER_AVERAGE', date: game.date
           });
           if (response?.success && response.game) {
+            recordedGames = recordedGames.map(item => item.date === game.date ? response.game : item);
             allGames = allGames.map(item => item.date === game.date ? response.game : item);
             render();
           }
@@ -97,6 +221,11 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     } finally {
       readerFetchRunning = false;
+      const current = allGames[currentGameIndex];
+      if (current?.solution && current.nytReaderSource !== 'manual' &&
+          needsReaderAverage(current) &&
+          !attemptedReaders.has(`${current.date}:${current.hardMode}`))
+        calculateReaderAverages();
     }
   }
 
@@ -151,16 +280,38 @@ document.addEventListener('DOMContentLoaded', function() {
   };
   
   let renderedHtml = '';
+  let renderedViewerHtml = '';
 
   // Render popup
   function render() {
+    playing = Boolean(historyLoaded && allGames[currentGameIndex] && !hasUserGame(allGames[currentGameIndex]));
     const timeFrames = ['7d', '30d', '90d', 'all'];
+    const frame = document.getElementById('popup-play-controls');
+    if (playing && frame && frame.dataset.date !== allGames[currentGameIndex]?.date) {
+      frame.dataset.date = allGames[currentGameIndex].date;
+      playBusy = true;
+      frame.contentWindow.postMessage({ type: 'WORDLE_PLAY_DATE', date: frame.dataset.date }, window.location.origin);
+    }
+    const viewerHtml = renderGameViewer();
+    if (playing && frame) {
+      // Keep the keyboard mounted during typing, background results, and date changes.
+      if (viewerHtml !== renderedViewerHtml) {
+        const boardFocused = (!embedded || document.hasFocus()) &&
+          document.activeElement?.id === 'popup-game-board';
+        renderedViewerHtml = viewerHtml;
+        container.querySelector('.game-viewer').outerHTML = viewerHtml;
+        attachGameViewerListeners();
+        if (boardFocused) document.getElementById('popup-game-board')?.focus({ preventScroll: true });
+        revealGuesses(document.getElementById('popup-game-board'));
+      }
+      return;
+    }
     
     const html = `
       <div class="popup-container">
         <header class="popup-header">
           <div class="popup-header-top">
-            <h1>Wordle Stats</h1>
+            <h1>Wordle Companion</h1>
             <button class="refresh-btn" id="refresh-btn" ${scraperStatus.active ? 'disabled' : ''}>
               ↻ Refresh
             </button>
@@ -168,9 +319,9 @@ document.addEventListener('DOMContentLoaded', function() {
         </header>
         
         <main class="popup-main">
-          ${renderGameViewer()}
+          ${viewerHtml}
           
-          <div class="time-frame-picker">
+          ${playing ? '' : `<div class="time-frame-picker">
             ${timeFrames.map(tf => `
               <button 
                 class="time-frame-btn ${selectedTimeFrame === tf ? 'active' : ''}"
@@ -179,7 +330,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 ${tf.toUpperCase()}
               </button>
             `).join('')}
-          </div>
+          </div>`}
           
           ${renderContent()}
         </main>
@@ -196,26 +347,31 @@ document.addEventListener('DOMContentLoaded', function() {
     // avoids flicker and keeps in-progress clicks from landing on replaced buttons.
     if (html === renderedHtml && container.firstElementChild) return;
     renderedHtml = html;
+    renderedViewerHtml = viewerHtml;
     container.innerHTML = html;
     
     // Add event listeners
     attachEventListeners();
+    revealGuesses(document.getElementById('popup-game-board'));
   }
   
   function renderContent() {
-    const notifications = renderNotification();
-
-    if (scraperStatus.active) {
-      return `
-        ${notifications}
-        ${renderLoadingState(scraperStatus.message || 'Working...')}
-      `;
+    if (playing) {
+      const date = allGames[currentGameIndex].date;
+      return `<div class="stats-play-region">
+        <iframe id="popup-play-controls" data-date="${date}" title="Play Wordle"
+          src="${chrome.runtime.getURL('play.html')}?compact=1&controls=1&date=${date}${popout ? '&popout=1' : ''}"></iframe>
+      </div>`;
     }
+    const notifications = renderNotification();
+    const loadingMessage = scraperStatus.active
+      ? scraperStatus.message || 'Working...'
+      : isLoading ? 'Loading stats...' : '';
 
-    if (isLoading) {
+    if (loadingMessage && !statistics) {
       return `
         ${notifications}
-        ${renderLoadingState('Loading stats...')}
+        ${renderLoadingState(loadingMessage)}
       `;
     }
 
@@ -235,7 +391,8 @@ document.addEventListener('DOMContentLoaded', function() {
     
     return `
       ${notifications}
-      <div class="stats-grid">
+      <div class="stats-region" aria-busy="${Boolean(loadingMessage)}">
+      <div class="stats-grid" ${loadingMessage ? 'style="visibility: hidden" aria-hidden="true"' : ''}>
         <div class="stat-card">
           <div class="stat-value">${statistics.winRate.toFixed(1)}%</div>
           <div class="stat-label">Win Rate</div>
@@ -255,6 +412,8 @@ document.addEventListener('DOMContentLoaded', function() {
           <div class="stat-value">${statistics.gameCount}</div>
           <div class="stat-label">Games Played</div>
         </div>
+      </div>
+      ${loadingMessage ? renderLoadingState(loadingMessage) : ''}
       </div>
     `;
   }
@@ -279,13 +438,15 @@ document.addEventListener('DOMContentLoaded', function() {
         dashboardBtn.disabled = true;
 
         chrome.runtime.sendMessage({
-          type: 'OPEN_DASHBOARD_TAB'
+          type: 'OPEN_DASHBOARD_TAB',
+          ...(playing ? { page: 'play' } : {})
         }).catch((err) => {
           console.error('[Popup] Failed to reuse dashboard tab, opening new one:', err);
-          const fallbackUrl = chrome.runtime.getURL('dashboard.html');
+          const fallbackUrl = chrome.runtime.getURL('dashboard.html') + (playing ? '#/play' : '');
           chrome.tabs.create({ url: fallbackUrl });
         }).finally(() => {
-          window.close();
+          if (popout) dashboardBtn.disabled = false;
+          else window.close();
         });
       });
     }
@@ -306,6 +467,26 @@ document.addEventListener('DOMContentLoaded', function() {
       });
     }
 
+    attachGameViewerListeners();
+
+    const dismissBtn = document.querySelector('[data-dismiss-notification]');
+    if (dismissBtn) {
+      dismissBtn.addEventListener('click', () => {
+        activeNotification = null;
+        render();
+      });
+    }
+  }
+
+  function attachGameViewerListeners() {
+    const board = document.getElementById('popup-game-board');
+    if (playing && board) {
+      board.addEventListener('click', () => board.focus({ preventScroll: true }));
+    }
+    document.getElementById('show-unplayed')?.addEventListener('change', event => {
+      changeUnplayed(event.target.checked);
+      chrome.storage.local.set({ [SHOW_UNPLAYED_KEY]: showUnplayed });
+    });
     // Game navigation buttons
     const prevBtn = document.getElementById('prev-game-btn');
     const nextBtn = document.getElementById('next-game-btn');
@@ -324,14 +505,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
     document.getElementById('latest-game-btn')?.addEventListener('click', () => showGame(0));
 
-    const dismissBtn = document.querySelector('[data-dismiss-notification]');
-    if (dismissBtn) {
-      dismissBtn.addEventListener('click', () => {
-        activeNotification = null;
-        render();
-      });
-    }
-
     document.getElementById('solver-solution-btn')?.addEventListener('click', () => {
       showSolverSolution = !showSolverSolution;
       render();
@@ -339,8 +512,15 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   
   // Update the view first; persisting the index must not delay navigation.
+  function navigateGame(key) {
+    const index = currentGameIndex + (key === 'ArrowLeft' ? 1 : -1);
+    if (historyLoaded && index >= 0 && index < allGames.length) showGame(index);
+  }
+
   function showGame(index) {
     currentGameIndex = index;
+    playing = playing && !hasUserGame(allGames[index]);
+    playSession = null;
     showSolverSolution = false;
     render();
     saveCurrentGameIndex();
@@ -348,6 +528,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   async function loadStatistics() {
     try {
+      await historyReady;
       // Don't show loading state for quick time frame switches
       // isLoading = true;
       // render();
@@ -379,15 +560,16 @@ document.addEventListener('DOMContentLoaded', function() {
       }
       
       if (gamesResponse && gamesResponse.success && gamesResponse.games) {
-        const previousGamesCount = allGames.length;
-        allGames = [...gamesResponse.games].sort((a, b) => 
-          new Date(b.date).getTime() - new Date(a.date).getTime()
-        );
+        recordedGames = gamesResponse.games;
+        rebuildHistory();
         
         // Only reset game index if this is the initial load or if we're not preserving state
-        if (previousGamesCount === 0) {
+        if (!historyLoaded) {
           await loadCurrentGameIndex();
+          const requestedIndex = allGames.findIndex(game => game.date === initialDate);
+          if (requestedIndex >= 0) currentGameIndex = requestedIndex;
         }
+        historyLoaded = true;
         
         // Ensure current index is valid
         if (currentGameIndex >= allGames.length) {
@@ -674,9 +856,14 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   function renderGameViewer() {
+    const toggle = `<label class="unplayed-toggle">
+      <input id="show-unplayed" type="checkbox" aria-label="Show unplayed" ${showUnplayed ? 'checked' : ''}>
+      Show unplayed
+    </label>`;
     if (!allGames || allGames.length === 0) {
       return `
         <div class="game-viewer">
+          <div class="game-info">${toggle}</div>
           <div class="game-viewer-content">
             <div class="no-games-message">No games available</div>
           </div>
@@ -705,14 +892,19 @@ document.addEventListener('DOMContentLoaded', function() {
       year: 'numeric'
     });
 
-    const word = currentGame.solution || '\u2014';
+    const unplayed = !hasUserGame(currentGame);
+    const savedSession = playSessions[currentGame.date];
+    const localSession = playSession?.date === currentGame.date &&
+        (!savedSession || savedSession.rows.length <= playSession.rows.length)
+      ? playSession : savedSession;
+    const word = unplayed ? '\u2014' : currentGame.solution || '\u2014';
 
-    const hasScores = currentGame.skillScore !== undefined && currentGame.luckScore !== undefined;
+    const hasScores = !unplayed && currentGame.skillScore !== undefined && currentGame.luckScore !== undefined;
     const readerAverage = currentGame.nytReaderAverage;
     const hasReaderAverage = Number.isFinite(readerAverage) && readerAverage >= 1 && readerAverage <= 7;
-    const solver = solverResults[currentGame.solution?.trim().toUpperCase()];
+    const solver = unplayed ? undefined : solverResults[currentGame.solution?.trim().toUpperCase()];
     const solverTurns = solver?.status === 'solved' ? solver.turns :
-      solver?.status === 'failed' ? 'X/6' : solver || solverError || !currentGame.solution ? 'N/A' : '...';
+      solver?.status === 'failed' ? 'X/6' : unplayed || solver || solverError || !currentGame.solution ? 'N/A' : '...';
     const solverTitle = escapeHtml(solverError || (solver?.status === 'unavailable'
       ? 'This answer is outside the bundled solver dictionary.'
       : SOLVER_DESCRIPTION));
@@ -730,10 +922,17 @@ document.addEventListener('DOMContentLoaded', function() {
       'user-better': 'You use fewer turns than the solver.',
       unavailable: 'Turn comparison is unavailable.'
     }[comparison];
-    const wordClass = (showSolverBoard ? solver.status === 'solved' : currentGame.won) ? '' : ' lost';
+    const wordClass = (unplayed || (showSolverBoard ? solver.status === 'solved' : currentGame.won)) ? '' : ' lost';
+    const sessionBoard = localSession && !hasUserGame(recordedGames.find(game => game.date === currentGame.date))
+      ? { guessPattern: [...localSession.rows, ...(localSession.status === 'playing'
+          ? [Array.from({ length: 5 }, (_, column) => ({
+              letter: localSession.draft[column] || '', status: localSession.draft[column] ? 'tbd' : 'empty'
+            }))] : [])] }
+      : currentGame;
     const gameBoard = renderGameBoard(
-      showSolverBoard ? { guessPattern: solver.guesses.map(guess => guess.feedback) } : currentGame,
-      showSolverBoard ? 'Local solver board' : 'Your game board'
+      showSolverBoard ? { guessPattern: solver.guesses.map(guess => guess.feedback) } : sessionBoard,
+      showSolverBoard ? 'Local solver board' : 'Your game board',
+      currentGame.date
     );
 
     const nextNav = `
@@ -750,17 +949,17 @@ document.addEventListener('DOMContentLoaded', function() {
     `;
 
     return `
-      <div class="game-viewer">
+      <div class="game-viewer" data-unplayed="${unplayed}">
         <div class="game-info">
           <div class="game-date">${formattedDate}</div>
-
+          ${toggle}
         </div>
         
         <div class="game-viewer-content">
           <div class="game-word${wordClass}">${word.toUpperCase()}</div>
           <div class="game-board-mode" data-mode="${showSolverBoard ? 'solver' : 'user'}"
             title="${showSolverBoard ? solverTitle : 'Your played guesses'}">
-            ${showSolverBoard ? 'Local solver (normal mode)' : 'Your game'}
+            ${showSolverBoard ? 'Local solver (normal mode)' : unplayed && !localSession?.rows.length ? 'Unplayed' : 'Your game'}
           </div>
           
           <div class="game-board-container">
@@ -769,7 +968,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 <button class="nav-btn nav-btn-large" id="prev-game-btn" aria-label="Previous game" ${currentGameIndex >= allGames.length - 1 ? 'disabled' : ''}>
                   ‹
                 </button>
-                <div class="score-metrics">
+                ${unplayed ? '' : `<div class="score-metrics">
                   <div class="score-item" title="${hasReaderAverage ? `Per-puzzle NYT reader average${currentGame.nytReaderMode ? ` (${currentGame.nytReaderMode} mode)` : ''}` : 'NYT reader data is loading or not yet published for this puzzle.'}">
                     <span class="score-label">NYT Avg</span>
                     <span class="score-value" data-testid="popup-reader-average">${hasReaderAverage ? readerAverage.toFixed(2) : 'N/A'}</span>
@@ -783,14 +982,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     <span class="score-label">${showSolverBoard ? 'User' : 'Solver'}</span>
                     <span class="score-value" data-comparison="${comparison}">${showSolverBoard ? userTurnCount : solverTurns}</span>
                   </button>
-                </div>
+                </div>`}
               </div>
               
               <div class="game-viewer-content">${gameBoard}</div>
               
-              ${hasScores ? `
-                <div class="score-right-stacked">
-                  ${nextNav}
+              <div class="score-right-stacked">
+                ${nextNav}
+                ${hasScores ? `
                   <div class="score-metrics" title="Your WordleBot luck and skill scores">
                     <div class="score-item">
                       <span class="score-label">Luck</span>
@@ -801,10 +1000,8 @@ document.addEventListener('DOMContentLoaded', function() {
                       <span class="score-value">${currentGame.skillScore}</span>
                     </div>
                   </div>
-                </div>
-              ` : `
-                ${nextNav}
-              `}
+                ` : ''}
+              </div>
             </div>
           </div>
         </div>
@@ -812,7 +1009,7 @@ document.addEventListener('DOMContentLoaded', function() {
     `;
   }
 
-  function renderGameBoard(game, label) {
+  function renderGameBoard(game, label, date) {
     let pattern = [];
     
     // Try to use guessPattern first
@@ -848,12 +1045,14 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     return `
-      <div class="game-board" id="popup-game-board" role="group" aria-label="${label}">
+      <div class="game-board" id="popup-game-board" role="group" aria-label="${label}"
+        data-date="${escapeHtml(date)}"
+        ${playing ? `tabindex="0" aria-busy="${playBusy}" data-ready="${playSession?.date === date && !playBusy}"` : ''}>
         ${fullPattern.map((row, rowIndex) => `
           <div class="board-row">
             ${row.map((cell, cellIndex) => `
-              <div class="board-cell board-cell-${cell.status}">
-                ${(cell.letter || '').toUpperCase()}
+              <div class="board-cell board-cell-${cell.status}" data-state="${cell.status}">
+                ${escapeHtml((cell.letter || '').toUpperCase())}
               </div>
             `).join('')}
           </div>

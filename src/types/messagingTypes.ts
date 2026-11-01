@@ -32,6 +32,16 @@ export enum MessageType {
   QUICK_STATS_RESPONSE = 'QUICK_STATS_RESPONSE',
   ERROR = 'ERROR',
   OPEN_DASHBOARD_TAB = 'OPEN_DASHBOARD_TAB',
+  GET_PLAY_CATALOG = 'GET_PLAY_CATALOG',
+  GET_PLAY_SESSION = 'GET_PLAY_SESSION',
+  SAVE_PLAY_DRAFT = 'SAVE_PLAY_DRAFT',
+  SUBMIT_PLAY_GUESS = 'SUBMIT_PLAY_GUESS',
+  RESET_PLAY_REPLAY = 'RESET_PLAY_REPLAY',
+  CONNECT_NYT_PLAY = 'CONNECT_NYT_PLAY',
+  OPEN_PLAY_WINDOW = 'OPEN_PLAY_WINDOW',
+  OPEN_NYT_PLAY_TAB = 'OPEN_NYT_PLAY_TAB',
+  NYT_PLAY_STATE = 'NYT_PLAY_STATE',
+  NYT_PLAY_GUESS = 'NYT_PLAY_GUESS',
   
   // WordleBot scraper messages
   START_WORDLE_BOT_SCRAPE = 'START_WORDLE_BOT_SCRAPE',
@@ -87,6 +97,7 @@ export interface QuickStatsResponse {
 
 export interface OpenDashboardTabMessage {
   type: MessageType.OPEN_DASHBOARD_TAB;
+  page?: 'play';
 }
 
 export interface OpenDashboardTabResponse {

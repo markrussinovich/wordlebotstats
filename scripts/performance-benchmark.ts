@@ -1,4 +1,4 @@
-// Performance benchmarking script for Wordle Stat Explorer
+// Performance benchmarking script for Wordle Companion
 import { chromium } from 'playwright';
 import fs from 'fs';
 import path from 'path';
@@ -24,7 +24,7 @@ async function measurePopupLoadTime() {
     <!DOCTYPE html>
     <html>
       <head>
-        <title>Wordle Stats Popup</title>
+        <title>Wordle Companion Popup</title>
         <style>
           .popup { width: 300px; padding: 16px; font-family: Arial, sans-serif; }
           .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 0; }
@@ -36,7 +36,7 @@ async function measurePopupLoadTime() {
       </head>
       <body>
         <div class="popup">
-          <h3>Wordle Stats</h3>
+          <h3>Wordle Companion</h3>
           <div class="time-frame-picker">
             <button class="time-frame-btn active" data-testid="7d-btn">7d</button>
             <button class="time-frame-btn" data-testid="30d-btn">30d</button>
@@ -141,7 +141,7 @@ async function measureDashboardLoadTime() {
     <!DOCTYPE html>
     <html>
       <head>
-        <title>Wordle Stat Explorer Dashboard</title>
+        <title>Wordle Companion Dashboard</title>
         <style>
           body { margin: 0; font-family: Arial, sans-serif; }
           .dashboard { display: grid; grid-template-columns: 200px 1fr; min-height: 100vh; }
@@ -164,7 +164,7 @@ async function measureDashboardLoadTime() {
             <a href="#settings" class="nav-link">Settings</a>
           </nav>
           <main class="main-content" data-testid="main-content">
-            <h1>Wordle Stat Explorer</h1>
+            <h1>Wordle Companion</h1>
             <div class="stats-overview" data-testid="stats-overview">
               <div class="stat-card">
                 <h3>Win Rate</h3>

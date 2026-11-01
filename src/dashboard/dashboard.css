@@ -83,6 +83,8 @@ html[data-theme="dark"] {
   background: var(--cp-surface); color: var(--cp-text); font: inherit; max-width: 100%;
 }
 .solve-analytics input { width: 100%; }
+.solve-unplayed-toggle { display: inline-flex; flex-wrap: nowrap; max-width: 100%; min-height: 44px; margin: 8px 0 12px; padding: 4px 0; font-size: 16px; cursor: pointer; }
+.solve-unplayed-toggle input[type="checkbox"] { flex: 0 0 20px; width: 20px; height: 20px; margin: 0; padding: 0; accent-color: var(--cp-accent); cursor: inherit; }
 .solve-analytics button { cursor: pointer; font-weight: 700; }
 .solve-analytics button[type="submit"] { border-color: var(--cp-accent); background: var(--cp-accent); color: var(--cp-accent-fg); }
 .solve-analytics button:disabled { opacity: 0.5; cursor: default; }

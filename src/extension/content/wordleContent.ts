@@ -3,6 +3,9 @@
 
 import { GameResult } from '@/types/gameTypes';
 import { ImportGameResultMessage, MessageType } from '@/types/messagingTypes';
+import { installWordlePlay } from './wordlePlay';
+
+installWordlePlay();
 
 // Wordle game state detection
 interface WordleGameState {

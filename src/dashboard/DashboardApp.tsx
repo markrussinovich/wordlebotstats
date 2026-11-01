@@ -5,6 +5,7 @@ import OverviewPage from './pages/OverviewPage';
 import AnalyticsPage from './pages/AnalyticsPage';
 import SettingsPage from './pages/SettingsPage';
 import DataManagementPage from './pages/DataManagementPage';
+import PlayPage from './pages/PlayPage';
 import useDashboardData from './hooks/useDashboardData';
 
 const DashboardApp: React.FC = () => {
@@ -15,7 +16,7 @@ const DashboardApp: React.FC = () => {
     return (
       <div className="dashboard-loading">
         <div className="loading-spinner"></div>
-        <div className="loading-text">Loading Wordle Stat Explorer...</div>
+        <div className="loading-text">Loading Wordle Companion...</div>
       </div>
     );
   }
@@ -39,6 +40,8 @@ const DashboardApp: React.FC = () => {
         <Route path="/analytics" element={<AnalyticsPage />} />
         <Route path="/data" element={<DataManagementPage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/play" element={<PlayPage />} />
+        <Route path="/play/:date" element={<PlayPage />} />
       </Routes>
     </Router>
   );

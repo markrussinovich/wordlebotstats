@@ -235,7 +235,7 @@ const DataManagementPage: React.FC = () => {
                 </h4>
                 <p className="text-xs text-gray-500 mb-3">
                   {importType === 'json' 
-                    ? 'Import from a previously exported Wordle Stat Explorer file'
+                    ? 'Import from a previously exported game history file'
                     : 'Import from a CSV file with columns: puzzle, date, won, guesses, hardMode'
                   }
                 </p>

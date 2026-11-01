@@ -17,7 +17,7 @@ test.describe('Extension Installation & Setup', () => {
     await expect(page.locator('[data-testid="popup-container"]')).toBeVisible();
     
     // Test popup has correct title and structure
-    await expect(page.locator('h1')).toContainText('Wordle Stats');
+    await expect(page.locator('h1')).toContainText('Wordle Companion');
     await expect(page.locator('.time-frame-picker')).toBeVisible();
     await expect(page.locator('.popup-main')).toBeVisible();
   });
@@ -57,7 +57,7 @@ test.describe('First-Time Setup', () => {
     await page.goto('/dashboard');
     
     // Test that dashboard opens
-    await expect(page.locator('h1')).toContainText('Wordle Stat Explorer');
+    await expect(page.locator('h1')).toContainText('Wordle Companion');
     
     // Test navigation is present
     await expect(page.locator('nav')).toBeVisible();

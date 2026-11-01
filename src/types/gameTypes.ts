@@ -1,4 +1,4 @@
-// Core game and statistics types for Wordle Stat Explorer
+// Core game and statistics types for Wordle Companion
 
 // Time frame options for statistics requests
 export type TimeFrame = '7d' | '30d' | '90d' | 'ytd' | 'all' | 'custom';

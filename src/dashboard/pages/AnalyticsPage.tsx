@@ -4,9 +4,12 @@ import { useGameDataStore } from '@/stores/gameData';
 import SolveAnalytics from '../components/SolveAnalytics';
 import TimelineChart from '@/components/charts/TimelineChart';
 import { useSolver } from '../hooks/useSolver';
+import { localPuzzleDate } from '@/types/playTypes';
+import { usePlayHistory } from '@/play/usePlayHistory';
 
 const AnalyticsPage: React.FC = () => {
-  const games = useGameDataStore((state) => state.games);
+  const importedGames = useGameDataStore((state) => state.games);
+  const { displayGames: games } = usePlayHistory(importedGames);
   const solver = useSolver(games);
   const [period, setPeriod] = useState('all');
   const [range, setRange] = useState<{ start: string; end: string } | null>(
@@ -27,6 +30,8 @@ const AnalyticsPage: React.FC = () => {
   return (
     <main className="dashboard-container">
       <Link to="/">Overview</Link>
+      {' | '}
+      <Link to="/play">Play Wordle</Link>
       <label className="solve-controls">
         Period:
         <select
@@ -64,7 +69,21 @@ const AnalyticsPage: React.FC = () => {
           }}
         />
       </section>
-      <SolveAnalytics games={selectedGames} allGames={games} solver={solver} />
+      <SolveAnalytics
+        games={selectedGames}
+        allGames={games}
+        solver={solver}
+        dateRange={
+          range ||
+          (period === 'all'
+            ? undefined
+            : {
+                start: localPuzzleDate(
+                  new Date(Date.now() - (Number(period) - 1) * 86400000)
+                ),
+              })
+        }
+      />
     </main>
   );
 };

@@ -72,7 +72,7 @@ test.describe('Popup Dimensions Measurement', () => {
           <div class="popup-container">
             <header class="popup-header">
               <div class="popup-header-top">
-                <h1>Wordle Stats</h1>
+                <h1>Wordle Companion</h1>
                 <button class="refresh-btn" disabled>↻ Refresh</button>
               </div>
               <div class="time-frame-picker">

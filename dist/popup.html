@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Wordle Stat Explorer</title>
+  <title>Wordle Companion — Play &amp; Stats</title>
   <style>
     /* NYT Wordle palette, shared with the dashboard. */
     :root {
@@ -59,6 +59,7 @@
     .popup-container {
       display: flex;
       flex-direction: column;
+      height: 580px;
       max-height: 600px;
     }
 
@@ -160,6 +161,7 @@
     }
 
     .game-board-container {
+      width: 100%;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -169,14 +171,15 @@
 
     .board-and-scores {
       display: grid;
-      grid-template-columns: 45px 1fr 45px;
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
       align-items: start;
       width: 100%;
-      gap: 12px;
+      gap: 4px;
     }
 
     .nav-btn {
       width: 32px;
+      max-width: 100%;
       height: 32px;
       border: 1px solid #d3d6da;
       background: white;
@@ -255,7 +258,7 @@
       align-items: center;
       justify-content: flex-start;
       gap: 8px;
-      width: 45px;
+      width: 100%;
       justify-self: center;
     }
 
@@ -706,6 +709,48 @@
       color: #6aaa64;
     }
 
+    .stats-region {
+      display: grid;
+      flex-shrink: 0;
+    }
+
+    .stats-play-region { height: 188px; flex-shrink: 0; margin: 0 12px; }
+    .stats-play-region iframe { width: 100%; height: 100%; border: none; display: block; }
+    .unplayed-toggle {
+      position: absolute;
+      right: 0;
+      top: 0;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      font-size: 10px;
+      color: var(--cp-text-muted);
+    }
+    .unplayed-toggle input { margin: 0; accent-color: var(--cp-accent); }
+    .game-date + .unplayed-toggle { top: 26px; }
+    .board-cell-tbd {
+      border-color: var(--cp-border-strong);
+      background: var(--cp-surface);
+      color: var(--cp-text);
+    }
+    .game-board[tabindex]:focus { outline: none; }
+    html[data-popout] body { width: 100%; }
+    html[data-popout] .popup-container { height: 100dvh; max-height: 100dvh; }
+    html[data-embedded] body { width: 100%; }
+    html[data-embedded] .popup-container { height: auto; }
+    html[data-embedded] .popup-header,
+    html[data-embedded] .popup-footer,
+    html[data-embedded] .unplayed-toggle { display: none; }
+
+    .stats-region > .stats-grid,
+    .stats-region > .loading-state {
+      grid-area: 1 / 1;
+    }
+
+    .stats-region > .loading-state {
+      padding: 0 16px;
+    }
+
     .stats-grid {
       display: grid;
       flex-shrink: 0;
@@ -743,6 +788,8 @@
     }
 
     .popup-footer {
+      display: flex;
+      gap: 8px;
       flex-shrink: 0;
       padding: 6px 16px 6px;
       border-top: 1px solid rgba(255,255,255,0.2);

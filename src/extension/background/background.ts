@@ -1,4 +1,4 @@
-// Background service worker for the Wordle Stats extension
+// Background service worker for the Wordle Companion extension
 // Handles extension lifecycle, message routing, and storage operations
 
 import { 
@@ -18,6 +18,9 @@ import { GameResult } from '@/types/gameTypes';
 import { ExtensionStorage } from './extensionStorage';
 import { fetchNytReaderAverage } from '@/utils/nytReaderAverage';
 import logger from '../utils/logger';
+import { handlePlayMessage } from './playService';
+import { PLAY_SESSIONS_KEY, PLAY_READER_AVERAGES_KEY } from '@/types/playTypes';
+import { gamesWithPlaySessions, hasUserGame } from '@/utils/playHistory';
 const log = logger.log; const errorLog = logger.error;
 
 // Initialize storage service
@@ -188,6 +191,15 @@ async function handleExtensionMessage(
   _sender: chrome.runtime.MessageSender
 ): Promise<any> {
   switch (message.type) {
+    case MessageType.GET_PLAY_CATALOG:
+    case MessageType.GET_PLAY_SESSION:
+    case MessageType.SAVE_PLAY_DRAFT:
+    case MessageType.SUBMIT_PLAY_GUESS:
+    case MessageType.RESET_PLAY_REPLAY:
+    case MessageType.CONNECT_NYT_PLAY:
+    case MessageType.OPEN_PLAY_WINDOW:
+    case MessageType.OPEN_NYT_PLAY_TAB:
+      return handlePlayMessage(message);
     case MessageType.IMPORT_GAME_RESULT:
       return handleImportGameResult(message as ImportGameResultMessage);
       
@@ -244,7 +256,13 @@ async function handleGetNytReaderAverage(message: {
     await storageService.initialize();
   }
   const games = await storageService.getAllGames();
-  const game = games.find(game => game.date === message.date);
+  const importedGame = games.find(game => game.date === message.date);
+  let game = importedGame;
+  if (!hasUserGame(game)) {
+    const stored = await chrome.storage.local.get([PLAY_SESSIONS_KEY, PLAY_READER_AVERAGES_KEY]);
+    game = gamesWithPlaySessions(games, stored[PLAY_SESSIONS_KEY] || {}, stored[PLAY_READER_AVERAGES_KEY] || {})
+      .find(game => game.date === message.date);
+  }
   if (!game) return { success: true, game: null };
   let hardMode: boolean | undefined;
   if (typeof message.hardMode === 'boolean') {
@@ -260,6 +278,20 @@ async function handleGetNytReaderAverage(message: {
   const readers = await fetchNytReaderAverage({
     ...game, hardMode: hardMode ?? game.hardMode
   });
+  if (!hasUserGame(importedGame)) {
+    if (readers && game.metadata?.extensionPlayMode) {
+      const stored = await chrome.storage.local.get(PLAY_READER_AVERAGES_KEY);
+      const averages = stored[PLAY_READER_AVERAGES_KEY] || {};
+      const previous = averages[game.date];
+      if (previous?.nytReaderAverage !== readers.nytReaderAverage ||
+          previous?.nytReaderMode !== readers.nytReaderMode ||
+          previous?.nytReaderSource !== readers.nytReaderSource)
+        await chrome.storage.local.set({
+          [PLAY_READER_AVERAGES_KEY]: { ...averages, [game.date]: readers }
+        });
+    }
+    return { success: true, game: readers ? { ...game, ...readers } : game };
+  }
   return {
     success: true,
     game: readers ? await storageService.updateReaderAverage(game.date, readers, hardMode) : game,
@@ -900,6 +932,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 
 async function handleOpenDashboardTab(_message: OpenDashboardTabMessage): Promise<OpenDashboardTabResponse> {
   const dashboardUrl = chrome.runtime.getURL('dashboard.html');
+  const destination = dashboardUrl + (_message.page === 'play' ? '#/play' : '');
   const dashboardPattern = `chrome-extension://${chrome.runtime.id}/dashboard.html*`;
 
   // Try cached tab first
@@ -910,8 +943,8 @@ async function handleOpenDashboardTab(_message: OpenDashboardTabMessage): Promis
         if (existingTab.windowId !== undefined) {
           await chrome.windows.update(existingTab.windowId, { focused: true });
         }
-        await chrome.tabs.update(existingTab.id, { active: true });
-        await chrome.tabs.reload(existingTab.id);
+        await chrome.tabs.update(existingTab.id, { active: true, ...(_message.page === 'play' ? { url: destination } : {}) });
+        if (_message.page !== 'play') await chrome.tabs.reload(existingTab.id);
         return { success: true, reused: true, tabId: existingTab.id };
       }
     } catch {
@@ -929,8 +962,8 @@ async function handleOpenDashboardTab(_message: OpenDashboardTabMessage): Promis
       if (tabToUse.windowId !== undefined) {
         await chrome.windows.update(tabToUse.windowId, { focused: true });
       }
-      await chrome.tabs.update(tabToUse.id, { active: true });
-      await chrome.tabs.reload(tabToUse.id);
+      await chrome.tabs.update(tabToUse.id, { active: true, ...(_message.page === 'play' ? { url: destination } : {}) });
+      if (_message.page !== 'play') await chrome.tabs.reload(tabToUse.id);
       return { success: true, reused: true, tabId: tabToUse.id };
     }
   } catch (queryError) {
@@ -938,7 +971,7 @@ async function handleOpenDashboardTab(_message: OpenDashboardTabMessage): Promis
   }
 
   // Create new dashboard tab as fallback
-  const createdTab = await chrome.tabs.create({ url: dashboardUrl });
+  const createdTab = await chrome.tabs.create({ url: destination });
   dashboardTabId = createdTab.id ?? null;
   return { success: true, reused: false, tabId: createdTab.id ?? undefined };
 }

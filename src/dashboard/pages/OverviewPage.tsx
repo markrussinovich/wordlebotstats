@@ -1,12 +1,15 @@
 // Dashboard overview page with comprehensive statistics display
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import TimelineChart from '@/components/charts/TimelineChart';
 import TurnDistributionBar from '@/components/charts/TurnDistributionBar';
-import { useGameDataStore } from '@/stores/gameData';
+import { calculateStatisticsFromGames, useGameDataStore } from '@/stores/gameData';
 import { calculateStreakStats } from '@/utils/streakCalculation';
 import SolveAnalytics from '../components/SolveAnalytics';
 import { GameResult } from '@/types/gameTypes';
 import { useSolver } from '../hooks/useSolver';
+import { Link } from 'react-router-dom';
+import { localPuzzleDate } from '@/types/playTypes';
+import { usePlayHistory } from '@/play/usePlayHistory';
 
 const OverviewPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
@@ -17,10 +20,10 @@ const OverviewPage: React.FC = () => {
   // Store hooks
   const { 
     games, 
-    getStatisticsForTimeFrame, 
     isLoading: gamesLoading 
   } = useGameDataStore();
-  const solver = useSolver(games);
+  const { displayGames } = usePlayHistory(games);
+  const solver = useSolver(displayGames);
 
   // Load data on component mount
   useEffect(() => {
@@ -39,7 +42,9 @@ const OverviewPage: React.FC = () => {
     loadData();
   }, []);
 
-  const statistics = getStatisticsForTimeFrame('all');
+  const statistics = useMemo(() => displayGames.length
+    ? calculateStatisticsFromGames(displayGames, 'all', new Date(0), new Date())
+    : null, [displayGames]);
 
   // Handle timeline range selection
   const handleRangeChange = (startDate: Date, endDate: Date) => {
@@ -48,20 +53,20 @@ const OverviewPage: React.FC = () => {
 
   // Initialize streak data for all games on mount
   useEffect(() => {
-    if (games.length > 0) {
+    if (displayGames.length > 0) {
       // Calculate initial streaks for all games - need to provide date range
-      const sortedGames = [...games].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      const sortedGames = [...displayGames].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
       const startDate = selectedDates?.start ?? new Date(`${sortedGames[0].date}T00:00:00`);
       const endDate = selectedDates?.end ?? new Date(`${sortedGames[sortedGames.length - 1].date}T00:00:00`);
-      const allStreaks = calculateStreakStats(games, startDate, endDate);
+      const allStreaks = calculateStreakStats(displayGames, startDate, endDate);
       setRangeStreaks({ current: allStreaks.currentStreak, max: allStreaks.maxStreak });
       
       const dateKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
       const start = dateKey(startDate);
       const end = dateKey(endDate);
-      setFilteredGames(games.filter(game => game.date >= start && game.date <= end));
+      setFilteredGames(displayGames.filter(game => game.date >= start && game.date <= end));
     }
-  }, [games, selectedDates]);
+  }, [displayGames, selectedDates]);
 
   if (isLoading || gamesLoading) {
     return (
@@ -72,11 +77,13 @@ const OverviewPage: React.FC = () => {
     );
   }
 
-  if (games.length === 0) {
+  if (displayGames.length === 0) {
     return (
       <div className="dashboard-empty">
         <h2>No Games Found</h2>
         <p>Visit the WordleBot page to import your game history.</p>
+        <Link to="/play">Play Wordle</Link>
+        <SolveAnalytics games={games} solver={solver} />
       </div>
     );
   }
@@ -85,8 +92,8 @@ const OverviewPage: React.FC = () => {
     <div className="dashboard-container">
       {/* Header */}
       <div className="dashboard-header">
-        <h1>Wordle Stat Explorer</h1>
-        <p className="subtitle">Your complete Wordle performance history</p>
+        <h1>Wordle Companion</h1>
+        <p className="subtitle">Play, compare, and track your Wordle progress{' | '}<Link to="/play">Play Wordle</Link></p>
       </div>
 
       {/* Stats Panel */}
@@ -137,14 +144,18 @@ const OverviewPage: React.FC = () => {
         </p>
         
         <TimelineChart 
-          games={games} 
+          games={displayGames}
           solverResults={solver.results}
           onRangeChange={handleRangeChange}
           turnDistribution={<TurnDistributionBar games={filteredGames} />}
           streakData={rangeStreaks}
         />
       </div>
-      <SolveAnalytics games={filteredGames} allGames={games} solver={solver} />
+      <SolveAnalytics games={filteredGames} allGames={displayGames} solver={solver}
+        dateRange={selectedDates ? {
+          start: localPuzzleDate(selectedDates.start),
+          end: localPuzzleDate(selectedDates.end),
+        } : undefined} />
     </div>
   );
 };

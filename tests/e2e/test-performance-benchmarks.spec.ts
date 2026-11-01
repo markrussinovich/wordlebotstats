@@ -46,7 +46,7 @@ test.describe('Performance Benchmarking', () => {
     await page.goto('/dashboard');
     
     // Wait for all main dashboard elements to load
-    await expect(page.locator('h1')).toContainText('Wordle Stat Explorer');
+    await expect(page.locator('h1')).toContainText('Wordle Companion');
     await expect(page.locator('[data-testid="overview-content"]')).toBeVisible();
     await expect(page.locator('[data-testid="stat-card"]')).toHaveCount(4);
     await expect(page.locator('nav')).toBeVisible();

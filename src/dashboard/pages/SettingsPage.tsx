@@ -84,7 +84,7 @@ const SettingsPage: React.FC = () => {
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
         <p className="text-gray-600 mt-1">
-          Configure your Wordle Stat Explorer preferences and data management
+          Configure your Wordle Companion preferences and data management
         </p>
       </div>
 

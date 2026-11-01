@@ -174,7 +174,7 @@ async function packageForStore(distDir) {
     console.warn('⚠ Unable to read manifest version, defaulting to "unversioned".', error.message);
   }
 
-  const zipName = `wordle-stat-explorer-${version}.zip`;
+  const zipName = `wordle-companion-${version}.zip`;
   const zipPath = resolve(latestBuildDir, zipName);
 
   if (existsSync(zipPath)) {

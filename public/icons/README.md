@@ -1,6 +1,6 @@
 # Extension Icons
 
-This directory contains the icon assets for the Wordle Stats Explorer browser extension.
+This directory contains the icon assets for the Wordle Companion browser extension.
 
 ## Icon Files
 
